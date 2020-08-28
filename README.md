@@ -1,2 +1,2 @@
 # clonesquad
-Repository for the CloneSquad autoscaler for AWS
+CloneSquad autoscaler for AWS
