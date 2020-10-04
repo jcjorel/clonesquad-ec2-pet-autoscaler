@@ -1,7 +1,8 @@
 #!/bin/bash -e
 
-scripts/update-python-requirements
 . SOURCE-ME\!\!.sh
+
+scripts/update-python-requirements
 
 BUILD_CONTEXT=$1
 BUILD_S3_BUCKET=$2
