@@ -1,5 +1,6 @@
 #!/bin/bash -e
 
+scripts/update-python-requirements
 . SOURCE-ME\!\!.sh
 
 BUILD_CONTEXT=$1
