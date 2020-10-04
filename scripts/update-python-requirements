@@ -1,0 +1,15 @@
+#!/bin/bash
+
+if [ -z "${CLONESQUAD_DIR}" ] ; then
+	echo "Please define CLONESQUAD_DIR!" ; exit 1
+fi
+
+cd ${CLONESQUAD_DIR}
+rm -fr .venv
+python3 -m venv .venv 
+if [ "$1" == "--upgrade-to-latest-dependency-versions" ]; then
+	.venv/bin/pip install --upgrade -r requirements.txt && \
+	.venv/bin/pip freeze >src/requirements.txt
+else
+	.venv/bin/pip install --upgrade -r src/requirements.txt
+fi

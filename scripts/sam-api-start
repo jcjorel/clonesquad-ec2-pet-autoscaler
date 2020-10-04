@@ -1,0 +1,12 @@
+#!/bin/bash
+
+if [ -z "${CLONESQUAD_DIR}" ] ; then
+	echo "[ERROR] Please set CLONESQUAD_DIR environment variable!" ; exit 1
+fi
+source ${CLONESQUAD_DIR}/scripts/_source-me.sh
+
+export AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-$(curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone | sed 's/\(.*\)[a-z]/\1/')}
+export ACCOUNT_ID=${ACCOUNT_ID:-$(aws sts get-caller-identity | jq -r '.["Account"]')}
+
+set -x
+sam local start-api --parameter-overrides "$(get_parameters)"

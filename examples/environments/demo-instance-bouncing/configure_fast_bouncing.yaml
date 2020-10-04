@@ -1,0 +1,4 @@
+#
+# Defines a max EC2 instance age before bouncing of 2h30m.
+#
+ec2.schedule.bounce_delay: hours=2,minutes=30

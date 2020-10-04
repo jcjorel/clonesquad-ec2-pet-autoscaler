@@ -1,0 +1,29 @@
+#!/bin/bash -e
+
+. SOURCE-ME\!\!.sh
+
+BUILD_CONTEXT=$1
+BUILD_S3_BUCKET=$2
+BUILD_S3_PREFIX=$3
+VERSION=$4
+if [ -z "$BUILD_CONTEXT" ] || [ -z "$BUILD_S3_BUCKET" ] || [ -z "$BUILD_S3_PREFIX" ] ; then
+	echo "Usage: $0 <build_parameters_dir> <build_S3_bucket> <build_S3_prefix> <version>" ; exit 1
+fi
+
+scripts/devkit build
+
+git_status=$(git status | grep "nothing to commit, working tree clean" || true)
+if [ -z "$git_status" ]; then
+	echo "[ERROR] There are pending commits in this repository clone. Can't release with such unclean environment!" ; exit 1
+fi
+
+scripts/devkit run "$BUILD_CONTEXT" release-version "$BUILD_S3_BUCKET" "$BUILD_S3_PREFIX" "$VERSION"
+git add releases/$VERSION VERSION.txt
+git commit -m "Releasing CloneSquad version $VERSION" releases/$VERSION releases/latest VERSION.txt
+git tag -a $VERSION -m "Releasing CloneSquad version $VERSION"
+scripts/devkit build $VERSION
+git push
+
+docker push ${CLONESQUAD_DEVKIT_IMAGE}:$VERSION 
+docker push ${CLONESQUAD_DEVKIT_IMAGE}:latest
+

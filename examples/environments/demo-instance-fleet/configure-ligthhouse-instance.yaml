@@ -1,0 +1,13 @@
+#
+# Demonstration of 'lighthouse' instance mode combined with vertical scaling (=instance type mixing and priorities)
+#
+# Defines that:
+#  * t3.medium,count=3,lighthouse:   up to 3 't3.medium' instances as 'Lighthouse' instances (can be on-demand or spot instance),
+#  * c5.large,spot;c5.large:         c5.large Spot instances needs to be scheduled in priority compared to non-Spot c5.large instances,
+#  * c5.xlarge:                      and finally, c5.xlarge instances need to be sheduled last (=lowest priority).
+#  As spot instances can't be vertical scaled (=can't change their instance type), an implicit 'count' keyword is taken into account
+#  automatically representing the number of matching Spot instances.
+#  In this example, the remaning non-Spot instances c5.large and c5.xlarge are vertical scaled evenly (50% on-demand c5.large/50% on-demand c5.xlarge)
+#
+#
+ec2.schedule.verticalscale.instance_type_distribution: t3.medium,count=3,lighthouse;c5.large,spot;c5.large;c5.xlarge

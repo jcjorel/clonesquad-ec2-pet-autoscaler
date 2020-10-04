@@ -1,0 +1,291 @@
+#!/usr/bin/python3
+
+import os
+import os.path
+import sys
+import re
+from collections import defaultdict
+import boto3
+import locale
+locale.setlocale(locale.LC_ALL, '')
+from dialog import Dialog
+import pdb
+from datetime import datetime
+import argparse
+
+parser = argparse.ArgumentParser(description="CloneSquad configuration documentation generator")
+parser.add_argument('--wizard-if-needed', help="Launch the wizard only if existing configuration is missing", type=bool)
+
+args = parser.parse_args()
+
+file_content=defaultdict(str)
+dest_file_name = "%s/deployment-parameters.txt" % os.environ["CLONESQUAD_PARAMETER_DIR"]
+file_name = dest_file_name
+if not os.path.exists(file_name):
+    file_name = "%s/build/clonesquad-paremeters-templates/deployment-parameters.txt" % os.environ["CLONESQUAD_DIR"]
+
+with open(file_name) as f:
+    for l in f.readlines():
+        if not "=" in l:
+            continue
+        s = l.split("=", 1)
+        k, v = (s[0], s[1])
+        v = v.replace("\n", "")
+        if k == "" or v.startswith("#"):
+            continue
+        file_content[k] = v
+
+d = Dialog(dialog="dialog")
+d.set_background_title("CloneSquad configuration wizard")
+
+def wizard_stack_name(key, value):
+    while True:
+        d.infobox("Fetching CloudFormation template list...\n\nPlease wait...", height=8, width=60)
+        client = boto3.client("cloudformation")
+        response = client.describe_stacks()
+
+        choices = []
+        for s in response["Stacks"]:
+            if "Outputs" not in s:
+                continue
+            group_name = next(filter(lambda o: o["OutputKey"] == "GroupName", s["Outputs"]), None)
+            if group_name is not None:
+                choices.append((s["StackName"], "", s["StackName"] == value))
+
+        code, tag = d.radiolist("Select the CloudFormation stack of your CloneSquad deployment:\n(Used by the wizard to retrieve the 'Output' parameters)",
+                choices=choices, width=80, height=20)
+        if code != Dialog.OK:
+            return False
+        stack = next(filter(lambda s: s["StackName"] == tag, response["Stacks"]), None)
+        if stack is None:
+            d.msgbox("Please select one item in the list!")
+            continue
+        if "Outputs" not in stack:
+            d.msgbox("The stack contains no 'Outputs' section! Maybe this stack is not fully deployed... Try again...")
+            continue
+        for s in stack["Outputs"]:
+            file_content[s["OutputKey"]] = s["OutputValue"]
+        file_content[key] = stack["StackName"]
+
+        # Try to autodetect the sample lambda demo
+        demo_name = "sam-sample-clonesquad-notification-%s" % file_content["GroupName"]
+        demo_stack = next(filter(lambda s: s["StackName"] == demo_name, response["Stacks"]), None)
+        if demo_stack is None:
+            d.msgbox("""WARNING: Can't find the '%s' demonstration stack.
+
+This is not a blocking error.
+
+Rerun the wizard once this demonstration is deployed to experience Event handling in CloneSquad.
+(The demo is located in examples/sam-sample-lambda/ directory)
+""" % demo_name, width=80, height=12)
+        else:
+            user_notifications_arns = file_content["UserNotificationArns"].split(",")
+            if "Outputs" in demo_stack:
+                demo_function_arn = next(filter(lambda o: o["OutputKey"] == "FunctionArn", demo_stack["Outputs"]))["OutputValue"]
+                if demo_function_arn not in user_notifications_arns:
+                    user_notifications_arns.append(demo_function_arn)
+                    file_content["UserNotificationArns"] = ",".join(user_notifications_arns)
+                    d.msgbox("""Wizard detected the deployment of demo '%s'!
+
+Its Lambda function Arn has been added automatically to the 'UserNotificationArns' parameter key.
+""" % demo_name, width=80, height=10)
+                
+        return True
+
+def wizard_group_name(key, value):
+    return True
+
+def wizard_lambda_arn(key, value):
+    file_content[key] = file_content["InteractFunction"]
+    return True
+
+def wizard_instance_ami(key, value):
+    while True:
+        d.infobox("Looking for Amazon Linux 2 AMI in the region...\n\nPlease wait...", height=8, width=60)
+        client   = boto3.client("ec2")
+        response = client.describe_images(Owners=["amazon"],
+                Filters=[
+                    { "Name": "architecture",
+                      "Values": ["x86_64"]},
+                    ]) 
+        amz2s = [r for r in response["Images"] if "Name" in r and r["Name"].startswith("amzn2-ami-hvm-2.0") and r["Name"].endswith("gp2")]
+        sorted_amz2s = sorted(amz2s, key=lambda k: datetime.fromisoformat(k["CreationDate"][:-5]), reverse=True)
+        choices = [ (s["ImageId"], s["Description"], s["ImageId"] == value) for s in sorted_amz2s]
+        code, text = d.radiolist("Select Amazon Linux 2 AMI", choices=choices, width=80)
+        if code != Dialog.OK:
+            return False
+        if text == "":
+            d.msgbox("Please select one item in the list!")
+            continue
+        file_content[key] = text
+        return True
+
+def wizard_ssh_key(key, value):
+    while True:
+        choices  = []
+        d.infobox("Looking for your EC2 Key Paris in the region...\n\nPlease wait...", height=8, width=60)
+        client   = boto3.client("ec2")
+        response = client.describe_key_pairs()
+        choices  = [ (r["KeyName"], "", r["KeyName"] == value) for r in response["KeyPairs"]]
+        retry_string = "Select this menu item to rescan your Key Pair list!"
+        choices.append((retry_string, "", False))
+        code, text = d.radiolist("Select EC2 Key pair to use for EC2 based demonstrations:", choices=choices, width=70)
+        if code != Dialog.OK:
+            return False
+        if text == retry_string:
+            continue
+        if text == "":
+            d.msgbox("Please select one item in the list!")
+            continue
+        file_content[key] = text
+        return True
+
+def wizard_iam_role(key, value):
+    while True:
+        choices  = []
+        d.infobox("Looking for your IAM roles in the region...\n\nPlease wait...", height=8, width=60)
+        client   = boto3.client("iam")
+        max_items= 10
+        response = client.list_roles(MaxItems=max_items)
+        roles    = response["Roles"]
+        while "Marker" in response and response["Marker"] != "":
+            response = client.list_roles(MaxItems=max_items, Marker=response["Marker"])
+            roles.extend(response["Roles"])
+
+        def _filter_role_for_ec2_service(r):
+            if not "Statement" in r["AssumeRolePolicyDocument"]:
+                return False
+            statements = r["AssumeRolePolicyDocument"]["Statement"]
+            for s in statements:
+                if "Principal" not in s or "Service" not in s["Principal"]:
+                    continue
+                if s["Principal"]["Service"] == "ec2.amazonaws.com":
+                    return True
+            return False
+        roles        = list(filter(_filter_role_for_ec2_service, roles))
+        choices      = [ (r["RoleName"], "", r["RoleName"] == value) for r in roles]
+        retry_string = "Select this menu item to rescan your IAM role list!"
+        choices.append((retry_string, "", False))
+        code, text   = d.radiolist("Select IAM Role for demonstration EC2 instances:\n(This role is used by the CloudWatch agent to push RAM metrics))", 
+                choices=choices, width=70)
+        if code != Dialog.OK:
+            return False
+        if text == retry_string:
+            choices = []
+            continue
+        if text == "":
+            d.msgbox("Please select one item in the list!")
+            continue
+        file_content[key] = text
+        return True
+
+def wizard_vpc(key, value):
+    while True:
+        choices  = []
+        d.infobox("Looking for your VPCs in the region...\n\nPlease wait...", height=8, width=60)
+        client   = boto3.client("ec2")
+        response = client.describe_vpcs()
+        for r in response["Vpcs"]:
+            name = next(filter(lambda k: k["Key"] == "Name", r["Tags"] if "Tags" in r else []), {"Value":""})["Value"]
+            if r["IsDefault"]:
+                value = r["VpcId"] if value == "" or value.startswith("<") else value
+                if name == "":
+                    name = "<default>"
+            choices.append((r["VpcId"], name, r["VpcId"] == value))
+        retry_string = "Select this menu item to rescan your VPC list!"
+        choices.append((retry_string, "", False))
+        code, text = d.radiolist("Select VPC where to deploy EC2 based demonstrations:", choices=choices, width=70)
+        if code != Dialog.OK:
+            return False
+        if text == retry_string:
+            continue
+        if text == "":
+            d.msgbox("Please select one item in the list!")
+            continue
+        file_content[key] = text
+        return True
+
+def wizard_subnet(key, value):
+    while True:
+        choices  = []
+        vpc_id   = file_content["VPC"]
+        d.infobox("Looking for subnets of your VPC %s...\n\nPlease wait..." % vpc_id, 
+                height=8, width=60)
+        client   = boto3.client("ec2")
+        response = client.describe_subnets(
+                Filters=[
+                    {"Name": "vpc-id",
+                    "Values": [ vpc_id ]}
+                ]
+                )
+        for r in response["Subnets"]:
+            name = next(filter(lambda k: k["Key"] == "Name", r["Tags"] if "Tags" in r else []), {"Value":""})["Value"]
+            choices.append((r["SubnetId"], name, value in [file_content["Subnet0"], file_content["Subnet1"], file_content["Subnet2"]]))
+        code, tags = d.checklist("Select Subnets of VPC %s where to connect demonstration resources:" % vpc_id, 
+                choices=choices, width=60)
+        if code != Dialog.OK:
+            return False
+        if len(tags) != 3:
+            d.msgbox("Please select 3 subnets in different AZs!")
+            continue
+        file_content["Subnet0"] = tags[0]
+        file_content["Subnet1"] = tags[1]
+        file_content["Subnet2"] = tags[2]
+        file_content["SubnetIds"] = ",".join(tags)
+        return True
+    return
+
+wizards = [
+        {   "Key": "StackName", 
+            "Wizard": wizard_stack_name},
+        {   "Key": "GroupName", 
+            "Wizard": wizard_group_name},
+        {   "Key": "InteractLambdaArn",
+            "Wizard": wizard_lambda_arn},
+        {   "Key": "InstanceAMI",
+            "Wizard": wizard_instance_ami},
+        {   "Key": "KeyName", 
+            "Wizard": wizard_ssh_key},
+        {   "Key": "IAMRole",
+            "Wizard": wizard_iam_role},
+        {   "Key": "VPC",
+            "Wizard": wizard_vpc},
+        {   "Key": "Subnet0",
+            "Wizard": wizard_subnet},
+        ]
+
+first_wizard = True
+for wizard in wizards:
+    key = wizard["Key"]
+    if key not in file_content:
+        continue
+    value = file_content[key]
+    if args.wizard_if_needed and value != "" and not value.startswith("<"):
+        continue
+    if first_wizard:
+        d.msgbox(text="""Welcome to CloneSquad deployment configuration wizard!
+        
+You are going to select configuration items to fillin the file %s with contextual information linked to your Account and network resources.
+        """ % dest_file_name, height=15, width=70)
+        first_wizard = False
+    if not wizard["Wizard"](key, value):
+        d.msgbox("Configuration aborted!!")
+        sys.exit(1)
+
+if first_wizard:
+    sys.exit(0)
+
+lines = []
+with open(file_name) as fr:
+    for line in fr.readlines():
+        s = line.split("=", 1)
+        k, v = (s[0], s[1] if len(s) == 2 else "")
+        if k in file_content:
+            lines.append("%s=%s\n" % (k, file_content[k]))
+        else:
+            lines.append(line)
+
+with open(dest_file_name, "w") as fw:
+    fw.write("".join(lines))
+
+d.msgbox("Configuration correctly saved to %s.\n\nHappy demo'ing!" % dest_file_name, width=80)

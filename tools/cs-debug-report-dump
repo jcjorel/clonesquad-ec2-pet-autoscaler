@@ -1,0 +1,14 @@
+#!/bin/bash
+
+if [ -z "${CLONESQUAD_DIR}" ] ; then
+	echo "Please define CLONESQUAD_DIR environmen variable!" ; exit 1
+fi
+source ${CLONESQUAD_DIR}/scripts/_source-me.sh
+
+tmpfile=/tmp/cs-config.$$
+aws lambda invoke --function-name CloneSquad-Discovery-${GroupName} --payload '{"OpType" : "DumpConfiguration"}' $tmpfile 1>/dev/stderr
+INTERACT_QUEUE=$(jq -r '.["InteractQueue"]' <$tmpfile)
+rm -f $tmpfile
+echo "Sending Debug/PublishReportNow command through SQS Interact queue as API Gateway will timeout if it takes more than 30s!"
+aws sqs send-message --queue-url $INTERACT_QUEUE --message-body '{"OpType" : "Debug/PublishReportNow"}'
+

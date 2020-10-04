@@ -1,0 +1,43 @@
+#!/usr/bin/python3
+#
+import os
+from os.path import dirname, abspath, join
+import sys
+
+# Find code directory relative to our directory
+THIS_DIR = dirname(__file__)
+CODE_DIR = abspath(join(THIS_DIR, '..', 'src'))
+sys.path.insert(0, CODE_DIR)
+CLONESQUAD_DEPENDENCY_DIR = abspath(os.getenv("CLONESQUAD_DEPENDENCY_DIR"))
+sys.path.append(CLONESQUAD_DEPENDENCY_DIR)
+
+import sys
+import misc
+import argparse
+import jinja2
+from jinja2 import Template
+import debug as Dbg
+import pdb
+import config
+
+import yaml
+import re
+
+import app
+
+parser = argparse.ArgumentParser(description="CloneSquad configuration documentation generator")
+parser.add_argument('doc_template_file', help="TXT or MD file to patch with configuration documentation", type=str, nargs=1)
+
+args = parser.parse_args()
+args_dict = {}
+for a in args._get_kwargs():
+    args_dict[a[0]] = a[1]
+
+app.init(with_kvtable=False, with_predefined_configuration=False)
+args_dict["config"] = config.dumps()
+
+with open(args.doc_template_file[0]) as f:
+    template = Template(f.read())
+    r = template.render(**args_dict)
+
+print(r)

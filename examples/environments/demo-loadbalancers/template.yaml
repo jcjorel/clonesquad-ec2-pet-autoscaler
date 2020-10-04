@@ -1,0 +1,134 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Creates a set of ELBs with associated Target Groups and Alarm
+
+Parameters:
+    GroupName:
+        Description: CloneSquad group name
+        Type: String
+    SubnetIds:
+        Description: Comma seperated list of subnet ids
+        Type: String
+    LBScheme:
+        Description: "'internal' or 'internet-facing'"
+        Type: String
+        Default: 'internal'
+    VPC:
+        Description: "VPC where to create resources"
+        Type: String
+
+Resources:
+    # ELB Security Group allowing Port 80 from anywhere
+    {% for port in ports %}
+    SecurityGroup{{port}}:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+            GroupDescription: 'Port {{port}}'
+            VpcId:
+              Ref: VPC
+            SecurityGroupIngress:
+                - IpProtocol: tcp
+                  FromPort: {{port}}
+                  ToPort: {{port}}
+                  CidrIp: 0.0.0.0/0
+    {% endfor %}
+
+    {% for lb in loadbalancers %}
+    # Target Group
+    EC2TargetGroup{{lb.name}}:
+      Type: AWS::ElasticLoadBalancingV2::TargetGroup
+      Properties:
+        {% if lb.protocol == "HTTP" %}
+        Matcher:
+          HttpCode: '200'
+        HealthCheckTimeoutSeconds: 15
+        {% endif %}
+        HealthCheckIntervalSeconds: 30
+        HealthCheckProtocol: {{lb.protocol}} # HTTP
+        HealthyThresholdCount: 2
+        Name: !Sub "CS-EC2TargetGroup-${GroupName}-{{lb.name}}"
+        Port: {{lb.port}}
+        Protocol: {{lb.protocol}} # HTTP
+        VpcId: !Ref VPC
+        TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: '30'
+        UnhealthyThresholdCount: 2
+        Tags:
+        - Key: Name
+          Value: !Sub "CS-TargetGroup-${GroupName}-{{lb.name}}"
+        - Key: "clonesquad:group-name"
+          Value: !Sub "${GroupName}"
+        - Key: Port
+          Value: {{lb.port}}
+
+    LBListener{{lb.name}}:
+      Type: AWS::ElasticLoadBalancingV2::Listener
+      Properties:
+        DefaultActions:
+          - Type: forward
+            TargetGroupArn:
+              Ref: EC2TargetGroup{{lb.name}}
+        LoadBalancerArn:
+            Ref: LoadBalancer{{lb.name}}
+        Port: {{lb.port}}
+        Protocol: {{lb.protocol}}
+
+    LoadBalancer{{lb.name}}:
+      Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+      Properties:
+        Scheme: !Ref LBScheme
+        Subnets: !Split [ ",", !Sub "${SubnetIds}" ]
+        {% if lb.protocol == "TCP" %}
+        Type: network
+        {% else %}
+        Type: application
+        SecurityGroups:
+        - Ref: SecurityGroup{{lb.port}}
+        {% endif %}
+        Tags:
+        - Key: Name
+          Value: !Sub "CS-LB-${GroupName}-{{lb.name}}"
+
+        {% if lb.protocol == "TCP" %}
+        {% else %}
+    LBTargetResponseTimeAlarm{{lb.name}}:
+        Type: AWS::CloudWatch::Alarm
+        Properties:
+          ActionsEnabled: True
+          AlarmDescription: "Alarm to catch CloudSquad Internal errors (ex: Misconfiguration, bugs...) - MAIN function"
+          AlarmName: !Sub "CS-LB-${GroupName}-ResponseTime{{lb.name}}"
+          ComparisonOperator: GreaterThanThreshold
+          DatapointsToAlarm: 2
+          EvaluationPeriods: 2
+          MetricName: TargetResponseTime
+          Namespace:  AWS/ApplicationELB
+          Dimensions:
+            - Name: LoadBalancer
+              Value: !GetAtt LoadBalancer{{lb.name}}.LoadBalancerFullName
+          Period: 60
+          Statistic: Average
+          Threshold: 0.350
+        {% endif %}
+
+    {% endfor %}
+
+Outputs:
+    {% for lb in loadbalancers %}
+    EC2TargetGroup{{lb.name}}:
+        Description: "EC2 Target Group #{{lb.name}}"
+        Value:
+          Ref: EC2TargetGroup{{lb.name}}
+    LoadBalancer{{lb.name}}:
+        Description: 'Load Balancer #{{lb.name}}'
+        Value:
+          Ref: LoadBalancer{{lb.name}}
+    LoadBalancerDS{{lb.name}}:
+        Description: 'Load Balancer #{{lb.name}} DNS'
+        Value: !GetAtt LoadBalancer{{lb.name}}.DNSName
+    {% if lb.protocol == "TCP" %}
+    {% else %}
+    LBTargetResponseTimeAlarm{{lb.name}}:
+        Description: 'Load balancer response time alarm name'
+        Value: !Ref LBTargetResponseTimeAlarm{{lb.name}}
+    {% endif %}
+    {% endfor %}

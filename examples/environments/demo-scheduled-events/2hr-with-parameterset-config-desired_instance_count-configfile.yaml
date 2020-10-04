@@ -1,0 +1,120 @@
+pset-50:
+  ec2.schedule.desired_instance_count: 50%
+  ec2.schedule.min_instance_count: 2
+pset-55:
+  ec2.schedule.desired_instance_count: 55%
+  ec2.schedule.min_instance_count: 2
+pset-60:
+  ec2.schedule.desired_instance_count: 60%
+  ec2.schedule.min_instance_count: 2
+pset-65:
+  ec2.schedule.desired_instance_count: 65%
+  ec2.schedule.min_instance_count: 2
+pset-70:
+  ec2.schedule.desired_instance_count: 70%
+  ec2.schedule.min_instance_count: 2
+pset-75:
+  ec2.schedule.desired_instance_count: 75%
+  ec2.schedule.min_instance_count: 2
+pset-80:
+  ec2.schedule.desired_instance_count: 80%
+  ec2.schedule.min_instance_count: 2
+pset-85:
+  ec2.schedule.desired_instance_count: 85%
+  ec2.schedule.min_instance_count: 2
+pset-90:
+  ec2.schedule.desired_instance_count: 90%
+  ec2.schedule.min_instance_count: 2
+pset-95:
+  ec2.schedule.desired_instance_count: 95%
+  ec2.schedule.min_instance_count: 2
+pset-100:
+  ec2.schedule.desired_instance_count: 100%
+  ec2.schedule.min_instance_count: 2
+pset-95:
+  ec2.schedule.desired_instance_count: 95%
+  ec2.schedule.min_instance_count: 2
+pset-90:
+  ec2.schedule.desired_instance_count: 90%
+  ec2.schedule.min_instance_count: 2
+pset-85:
+  ec2.schedule.desired_instance_count: 85%
+  ec2.schedule.min_instance_count: 2
+pset-80:
+  ec2.schedule.desired_instance_count: 80%
+  ec2.schedule.min_instance_count: 2
+pset-75:
+  ec2.schedule.desired_instance_count: 75%
+  ec2.schedule.min_instance_count: 2
+pset-70:
+  ec2.schedule.desired_instance_count: 70%
+  ec2.schedule.min_instance_count: 2
+pset-65:
+  ec2.schedule.desired_instance_count: 65%
+  ec2.schedule.min_instance_count: 2
+pset-60:
+  ec2.schedule.desired_instance_count: 60%
+  ec2.schedule.min_instance_count: 2
+pset-55:
+  ec2.schedule.desired_instance_count: 55%
+  ec2.schedule.min_instance_count: 2
+pset-50:
+  ec2.schedule.desired_instance_count: 50%
+  ec2.schedule.min_instance_count: 2
+pset-45:
+  ec2.schedule.desired_instance_count: 45%
+  ec2.schedule.min_instance_count: 2
+pset-40:
+  ec2.schedule.desired_instance_count: 40%
+  ec2.schedule.min_instance_count: 2
+pset-35:
+  ec2.schedule.desired_instance_count: 35%
+  ec2.schedule.min_instance_count: 2
+pset-30:
+  ec2.schedule.desired_instance_count: 30%
+  ec2.schedule.min_instance_count: 2
+pset-25:
+  ec2.schedule.desired_instance_count: 25%
+  ec2.schedule.min_instance_count: 2
+pset-20:
+  ec2.schedule.desired_instance_count: 20%
+  ec2.schedule.min_instance_count: 2
+pset-15:
+  ec2.schedule.desired_instance_count: 15%
+  ec2.schedule.min_instance_count: 2
+pset-10:
+  ec2.schedule.desired_instance_count: 10%
+  ec2.schedule.min_instance_count: 2
+pset-5:
+  ec2.schedule.desired_instance_count: 5%
+  ec2.schedule.min_instance_count: 2
+pset-0:
+  ec2.schedule.desired_instance_count: 0%
+  ec2.schedule.min_instance_count: 2
+pset-5:
+  ec2.schedule.desired_instance_count: 5%
+  ec2.schedule.min_instance_count: 2
+pset-10:
+  ec2.schedule.desired_instance_count: 10%
+  ec2.schedule.min_instance_count: 2
+pset-15:
+  ec2.schedule.desired_instance_count: 15%
+  ec2.schedule.min_instance_count: 2
+pset-20:
+  ec2.schedule.desired_instance_count: 20%
+  ec2.schedule.min_instance_count: 2
+pset-25:
+  ec2.schedule.desired_instance_count: 25%
+  ec2.schedule.min_instance_count: 2
+pset-30:
+  ec2.schedule.desired_instance_count: 30%
+  ec2.schedule.min_instance_count: 2
+pset-35:
+  ec2.schedule.desired_instance_count: 35%
+  ec2.schedule.min_instance_count: 2
+pset-40:
+  ec2.schedule.desired_instance_count: 40%
+  ec2.schedule.min_instance_count: 2
+pset-45:
+  ec2.schedule.desired_instance_count: 45%
+  ec2.schedule.min_instance_count: 2

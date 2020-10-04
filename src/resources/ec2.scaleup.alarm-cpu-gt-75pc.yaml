@@ -1,0 +1,26 @@
+ActionsEnabled: True
+OKActions: 
+- {GenericOkActions_SNSTopicArn}
+AlarmActions: 
+- {ScaleUp_SNSTopicArn}
+InsufficientDataActions: 
+- {GenericInsufficientDataActions_SNSTopicArn}
+Statistic: Average
+Period: 60
+
+Namespace: AWS/EC2
+MetricName: CPUUtilization
+Dimensions: 
+- Name: InstanceId
+  Value: {InstanceId}
+
+Unit: Percent
+EvaluationPeriods: 2
+DatapointsToAlarm: 2
+Threshold: 75.0
+ComparisonOperator: GreaterThanOrEqualToThreshold
+TreatMissingData: missing
+
+Tags:
+  - Key: clonesquad:group-name
+    Value: {GroupName}

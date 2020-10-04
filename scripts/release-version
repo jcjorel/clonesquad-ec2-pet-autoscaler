@@ -1,0 +1,25 @@
+#!/bin/bash
+set -e
+
+S3_BUCKET=$1
+S3_PREFIX=$2
+VERSION=$3
+if [ -z "$S3_BUCKET" ] || [ -z "$S3_PREFIX" ] || [ -z $VERSION ] ; then
+	echo "Usage: $0 <s3_bucket> <s3_prefix> <version>" ; exit 1
+fi
+
+cd ${CLONESQUAD_DIR}
+index=$(date +%s)
+if [ -d releases/$VERSION ] ;then
+	echo "[ERROR] Version already exist!" ; exit 1
+fi
+sam build
+mkdir -p releases/$VERSION
+sam package --s3-bucket $S3_BUCKET --s3-prefix $S3_PREFIX/$index --output-template-file /tmp/template.yaml --force-upload
+aws s3 sync s3://$S3_BUCKET/$S3_PREFIX/$index/ releases/$VERSION/
+tools/patch-s3uri /tmp/template.yaml --obfuscate True >releases/$VERSION/template.yaml
+rm -f releases/latest
+ln -sf $VERSION releases/latest
+echo $VERSION >VERSION.txt
+
+

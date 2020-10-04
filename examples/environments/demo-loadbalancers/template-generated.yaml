@@ -1,0 +1,300 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Creates a set of ELBs with associated Target Groups and Alarm
+
+Parameters:
+    GroupName:
+        Description: CloneSquad group name
+        Type: String
+    SubnetIds:
+        Description: Comma seperated list of subnet ids
+        Type: String
+    LBScheme:
+        Description: "'internal' or 'internet-facing'"
+        Type: String
+        Default: 'internal'
+    VPC:
+        Description: "VPC where to create resources"
+        Type: String
+
+Resources:
+    # ELB Security Group allowing Port 80 from anywhere
+    
+    SecurityGroup80:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+            GroupDescription: 'Port 80'
+            VpcId:
+              Ref: VPC
+            SecurityGroupIngress:
+                - IpProtocol: tcp
+                  FromPort: 80
+                  ToPort: 80
+                  CidrIp: 0.0.0.0/0
+    
+    SecurityGroup22:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+            GroupDescription: 'Port 22'
+            VpcId:
+              Ref: VPC
+            SecurityGroupIngress:
+                - IpProtocol: tcp
+                  FromPort: 22
+                  ToPort: 22
+                  CidrIp: 0.0.0.0/0
+    
+
+    
+    # Target Group
+    EC2TargetGroup1:
+      Type: AWS::ElasticLoadBalancingV2::TargetGroup
+      Properties:
+        
+        Matcher:
+          HttpCode: '200'
+        HealthCheckTimeoutSeconds: 15
+        
+        HealthCheckIntervalSeconds: 30
+        HealthCheckProtocol: HTTP # HTTP
+        HealthyThresholdCount: 2
+        Name: !Sub "CS-EC2TargetGroup-${GroupName}-1"
+        Port: 80
+        Protocol: HTTP # HTTP
+        VpcId: !Ref VPC
+        TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: '30'
+        UnhealthyThresholdCount: 2
+        Tags:
+        - Key: Name
+          Value: !Sub "CS-TargetGroup-${GroupName}-1"
+        - Key: "clonesquad:group-name"
+          Value: !Sub "${GroupName}"
+        - Key: Port
+          Value: 80
+
+    LBListener1:
+      Type: AWS::ElasticLoadBalancingV2::Listener
+      Properties:
+        DefaultActions:
+          - Type: forward
+            TargetGroupArn:
+              Ref: EC2TargetGroup1
+        LoadBalancerArn:
+            Ref: LoadBalancer1
+        Port: 80
+        Protocol: HTTP
+
+    LoadBalancer1:
+      Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+      Properties:
+        Scheme: !Ref LBScheme
+        Subnets: !Split [ ",", !Sub "${SubnetIds}" ]
+        
+        Type: application
+        SecurityGroups:
+        - Ref: SecurityGroup80
+        
+        Tags:
+        - Key: Name
+          Value: !Sub "CS-LB-${GroupName}-1"
+
+        
+    LBTargetResponseTimeAlarm1:
+        Type: AWS::CloudWatch::Alarm
+        Properties:
+          ActionsEnabled: True
+          AlarmDescription: "Alarm to catch CloudSquad Internal errors (ex: Misconfiguration, bugs...) - MAIN function"
+          AlarmName: !Sub "CS-LB-${GroupName}-ResponseTime1"
+          ComparisonOperator: GreaterThanThreshold
+          DatapointsToAlarm: 2
+          EvaluationPeriods: 2
+          MetricName: TargetResponseTime
+          Namespace:  AWS/ApplicationELB
+          Dimensions:
+            - Name: LoadBalancer
+              Value: !GetAtt LoadBalancer1.LoadBalancerFullName
+          Period: 60
+          Statistic: Average
+          Threshold: 0.350
+        
+
+    
+    # Target Group
+    EC2TargetGroup2:
+      Type: AWS::ElasticLoadBalancingV2::TargetGroup
+      Properties:
+        
+        Matcher:
+          HttpCode: '200'
+        HealthCheckTimeoutSeconds: 15
+        
+        HealthCheckIntervalSeconds: 30
+        HealthCheckProtocol: HTTP # HTTP
+        HealthyThresholdCount: 2
+        Name: !Sub "CS-EC2TargetGroup-${GroupName}-2"
+        Port: 80
+        Protocol: HTTP # HTTP
+        VpcId: !Ref VPC
+        TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: '30'
+        UnhealthyThresholdCount: 2
+        Tags:
+        - Key: Name
+          Value: !Sub "CS-TargetGroup-${GroupName}-2"
+        - Key: "clonesquad:group-name"
+          Value: !Sub "${GroupName}"
+        - Key: Port
+          Value: 80
+
+    LBListener2:
+      Type: AWS::ElasticLoadBalancingV2::Listener
+      Properties:
+        DefaultActions:
+          - Type: forward
+            TargetGroupArn:
+              Ref: EC2TargetGroup2
+        LoadBalancerArn:
+            Ref: LoadBalancer2
+        Port: 80
+        Protocol: HTTP
+
+    LoadBalancer2:
+      Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+      Properties:
+        Scheme: !Ref LBScheme
+        Subnets: !Split [ ",", !Sub "${SubnetIds}" ]
+        
+        Type: application
+        SecurityGroups:
+        - Ref: SecurityGroup80
+        
+        Tags:
+        - Key: Name
+          Value: !Sub "CS-LB-${GroupName}-2"
+
+        
+    LBTargetResponseTimeAlarm2:
+        Type: AWS::CloudWatch::Alarm
+        Properties:
+          ActionsEnabled: True
+          AlarmDescription: "Alarm to catch CloudSquad Internal errors (ex: Misconfiguration, bugs...) - MAIN function"
+          AlarmName: !Sub "CS-LB-${GroupName}-ResponseTime2"
+          ComparisonOperator: GreaterThanThreshold
+          DatapointsToAlarm: 2
+          EvaluationPeriods: 2
+          MetricName: TargetResponseTime
+          Namespace:  AWS/ApplicationELB
+          Dimensions:
+            - Name: LoadBalancer
+              Value: !GetAtt LoadBalancer2.LoadBalancerFullName
+          Period: 60
+          Statistic: Average
+          Threshold: 0.350
+        
+
+    
+    # Target Group
+    EC2TargetGroup3:
+      Type: AWS::ElasticLoadBalancingV2::TargetGroup
+      Properties:
+        
+        HealthCheckIntervalSeconds: 30
+        HealthCheckProtocol: TCP # HTTP
+        HealthyThresholdCount: 2
+        Name: !Sub "CS-EC2TargetGroup-${GroupName}-3"
+        Port: 22
+        Protocol: TCP # HTTP
+        VpcId: !Ref VPC
+        TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: '30'
+        UnhealthyThresholdCount: 2
+        Tags:
+        - Key: Name
+          Value: !Sub "CS-TargetGroup-${GroupName}-3"
+        - Key: "clonesquad:group-name"
+          Value: !Sub "${GroupName}"
+        - Key: Port
+          Value: 22
+
+    LBListener3:
+      Type: AWS::ElasticLoadBalancingV2::Listener
+      Properties:
+        DefaultActions:
+          - Type: forward
+            TargetGroupArn:
+              Ref: EC2TargetGroup3
+        LoadBalancerArn:
+            Ref: LoadBalancer3
+        Port: 22
+        Protocol: TCP
+
+    LoadBalancer3:
+      Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+      Properties:
+        Scheme: !Ref LBScheme
+        Subnets: !Split [ ",", !Sub "${SubnetIds}" ]
+        
+        Type: network
+        
+        Tags:
+        - Key: Name
+          Value: !Sub "CS-LB-${GroupName}-3"
+
+        
+        
+
+    
+
+Outputs:
+    
+    EC2TargetGroup1:
+        Description: "EC2 Target Group #1"
+        Value:
+          Ref: EC2TargetGroup1
+    LoadBalancer1:
+        Description: 'Load Balancer #1'
+        Value:
+          Ref: LoadBalancer1
+    LoadBalancerDS1:
+        Description: 'Load Balancer #1 DNS'
+        Value: !GetAtt LoadBalancer1.DNSName
+    
+    LBTargetResponseTimeAlarm1:
+        Description: 'Load balancer response time alarm name'
+        Value: !Ref LBTargetResponseTimeAlarm1
+    
+    
+    EC2TargetGroup2:
+        Description: "EC2 Target Group #2"
+        Value:
+          Ref: EC2TargetGroup2
+    LoadBalancer2:
+        Description: 'Load Balancer #2'
+        Value:
+          Ref: LoadBalancer2
+    LoadBalancerDS2:
+        Description: 'Load Balancer #2 DNS'
+        Value: !GetAtt LoadBalancer2.DNSName
+    
+    LBTargetResponseTimeAlarm2:
+        Description: 'Load balancer response time alarm name'
+        Value: !Ref LBTargetResponseTimeAlarm2
+    
+    
+    EC2TargetGroup3:
+        Description: "EC2 Target Group #3"
+        Value:
+          Ref: EC2TargetGroup3
+    LoadBalancer3:
+        Description: 'Load Balancer #3'
+        Value:
+          Ref: LoadBalancer3
+    LoadBalancerDS3:
+        Description: 'Load Balancer #3 DNS'
+        Value: !GetAtt LoadBalancer3.DNSName
+    
+    
+    

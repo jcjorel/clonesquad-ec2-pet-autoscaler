@@ -1,0 +1,39 @@
+#!/bin/bash
+set -e
+
+if [ -z "${CLONESQUAD_DEVKIT_IMAGE}" ] ;then
+	echo "Please define CLONESQUAD_DEVKIT_IMAGE environment variable" ; exit 1
+fi
+
+if [ -z "${CLONESQUAD_DIR}" ]; then
+	echo "Please define CLONESQUAD_DIR!" ; exit 1
+fi
+cd $CLONESQUAD_DIR
+source scripts/_source-me.sh
+
+ACTION=$1
+shift
+if [ -z "$ACTION" ] ; then
+	echo "USage: $0 <build|run>" ; exit 1
+fi
+
+if [ "$ACTION" = "build" ] ; then
+	VERSION=${1:-latest}
+	tools/cs-format-documentation docs/tpl/CONFIGURATION_REFERENCE.md >docs/CONFIGURATION_REFERENCE.md
+	docker build -t ${CLONESQUAD_DEVKIT_IMAGE}:$VERSION -t clonesquad/devkit:latest -f build/Dockerfile.devkit .
+fi
+if [ "$ACTION" = "run" ]; then
+
+	clonesquad_parameters_dir=$1
+	if [ -z "$clonesquad_parameters_dir" ] ;then
+		echo "[ERROR] Missing parameter 'clonesquad_parameters_dir' (containing deployment-parameters.txt and samconfig.toml files)!"
+		exit 1
+	fi
+	shift
+	args=$*
+	if [ -z "$args" ] ; then
+		args="bash -l"
+	fi
+	docker run -it -v $PWD:/clonesquad \
+		       -v $clonesquad_parameters_dir:/clonesquad-deployment-parameters ${CLONESQUAD_DEVKIT_IMAGE}:latest $args
+fi

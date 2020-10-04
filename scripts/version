@@ -1,0 +1,4 @@
+#!/bin/bash
+
+cat ${CLONESQUAD_DIR}/VERSION.txt
+

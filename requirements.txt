@@ -1,0 +1,7 @@
+requests
+requests_file
+boto3
+pyyaml
+aws-xray-sdk
+tox
+jinja2

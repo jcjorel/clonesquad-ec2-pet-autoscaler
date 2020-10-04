@@ -1,0 +1,26 @@
+ActionsEnabled: True
+OKActions: 
+- {GenericOkActions_SNSTopicArn}
+AlarmActions: 
+- {ScaleUp_SNSTopicArn}
+InsufficientDataActions: 
+- {GenericInsufficientDataActions_SNSTopicArn}
+Statistic: Average
+Period: 60
+
+Namespace: CWAgent
+MetricName: mem_used_percent
+Dimensions: 
+- Name: InstanceId
+  Value: {InstanceId}
+
+Unit: Percent
+EvaluationPeriods: 2
+DatapointsToAlarm: 2
+Threshold: 66.0
+ComparisonOperator: GreaterThanOrEqualToThreshold
+TreatMissingData: missing
+
+Tags:
+  - Key: clonesquad:group-name
+    Value: {GroupName}

@@ -1,0 +1,36 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  CloneSquad sam-sample-notification-app
+
+Globals:
+  Function:
+    Timeout: 30
+
+Resources:
+  Function:
+    Type: AWS::Serverless::Function 
+    Properties:
+      CodeUri: src/
+      Handler: sample-clonesquad-notification/app.lambda_handler
+      Runtime: python3.7
+      Policies:
+         - LambdaInvokePolicy: 
+              FunctionName: "*"
+         - Statement:
+            - Sid: SQSPushPolicy
+              Effect: Allow
+              Action:
+              - "sqs:SendMessage"
+              Resource: "*"
+
+Outputs:
+  # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
+  # Find out more about other implicit resources you can reference within SAM
+  # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#api
+  FunctionArn:
+    Description: "Sample CloneSquad Lambda Function ARN"
+    Value: !GetAtt Function.Arn
+  FunctionIamRole:
+    Description: "Implicit IAM Role created for Sample CloneSquad function"
+    Value: !GetAtt FunctionRole.Arn

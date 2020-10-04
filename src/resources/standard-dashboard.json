@@ -1,0 +1,132 @@
+{
+    "widgets": [
+        {
+            "type": "metric",
+            "x": 0,
+            "y": 1,
+            "width": 24,
+            "height": 9,
+            "properties": {
+                "metrics": [
+                    [ "CloneSquad", "PendingInstances", "GroupName", "{GroupName}" ],
+                    [ ".", "RunningInstances", ".", "." ],
+                    [ ".", "StoppedInstances", ".", "." ],
+                    [ ".", "StoppingInstances", ".", "." ],
+                    [ ".", "FleetSize", ".", "." ],
+                    [ ".", "NbOfBouncedInstances", ".", "." ],
+                    [ ".", "NbOfExcludedInstances", ".", "." ],
+                    [ ".", "NbOfInstancesInError", ".", "." ],
+                    [ ".", "RunningLighthouseInstances", ".", "." ],
+                    [ ".", "MinInstanceCount", ".", "." ],
+                    [ ".", "DesiredInstanceCount", ".", "." ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "{AWS_DEFAULT_REGION}",
+                "period": {ec2.schedule.metrics.time_resolution},
+                "title": "Squad status",
+                "stat": "Average"
+            }
+        },
+        {
+            "type": "metric",
+            "x": 0,
+            "y": 10,
+            "width": 12,
+            "height": 6,
+            "properties": {
+                "metrics": [
+                    [ "CloneSquad", "NbOfInstanceInInitialState", "GroupName", "{GroupName}" ],
+                    [ ".", "NbOfInstanceInUnuseableState", ".", "." ],
+                    [ ".", "DrainingInstances", ".", "." ],
+                    [ ".", "NbOfCPUCreditExhaustedInstances", ".", "." ],
+                    [ ".", "NbOfCPUCreditingInstances", ".", "." ],
+                    [ ".", "Cloudwatch.GetMetricData", ".", ".", { "yAxis": "right" } ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "{AWS_DEFAULT_REGION}",
+                "title": "TargetGroup and other statuses",
+                "period": {ec2.schedule.metrics.time_resolution},
+                "stat": "Average"
+            }
+        },
+        {
+            "type": "metric",
+            "x": 12,
+            "y": 10,
+            "width": 12,
+            "height": 6,
+            "properties": {
+                "metrics": [
+                    [ "CloneSquad", "InstanceScaleScore", "GroupName", "{GroupName}" ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "title": "Scaling criteria",
+                "region": "{AWS_DEFAULT_REGION}",
+                "stat": "Average",
+                "period": {ec2.schedule.metrics.time_resolution},
+                "annotations": {
+                    "horizontal": [
+                        {
+                            "label": "ScaleOut Threshold",
+                            "value": 1.0
+                        },
+                        {
+                            "label": "ScaleIn Threshold",
+                            "value": "{ec2.schedule.scalein.threshold_ratio}"
+                        }
+                    ]
+                }
+            }
+        },
+        {
+            "type": "log",
+            "x": 0,
+            "y": 22,
+            "width": 24,
+            "height": 25,
+            "properties": {
+		"query": "SOURCE '{AWS_LAMBDA_LOG_GROUP_NAME}' | fields @timestamp, @message\n| filter @message like /^\\[(INFO|ERROR|WARNING)\\]/\n| sort @timestamp desc\n| limit 100",
+		"region": "{AWS_DEFAULT_REGION}",
+                "stacked": false,
+                "view": "table",
+                "title": "Squad messages"
+            }
+        },
+        {
+            "type": "text",
+            "x": 0,
+            "y": 0,
+            "width": 24,
+            "height": 1,
+            "properties": {
+                "markdown": "\n### This is an automatically generated dashboard. **DO NOT EDIT!**\n"
+            }
+        },
+        {
+            "type": "metric",
+            "x": 0,
+            "y": 16,
+            "width": 24,
+            "height": 6,
+            "properties": {
+                "view": "timeSeries",
+                "stacked": false,
+                "metrics": [
+                    [ "CloneSquad", "StaticFleet.Size", "GroupName", "{GroupName}" ],
+                    [ ".", "StaticFleet.RunningInstances", ".", "." ],
+                    [ ".", "StaticFleet.DrainingInstances", ".", "." ],
+                    [ ".", "StaticFleet.RDS.Size", ".", "." ],
+                    [ ".", "StaticFleet.RDS.AvailableDBs", ".", "." ],
+                    [ ".", "StaticFleet.RDS.StoppingDBs", ".", "." ],
+                    [ ".", "StaticFleet.RDS.StartingDBs", ".", "." ]
+                ],
+                "region": "{AWS_DEFAULT_REGION}",
+                "period": {ec2.schedule.metrics.time_resolution},
+                "title": "Static SubFleet statuses"
+            }
+        }
+    ]
+}

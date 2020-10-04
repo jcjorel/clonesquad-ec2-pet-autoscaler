@@ -1,0 +1,69 @@
+#!/usr/bin/python3
+import os
+from os.path import dirname, abspath, join
+import sys
+
+# Find code directory relative to our directory
+THIS_DIR = dirname(__file__)
+CODE_DIR = abspath(join(THIS_DIR, '..', 'src'))
+sys.path.insert(0, CODE_DIR)
+CLONESQUAD_DEPENDENCY_DIR = abspath(os.getenv("CLONESQUAD_DEPENDENCY_DIR"))
+sys.path.append(CLONESQUAD_DEPENDENCY_DIR)
+
+import sys
+import pdb
+import misc
+import app
+import kvtable
+import argparse
+import debug as Dbg
+import yaml
+
+parser = argparse.ArgumentParser(description="CloneSquad KV Table tool")
+parser.add_argument('tablename', help="KV table name (DynamoDB table name)", type=str, nargs=1)
+parser.add_argument('operation', help="Operation to perform", choices=["import", "export"], nargs=1)
+parser.add_argument('--file', help="YAML file or '-' for stdin/stdout", type=str, default="-")
+parser.add_argument('--ttl', help="TTL for imported Key/Value pairs (ISO format date or duration relative from 'now')", type=str, default="")
+
+args = parser.parse_args()
+args_dict = {}
+for a in args._get_kwargs():
+    args_dict[a[0]] = a[1]
+
+TTL = None
+if args.ttl is not None and args.ttl != "":
+    try:
+        # TTL specified as a precise date?
+        #   Ex: 2020-08-30 15:59:23.835144+00:00
+        TTL=int((misc.str2utc(args.ttl) - misc.epoch()).total_seconds())
+    except:
+        try:
+            TTL=misc.str2duration_seconds(args.ttl) + misc.seconds_from_epoch_utc()
+        except:
+            print("Failed to parse specified TTL value '%s'!" % args.ttl)
+            sys.exit(1)
+
+app.initialize_clients(["dynamodb"], app.ctx)
+
+if args.operation[0] == "export":
+    table   = kvtable.KVTable(app.ctx, args.tablename[0])
+    table.reread_table()
+    content = table.get_dict()
+    if args.file == "-":
+        print(yaml.dump(content))
+    else:
+        with open(args.file, 'w') as out_file:
+            out_file.write(content)
+    sys.exit(0)
+
+if args.operation[0] == "import":
+    table = kvtable.KVTable(app.ctx, args.tablename[0])
+    table.reread_table()
+    if args.file == "-":
+        content = "".join(sys.stdin.readlines())
+    else:
+        with open(args.file, 'r') as in_file:
+            content = "".join(in_file.readlines())
+    d = yaml.safe_load(content)
+    table.set_dict(d, TTL=TTL)
+

@@ -1,0 +1,21 @@
+#
+# This configures 2 CloneSquad alarms tracking the CloudWatch alarms associated with
+#    the ALB load balancers deployed by the demonstration.
+#
+
+# Format:   alarmname:<name_of_cloudwatch_alarm>,BaselineThreshold=<optional_baseline_threshold_for_precise_scheduling>,Divider=<alarm_points_divider>
+# In this example, 
+#    BaselineThreshold = 200ms
+#    Divider           = 1 (Note: default is the amount of serving instances. See [documentation](../../../docs/ALARMS_REFERENCE.md#unmanaged-alarms))
+#    AlarmGroup        = MyAllLBs (Group the 2 alarms named 'MyAllLBs': The higher points of the alarms in this group will be kept for calculation)
+cloudwatch.alarm02.configuration_url: alarmname:CS-LB-{GroupName}-ResponseTime1,BaselineThreshold=0.100,Divider=1,AlarmGroup=MyAllLBs
+cloudwatch.alarm03.configuration_url: alarmname:CS-LB-{GroupName}-ResponseTime2,BaselineThreshold=0.100,Divider=1,AlarmGroup=MyAllLBs
+
+# WARNING: This is a quiet aggresive scalein rate (15 instances per 10 minutes) for demo purpose.
+#    Real life deployment should use lower scale in rate (or leave the default) as a very fast scalinrate can
+#    confuse the autoscaler predictions.
+ec2.schedule.scalein.rate: 15
+# Very aggresive setting! Do not use in real life scenario as the autoscaler could flip-flop too fast between ScaleIn/ScaleOut states!
+#    Wait only 20 seconds before to switch from ScaleOut to ScaleIn mode
+ec2.schedule.to_scalein_state.cooldown_delay: 20
+

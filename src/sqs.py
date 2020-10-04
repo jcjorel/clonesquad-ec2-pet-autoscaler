@@ -1,0 +1,105 @@
+import os
+import math
+import sys
+import inspect
+import json
+import pdb
+from datetime import datetime
+from datetime import timedelta
+
+import config
+import misc
+import debug as Dbg
+import config as Cfg
+
+from aws_xray_sdk.core import xray_recorder
+from aws_xray_sdk.core import patch_all
+patch_all()
+
+import cslog
+log = cslog.logger(__name__)
+
+ctx = None
+
+def seconds_since_last_call():
+    return (misc.utc_now() - misc.str2utc(ctx["main.last_call_date"], default=misc.epoch())).total_seconds()
+
+def next_call_delay():
+    global ctx
+    expected_delay  = Cfg.get_duration_secs("app.run_period")
+    last_call_delay = seconds_since_last_call()
+    delta           = expected_delay - last_call_delay
+    if delta < 0:
+        return expected_delay
+    return max(int(delta), 0)
+
+@xray_recorder.capture()
+def call_me_back_send():
+    delay  = max(next_call_delay() + 1, 2)
+    client = ctx["sqs.client"]
+
+    log.log(log.NOTICE, "Sending SQS 'CallMeBack' message (delay=%d) to Main lambda queue: %s" % (delay, ctx["MainSQSQueue"]))
+    if (misc.is_sam_local()):
+        log.debug("Should have sent a call_me_back()")
+        return
+
+    caller_function = inspect.currentframe().f_back
+    while caller_function.f_code.co_name in ["record_subsegment", "__call__"]: # Skip X-Ray wrappers
+        caller_function = caller_function.f_back 
+
+    response = client.send_message(
+                QueueUrl=ctx["MainSQSQueue"],
+                DelaySeconds=int(delay),
+                MessageBody=json.dumps({
+                    "SQSHeartBeat": { 
+                        "Reason": "NEED_UPDATE",
+                        "CallerFunction": caller_function.f_code.co_name,
+                        "LambdaFunction": ctx["FunctionName"]
+                    }}))
+
+@xray_recorder.capture()
+def read_all_sqs_messages():
+    messages   = []
+    sqs_client = ctx["sqs.client"]
+    while True:
+        response = sqs_client.receive_message(
+                QueueUrl=ctx["MainSQSQueue"],
+                AttributeNames=['All'],
+                MaxNumberOfMessages=10,
+                VisibilityTimeout=Cfg.get_int("app.run_period"),
+                WaitTimeSeconds=0
+           )
+        if "Messages" in response:
+            messages.extend(response["Messages"])
+        else:
+            break
+    return messages
+
+@xray_recorder.capture()
+def process_sqs_records(event, function=None, function_arg=None):
+    if event is None:
+        return False
+    if "Records" not in event:
+        return False
+
+    processed = 0
+    sqs_client = ctx["sqs.client"]
+    for r in event["Records"]:
+        if r["eventSource"] == "aws:sqs":
+            if function is None or function(r, function_arg):
+                log.debug("Deleting SQS record...")
+                processed += 1
+                try:
+                    queue_arn  = r["eventSourceARN"]
+                    queue_name = queue_arn.split(':')[-1]
+                    account_id = queue_arn.split(':')[-2]
+                    response = sqs_client.get_queue_url(
+                       QueueName=queue_name,
+                       QueueOwnerAWSAccountId=account_id
+                    )
+                    response = sqs_client.delete_message(QueueUrl=response["QueueUrl"], 
+                            ReceiptHandle=r["receiptHandle"])
+                except Exception as e:
+                    log.exception("[WARNING] Failed to delete SQS message %s : %e" % (r, e))
+    return processed
+

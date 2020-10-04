@@ -1,0 +1,783 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  CloneSquad deployment
+
+Globals:
+  Function:
+    Timeout: !Ref OperationTimeout
+
+Parameters: 
+  GroupName: 
+    Type: String
+    ConstraintDescription: "[A-Za-z0-9][-A-Za-z0-9]+"
+    MaxLength: 40
+    MinLength: 2
+    Description: "CloneSquad group name"
+
+  CustomizationRepositoryS3BucketName:
+    Type: String
+    Default: ""
+    Description: "(Optional) S3 Bucketname where Customization artifacts are stored"
+
+  CustomizationRepositoryS3Prefix:
+    Type: String
+    Default: ""
+    Description: "(Optional) S3 prefix where Customization deployment artifacts are stored"
+
+  ConfigurationURL: 
+    Type: String
+    ConstraintDescription: "[?-/:A-Za-z0-9]*"
+    Default: ""
+    Description: "(Optional) URL where to read configuration"
+
+  LambdaMemorySize:
+    Type: Number
+    Default: 512
+    Description: "(Optional) Memory size to allocate to Main and Interact Lambda functions"
+
+  LogRetentionDuration:
+    Type: Number
+    Default: 14
+    Description: "(Optional) Cloudwatch Logs retention duration"
+
+  UserNotificationArns: 
+    Type: String
+    ConstraintDescription: "[-/:A-Za-z0-9]*"
+    Default: ""
+    Description: "(Optional) Comma seperated list of user provided ARNs (Lambda, SQS, SNS) to receive real-time notifications (TargetGroup Register/Deregister events, instances start/stop...)"
+
+  LoggingS3Path:
+    Type: String
+    Default: ""
+    Description: "(Optional) S3 Path for detailed logging (s3://<bucket_name>/<path>)"
+
+  OperationTimeout: 
+    Type: String
+    ConstraintDescription: "[0-9]+"
+    Default: 300
+    Description: "(Optional) General timeout for operations"
+
+  VariantNumber:
+    Type: String
+    ConstraintDescription: "[0-9]*"
+    Default: ""
+    Description: "(Debug) Used to avoid CloudFormation clashes when updating some resources (ex: DynamoDB Tables)"
+
+  XRayDiagnosis:
+    Type: String
+    Default: 1
+    ConstraintDescription: "[0|1]"
+    Description: "(Debug) Trace CloneSquad to get visibility into execution time and associated costs"
+
+
+
+
+Resources:
+    MainQueue:
+      Type: AWS::SQS::Queue
+      Properties: 
+        MessageRetentionPeriod: 120
+        QueueName: !Sub "CloneSquad-Main-${GroupName}"
+        ReceiveMessageWaitTimeSeconds: 10
+        VisibilityTimeout: !Ref OperationTimeout
+        Tags: 
+          - Key: "clonesquad:group-name"
+            Value: !Ref GroupName
+
+    MainSQSPolicy: 
+      Type: AWS::SQS::QueuePolicy
+      Properties: 
+        Queues: 
+          - !Ref MainQueue
+        PolicyDocument: 
+          Statement: 
+            - Sid: "CloneSquad-Service-SendMessage-SQS-policy"
+              Action: 
+                - "sqs:SendMessage" 
+              Effect: "Allow"
+              Resource: !GetAtt MainQueue.Arn
+              Principal:
+                 Service: 
+                 - events.amazonaws.com
+                 - ec2.amazonaws.com
+            - Sid: "CloneSquad-SendMessage-SQS-policy"
+              Action: 
+                - "sqs:SendMessage" 
+              Effect: "Allow"
+              Resource: !GetAtt MainQueue.Arn
+              Condition:  
+                ArnLike: 
+                  aws:SourceArn:
+                  - !GetAtt MainFunction.Arn
+                  - !GetAtt SNSMgrFunction.Arn
+            - Sid: "CloneSquad-Main-SQS-policy"
+              Action: 
+                - "sqs:*" 
+              Effect: "Allow"
+              Resource: !GetAtt MainQueue.Arn
+              Condition:  
+                ArnLike: 
+                  aws:SourceArn:
+                  - !GetAtt MainFunction.Arn
+
+    ConfigTable: 
+      Type: AWS::DynamoDB::Table
+      Properties: 
+        TableName: !Sub "CloneSquad-${GroupName}${VariantNumber}-Configuration"
+        AttributeDefinitions: 
+          - 
+            AttributeName: "Key"
+            AttributeType: "S"
+        KeySchema: 
+          - 
+            AttributeName: "Key"
+            KeyType: "HASH"
+        TimeToLiveSpecification:
+          AttributeName: ExpirationTime
+          Enabled: True
+        BillingMode: "PAY_PER_REQUEST"
+        StreamSpecification:
+          StreamViewType: NEW_IMAGE
+        Tags: 
+          - Key: "clonesquad:group-name"
+            Value: !Ref GroupName
+
+    AlarmStateEC2Table: 
+      Type: AWS::DynamoDB::Table
+      Properties: 
+        TableName: !Sub "CloneSquad-${GroupName}${VariantNumber}-AlarmState-EC2"
+        AttributeDefinitions: 
+          - 
+            AttributeName: "AlarmName"
+            AttributeType: "S"
+        KeySchema: 
+          - 
+            AttributeName: "AlarmName"
+            KeyType: "HASH"
+        TimeToLiveSpecification:
+          AttributeName: ExpirationTime
+          Enabled: True
+        BillingMode: "PAY_PER_REQUEST"
+        Tags: 
+          - Key: "clonesquad:group-name"
+            Value: !Ref GroupName
+
+    StateTable: 
+      Type: AWS::DynamoDB::Table
+      Properties: 
+        TableName: !Sub "CloneSquad-${GroupName}${VariantNumber}-State"
+        AttributeDefinitions: 
+          - 
+            AttributeName: "Key"
+            AttributeType: "S"
+        KeySchema: 
+          - 
+            AttributeName: "Key"
+            KeyType: "HASH"
+        TimeToLiveSpecification:
+          AttributeName: ExpirationTime
+          Enabled: True
+        BillingMode: "PAY_PER_REQUEST"
+        Tags: 
+          - Key: "clonesquad:group-name"
+            Value: !Ref GroupName
+
+    EventTable: 
+      Type: AWS::DynamoDB::Table
+      Properties: 
+        TableName: !Sub "CloneSquad-${GroupName}${VariantNumber}-EventLog"
+        AttributeDefinitions: 
+          - 
+            AttributeName: "EventDate"
+            AttributeType: "S"
+        KeySchema: 
+          - 
+            AttributeName: "EventDate"
+            KeyType: "HASH"
+        TimeToLiveSpecification:
+          AttributeName: ExpirationTime
+          Enabled: True
+        BillingMode: "PAY_PER_REQUEST"
+        Tags: 
+          - Key: "clonesquad:group-name"
+            Value: !Ref GroupName
+
+    LongTermEventTable: 
+      Type: AWS::DynamoDB::Table
+      Properties: 
+        TableName: !Sub "CloneSquad-${GroupName}${VariantNumber}-EventLog-LongTerm"
+        AttributeDefinitions: 
+          - 
+            AttributeName: "EventDate"
+            AttributeType: "S"
+        KeySchema: 
+          - 
+            AttributeName: "EventDate"
+            KeyType: "HASH"
+        TimeToLiveSpecification:
+          AttributeName: ExpirationTime
+          Enabled: True
+        BillingMode: "PAY_PER_REQUEST"
+        Tags: 
+          - Key: "clonesquad:group-name"
+            Value: !Ref GroupName
+
+    SchedulerTable: 
+      Type: AWS::DynamoDB::Table
+      Properties: 
+        TableName: !Sub "CloneSquad-${GroupName}${VariantNumber}-Scheduler"
+        AttributeDefinitions: 
+          - 
+            AttributeName: "Key"
+            AttributeType: "S"
+        KeySchema: 
+          - 
+            AttributeName: "Key"
+            KeyType: "HASH"
+        TimeToLiveSpecification:
+          AttributeName: ExpirationTime
+          Enabled: True
+        BillingMode: "PAY_PER_REQUEST"
+        Tags: 
+          - Key: "clonesquad:group-name"
+            Value: !Ref GroupName
+
+    EC2EventRule:
+      Type: 'AWS::Events::Rule'
+      Properties:
+        Name: !Sub "CloneSquad-EC2-Notif-${GroupName}"
+        Description: >-
+          CloudWatch Event Rule that detects changes to EC2 Instances and
+          publishes change events to the SQS queue for notification.
+        State: ENABLED
+        Targets:
+          - Arn: !GetAtt MainQueue.Arn
+            Id: !GetAtt MainQueue.QueueName
+        EventPattern:
+          detail-type:
+            - AWS API Call via CloudTrail
+          detail:
+            eventSource:
+              - ec2.amazonaws.com
+            eventName:
+              - RunInstances
+              - RebootInstances
+              - StartInstances
+              - StopInstances
+              - TerminateInstances
+
+    EC2SpotEventRule:
+      Type: AWS::Events::Rule
+      Properties:
+        Description: Events rule for Spot Instance Interruption Notices
+        Name: !Sub "CloneSquad-EC2Spot-Notif-${GroupName}"
+        Targets:
+          - Arn: !GetAtt MainQueue.Arn
+            Id: !GetAtt MainQueue.QueueName
+        EventPattern:
+          detail-type:
+          - EC2 Spot Instance Interruption Warning
+          source:
+          - aws.ec2
+        State: ENABLED
+
+    CloudWatchEventRole:
+      Type: 'AWS::IAM::Role'
+      Properties:
+        RoleName: !Sub "CloneSquad-${GroupName}-CWRole"
+        AssumeRolePolicyDocument:
+          Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                - events.amazonaws.com
+              Action:
+                - 'sts:AssumeRole'        
+
+    ERRORMetricFilter:
+        Type: AWS::Logs::MetricFilter
+        DependsOn: MainFunctionLogGroup
+        Properties:
+          FilterPattern: '"[ERROR]"'
+          LogGroupName: !Sub "/aws/lambda/CloneSquad-Main-${GroupName}"
+          MetricTransformations:
+            - DefaultValue: 0
+              MetricValue: 1
+              MetricName: !Sub "InternalErrors.Main.${GroupName}"
+              MetricNamespace: CloneSquad
+
+    ERRORInteractMetricFilter:
+        Type: AWS::Logs::MetricFilter
+        DependsOn: InteractFunctionLogGroup
+        Properties:
+          FilterPattern: '"[ERROR]"'
+          LogGroupName: !Sub "/aws/lambda/CloneSquad-Interact-${GroupName}"
+          MetricTransformations:
+            - DefaultValue: 0
+              MetricValue: 1
+              MetricName: !Sub "InternalErrors.Interact.${GroupName}"
+              MetricNamespace: CloneSquad
+
+    WARNINGMetricFilter:
+        Type: AWS::Logs::MetricFilter
+        DependsOn: MainFunctionLogGroup
+        Properties:
+          FilterPattern: '"[WARNING]"'
+          LogGroupName: !Sub "/aws/lambda/CloneSquad-Main-${GroupName}"
+          MetricTransformations:
+            - DefaultValue: 0
+              MetricValue: 1
+              MetricName: !Sub "InternalWarnings.Main.${GroupName}"
+              MetricNamespace: CloneSquad
+
+    WARNINGInteractMetricFilter:
+        Type: AWS::Logs::MetricFilter
+        DependsOn: InteractFunctionLogGroup
+        Properties:
+          FilterPattern: '"[WARNING]"'
+          LogGroupName: !Sub "/aws/lambda/CloneSquad-Interact-${GroupName}"
+          MetricTransformations:
+            - DefaultValue: 0
+              MetricValue: 1
+              MetricName: !Sub "InternalWarnings.Interact.${GroupName}"
+              MetricNamespace: CloneSquad
+
+    InternalERRORMainAlarm:
+        Type: AWS::CloudWatch::Alarm
+        Properties: 
+          ActionsEnabled: True
+          AlarmDescription: "Alarm to catch CloudSquad Internal errors (ex: Misconfiguration, bugs...) - MAIN function"
+          AlarmName: !Sub "CloneSquad-${GroupName}-InternalERRORs.Main"
+          ComparisonOperator: GreaterThanThreshold
+          DatapointsToAlarm: 1
+          EvaluationPeriods: 2
+          MetricName: !Sub "InternalErrors.Main.${GroupName}"
+          Namespace: CloneSquad
+          Period: 60
+          Statistic: Sum
+          Threshold: 0
+
+    InternalWARNINGMainAlarm:
+        Type: AWS::CloudWatch::Alarm
+        Properties: 
+          ActionsEnabled: True
+          AlarmDescription: "Alarm to catch CloudSquad Internal warnings (ex: Misconfiguration, bugs...) - MAIN function"
+          AlarmName: !Sub "CloneSquad-${GroupName}-InternalWARNINGs.Main"
+          ComparisonOperator: GreaterThanThreshold
+          DatapointsToAlarm: 1
+          EvaluationPeriods: 2
+          MetricName: !Sub "InternalWarnings.Main.${GroupName}"
+          Namespace: CloneSquad
+          Period: 60
+          Statistic: Sum
+          Threshold: 0
+
+    InternalERRORInteractAlarm:
+        Type: AWS::CloudWatch::Alarm
+        Properties: 
+          ActionsEnabled: True
+          AlarmDescription: "Alarm to catch CloudSquad Internal errors (ex: Misconfiguration, bugs...) - INTERACT function"
+          AlarmName: !Sub "CloneSquad-${GroupName}-InternalERRORs.Interact"
+          ComparisonOperator: GreaterThanThreshold
+          DatapointsToAlarm: 1
+          EvaluationPeriods: 2
+          MetricName: !Sub "InternalErrors.Interact.${GroupName}"
+          Namespace: CloneSquad
+          Period: 60
+          Statistic: Sum
+          Threshold: 0
+
+    InternalWARNINGInteractAlarm:
+        Type: AWS::CloudWatch::Alarm
+        Properties: 
+          ActionsEnabled: True
+          AlarmDescription: "Alarm to catch CloudSquad Internal warnings (ex: Misconfiguration, bugs...) - INTERACT function"
+          AlarmName: !Sub "CloneSquad-${GroupName}-InternalWARNINGs.Interact"
+          ComparisonOperator: GreaterThanThreshold
+          DatapointsToAlarm: 1
+          EvaluationPeriods: 2
+          MetricName: !Sub "InternalWarnings.Interact.${GroupName}"
+          Namespace: CloneSquad
+          Period: 60
+          Statistic: Sum
+          Threshold: 0
+
+    LackOfCPUCreditAlarm:
+        Type: AWS::CloudWatch::Alarm
+        Properties: 
+          ActionsEnabled: True
+          AlarmDescription: "Alarm to catch burstable instance that exhausted their CPU credits"
+          AlarmName: !Sub "CloneSquad-${GroupName}-LackOfCPUCreditAlarm"
+          ComparisonOperator: GreaterThanThreshold
+          DatapointsToAlarm: 2
+          EvaluationPeriods: 2
+          MetricName: "NbOfCPUCreditExhaustedInstances"
+          Dimensions:
+            - Name: GroupName
+              Value: !Sub "${GroupName}"
+          Namespace: CloneSquad
+          Period: 60
+          Statistic: Average
+          Threshold: 0
+
+    SNSScaleUp:
+        Type: AWS::SNS::Topic
+        Properties: 
+          TopicName: !Sub "CloneSquad-CloudWatchAlarm-ScaleUp-${GroupName}"
+          Tags:
+          - Key: "clonesquad:group-name"
+            Value: !Ref GroupName
+
+    SNSOk:
+        Type: AWS::SNS::Topic
+        Properties: 
+          TopicName: !Sub "CloneSquad-CloudWatchAlarm-Ok-${GroupName}"
+          Tags:
+          - Key: "clonesquad:group-name"
+            Value: !Ref GroupName
+
+    SNSInsufficientData:
+        Type: AWS::SNS::Topic
+        Properties: 
+          TopicName: !Sub "CloneSquad-CloudWatchAlarm-InsufficientData-${GroupName}"
+          Tags:
+          - Key: "clonesquad:group-name"
+            Value: !Ref GroupName
+
+    CloneSquadDependencyLayer:
+            Type: AWS::Serverless::LayerVersion
+            Properties:
+              LayerName: !Sub "CloneSquad-Dependencies-Layer-${GroupName}"
+              Description: "Binary dependency artifact for 'Main' CloneSquad layer"
+              ContentUri: .venv/lib/python3.7/
+              CompatibleRuntimes:
+                  - python3.7
+
+
+    CloneSquadLayer:
+            Type: AWS::Serverless::LayerVersion
+            Properties:
+              LayerName: !Sub "CloneSquad-Layer-${GroupName}"
+              Description: "Binary artifact for CloneSquad functions"
+              ContentUri: src/
+              CompatibleRuntimes:
+                  - python3.7
+              LicenseInfo: 'MIT'
+
+    MainFunctionLogGroup:
+            Type: "AWS::Logs::LogGroup"
+            DependsOn: MainFunction
+            Properties:
+              LogGroupName: !Join ["", ["/aws/lambda/", !Ref "MainFunction"]]
+              RetentionInDays: !Ref LogRetentionDuration
+
+    InteractFunctionLogGroup:
+            Type: "AWS::Logs::LogGroup"
+            DependsOn: InteractFunction
+            Properties:
+              LogGroupName: !Join ["", ["/aws/lambda/", !Ref "InteractFunction"]]
+              RetentionInDays: !Ref LogRetentionDuration
+
+    SNSMgrFunctionLogGroup:
+            Type: "AWS::Logs::LogGroup"
+            DependsOn: SNSMgrFunction
+            Properties:
+              LogGroupName: !Join ["", ["/aws/lambda/", !Ref "SNSMgrFunction"]]
+              RetentionInDays: !Ref LogRetentionDuration
+
+    SNSMgrFunctionLogGroup:
+            Type: "AWS::Logs::LogGroup"
+            DependsOn: DiscoveryFunction
+            Properties:
+              LogGroupName: !Join ["", ["/aws/lambda/", !Ref "DiscoveryFunction"]]
+              RetentionInDays: !Ref LogRetentionDuration
+
+    InteractApi:
+            Type: AWS::Serverless::Api
+            Properties:
+              StageName: v1
+              Name: "CloneSquad-${GroupName}"
+            Tags:
+            - Key: "clonesquad:group-name"
+              Value: !Ref GroupName
+
+    MainFunction:
+            Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+            Properties:
+              Handler: app.main_handler
+              Runtime: python3.7
+              CodeUri: custo/
+              Layers:
+                  - !Ref CloneSquadLayer
+                  - !Ref CloneSquadDependencyLayer
+              FunctionName: !Sub "CloneSquad-Main-${GroupName}"
+              MemorySize: !Ref LambdaMemorySize
+              Timeout: !Ref OperationTimeout
+              ReservedConcurrentExecutions: 1
+              Tracing: Active
+              Policies:
+              - AdministratorAccess
+              Environment:
+                Variables:
+                  PYTHONPATH:                                 "/opt:/opt/site-packages"
+                  ApplicationName:                            "CloneSquad"
+                  MainSQSQueue:                               !Ref MainQueue
+                  UserNotificationArns:                       !Ref UserNotificationArns
+                  InteractLambdaArn:                          !GetAtt InteractFunction.Arn
+                  InteractSQSUrl:                             !Ref InteractQueue
+                  GroupName:                                  !Ref GroupName
+                  GenericOkActions_SNSTopicArn:               !Ref SNSOk
+                  ScaleUp_SNSTopicArn:                        !Ref SNSScaleUp
+                  GenericInsufficientDataActions_SNSTopicArn: !Ref SNSInsufficientData
+                  CloudWatchEventRoleArn:                     !GetAtt CloudWatchEventRole.Arn
+                  ConfigurationTable:                         !Ref ConfigTable
+                  AlarmStateEC2Table:                         !Ref AlarmStateEC2Table
+                  StateTable:                                 !Ref StateTable
+                  EventTable:                                 !Ref EventTable
+                  SchedulerTable:                             !Ref SchedulerTable
+                  LongTermEventTable:                         !Ref LongTermEventTable
+                  VariantNumber:                              !Ref VariantNumber
+                  ConfigurationURL:                           !Ref ConfigurationURL
+                  LoggingS3Path:                              !Ref LoggingS3Path
+                  AWS_XRAY_SDK_ENABLED:                       !Ref XRayDiagnosis
+              Events:
+                Schedule:
+                  Type: Schedule
+                  Properties:
+                    Description: "Schedule event for CloneSquad HeartBeat"
+                    Name: !Sub "CS-hb-rule-${GroupName}"
+                    Enabled: True
+                    Schedule: "rate(1 minute)"
+                SQS:
+                  Type: SQS
+                  Properties:
+                    Queue: !GetAtt MainQueue.Arn
+                    BatchSize: 10
+
+    PermissionForSchedulerEvents:
+            Type: AWS::Lambda::Permission
+            Properties: 
+                Action: "lambda:InvokeFunction"
+                FunctionName: !Ref MainFunction
+                Principal: "events.amazonaws.com"
+                SourceArn: !Sub "arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:rule/CS-hb-rule-${GroupName}-*"
+
+
+    SNSMgrFunction:
+            Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+            Properties:
+              Handler: app.sns_handler
+              Runtime: python3.7
+              CodeUri: custo/
+              Layers:
+                  - !Ref CloneSquadLayer
+                  - !Ref CloneSquadDependencyLayer
+              FunctionName: !Sub "CloneSquad-SNSMgr-${GroupName}"
+              MemorySize: 256
+              Timeout: 60
+              Policies:
+              - AdministratorAccess
+              Environment:
+                Variables:
+                  PYTHONPATH:                                 "/opt:/opt/site-packages"
+                  ApplicationName:                            "CloneSquad"
+                  MainSQSQueue:                               !Ref MainQueue
+                  GroupName:                                  !Ref GroupName
+                  GenericOkActions_SNSTopicArn:               !Ref SNSOk
+                  ScaleUp_SNSTopicArn:                        !Ref SNSScaleUp
+                  GenericInsufficientDataActions_SNSTopicArn: !Ref SNSInsufficientData
+                  ConfigurationTable:                         !Ref ConfigTable
+                  AlarmStateEC2Table:                         !Ref AlarmStateEC2Table
+                  StateTable:                                 !Ref StateTable
+                  EventTable:                                 !Ref EventTable
+                  VariantNumber:                              !Ref VariantNumber
+                  ConfigurationURL:                           !Ref ConfigurationURL
+              Events:
+                ScaleUpTopic:
+                  Type: SNS
+                  Properties:
+                    Topic: !Ref SNSScaleUp
+                OkTopic:
+                  Type: SNS
+                  Properties:
+                    Topic: !Ref SNSOk
+                InsufficientDataTopic:
+                  Type: SNS
+                  Properties:
+                    Topic: !Ref SNSInsufficientData
+                ConfigStream:
+                  Type: DynamoDB
+                  Properties:
+                    Stream: !GetAtt ConfigTable.StreamArn
+                    BatchSize: 100
+                    StartingPosition: TRIM_HORIZON
+
+    DiscoveryFunction:
+            Type: AWS::Serverless::Function 
+            Properties:
+              Handler: app.discovery_handler
+              Runtime: python3.7
+              CodeUri: custo/
+              Layers:
+                  - !Ref CloneSquadLayer
+                  - !Ref CloneSquadDependencyLayer
+              FunctionName: !Sub "CloneSquad-Discovery-${GroupName}"
+              MemorySize: 128
+              Environment:
+                Variables:
+                  PYTHONPATH:         "/opt:/opt/site-packages"
+                  ApplicationName:    "CloneSquad"
+                  GroupName:          !Ref GroupName
+                  GenericOkActions_SNSTopicArn: !Ref SNSOk
+                  ScaleUp_SNSTopicArn: !Ref SNSScaleUp
+                  GenericInsufficientDataActions_SNSTopicArn: !Ref SNSInsufficientData
+                  ConfigurationTable: !Ref ConfigTable
+                  AlarmStateEC2Table: !Ref AlarmStateEC2Table
+                  StateTable:         !Ref StateTable
+                  EventTable:         !Ref EventTable
+                  LongTermEventTable: !Ref LongTermEventTable
+                  SchedulerTable:     !Ref SchedulerTable
+                  VariantNumber:      !Ref VariantNumber
+                  ConfigurationURL:   !Ref ConfigurationURL
+                  LoggingS3Path:      !Ref LoggingS3Path
+                  InteractQueue:      !Ref InteractQueue
+                  InteractAPIGWUrl:   !Sub "https://${InteractApi}.execute-api.${AWS::Region}.amazonaws.com/v1/"
+                  MainFunctionArn:    !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:CloneSquad-Main-${GroupName}"
+
+    InteractFunction:
+            Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+            Properties:
+              Handler: app.interact_handler
+              Runtime: python3.7
+              CodeUri: custo/
+              Layers:
+                  - !Ref CloneSquadLayer
+                  - !Ref CloneSquadDependencyLayer
+              FunctionName: !Sub "CloneSquad-Interact-${GroupName}"
+              MemorySize: !Ref LambdaMemorySize
+              Timeout: 900
+              Policies:
+              - AdministratorAccess
+              Environment:
+                Variables:
+                  PYTHONPATH:         "/opt:/opt/site-packages"
+                  ApplicationName:    "CloneSquad"
+                  GroupName:          !Ref GroupName
+                  GenericOkActions_SNSTopicArn: !Ref SNSOk
+                  ScaleUp_SNSTopicArn: !Ref SNSScaleUp
+                  GenericInsufficientDataActions_SNSTopicArn: !Ref SNSInsufficientData
+                  ConfigurationTable: !Ref ConfigTable
+                  AlarmStateEC2Table: !Ref AlarmStateEC2Table
+                  StateTable:         !Ref StateTable
+                  EventTable:         !Ref EventTable
+                  LongTermEventTable: !Ref LongTermEventTable
+                  SchedulerTable:     !Ref SchedulerTable
+                  VariantNumber:      !Ref VariantNumber
+                  ConfigurationURL:   !Ref ConfigurationURL
+                  LoggingS3Path:      !Ref LoggingS3Path
+                  InteractQueue:      !Ref InteractQueue
+                  MainFunctionArn:    !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:CloneSquad-Main-${GroupName}"
+              Events:
+                SQS:
+                  Type: SQS
+                  Properties:
+                    Queue: !GetAtt InteractQueue.Arn
+                    BatchSize: 10
+                ApiEventCommand:
+                  Type: Api
+                  Properties:
+                    RestApiId: !Ref InteractApi
+                    Path: "{proxy+}"
+                    Method: get
+
+    InteractQueue:
+      Type: AWS::SQS::Queue
+      Properties: 
+        MessageRetentionPeriod: 3600
+        QueueName: !Sub "CloneSquad-Interact-${GroupName}"
+        ReceiveMessageWaitTimeSeconds: 20
+        VisibilityTimeout: 900
+        Tags: 
+          - Key: "clonesquad:group-name"
+            Value: !Ref GroupName
+
+    InteractQueueSQSPolicy: 
+      Type: AWS::SQS::QueuePolicy
+      Properties: 
+        Queues: 
+          - !Ref InteractQueue
+        PolicyDocument: 
+          Statement: 
+            - Sid: "CloneSquad-User-Interact-SQS-policy"
+              Action: 
+                - "SQS:SendMessage" 
+              Effect: "Allow"
+              Resource: !GetAtt InteractQueue.Arn
+              Condition:  
+                ArnLike: 
+                  aws:SourceArn: !Split [",", !Sub "${UserNotificationArns}" ]
+            - Sid: "CloneSquad-Interact-SQS-policy"
+              Action: 
+                - "sqs:*" 
+              Effect: "Allow"
+              Resource: !GetAtt InteractQueue.Arn
+              Condition:  
+                ArnLike: 
+                  aws:SourceArn: !GetAtt InteractFunction.Arn
+
+    PermissionForSchedulerEvents:
+            Type: AWS::Lambda::Permission
+            Properties: 
+                Action: "lambda:InvokeFunction"
+                FunctionName: !Ref InteractFunction
+                Principal: "events.amazonaws.com"
+                SourceArn: !Sub "arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:rule/CS-Cron-${GroupName}-*"
+
+Outputs:
+  MainFunction:
+    Description: "MainFunction Lambda Function ARN"
+    Value: !GetAtt MainFunction.Arn
+  InteractFunction:
+    Description: "InteractFunction Lambda Function ARN"
+    Value: !GetAtt InteractFunction.Arn
+  CloneSquadLayer:
+    Description: "CloneSquad Lambda layer (available for customization)"
+    Value: !Ref CloneSquadLayer
+  CloneSquadDependencyLayer:
+    Description: "CloneSquad Lambda layer (dependencies)"
+    Value: !Ref CloneSquadDependencyLayer
+  MainFunctionIamRole:
+    Description: "Implicit IAM Role created for MainRole function"
+    Value: !GetAtt MainFunctionRole.Arn
+  InternalERRORMainAlarm:
+    Description: "Alarm that triggers when an ERROR is encountered by Main Lambda function"
+    Value: !GetAtt InternalERRORMainAlarm.Arn
+  InternalWARNINGMainAlarm:
+    Description: "Alarm that triggers when a WARNING is encountered by Main Lambda function"
+    Value: !GetAtt InternalWARNINGMainAlarm.Arn
+  InternalERRORInteractAlarm:
+    Description: "Alarm that triggers when an ERROR is encountered by Interact Lambda function"
+    Value: !GetAtt InternalERRORInteractAlarm.Arn
+  InternalWARNINGInteractAlarm:
+    Description: "Alarm that triggers when a WARNING is encountered by Interact Lambda function"
+    Value: !GetAtt InternalWARNINGInteractAlarm.Arn
+  LackOfCPUCreditAlarm:
+    Description: "Alarm that triggers when at least one burstable instance has exhausted all its CPU credits"
+    Value: !GetAtt LackOfCPUCreditAlarm.Arn
+  ConfigTable:
+    Description: "Configuration table"
+    Value: !GetAtt ConfigTable.Arn
+  LongTermEventTable:
+    Description: "Logging table of noticeable events (requiring analysis)"
+    Value: !GetAtt LongTermEventTable.Arn
+  InteractQueue:
+    Description: "Queue for asynchronous calls with Interact Lambda function"
+    Value: !Ref InteractQueue
+  GroupName:
+    Description: "Group name for this CloneSquad deployment"
+    Value: !Ref GroupName
+  InteractAPIUrl:
+    Description: "Interact API Gateway URL"
+    Value: !Sub "https://${InteractApi}.execute-api.${AWS::Region}.amazonaws.com/v1/"

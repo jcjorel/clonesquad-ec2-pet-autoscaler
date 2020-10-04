@@ -1,0 +1,69 @@
+#!/usr/bin/python3
+#
+import os
+from os.path import dirname, abspath, join
+import sys
+
+# Find code directory relative to our directory
+THIS_DIR = dirname(__file__)
+CODE_DIR = abspath(join(THIS_DIR, '..', 'src'))
+sys.path.append(CODE_DIR)
+CLONESQUAD_DEPENDENCY_DIR = abspath(os.getenv("CLONESQUAD_DEPENDENCY_DIR"))
+sys.path.append(CLONESQUAD_DEPENDENCY_DIR)
+
+import sys
+import pdb
+import misc
+import argparse
+import debug as Dbg
+
+import yaml
+import re
+
+parser = argparse.ArgumentParser(description="CloudFormation template patch tool (S3 absolute references to Parameters)")
+parser.add_argument('template_file', help="CloudFormation template file to patch", type=str, nargs=1)
+parser.add_argument('--s3-bucket', help="Target S3 Bucket name", type=str, default="")
+parser.add_argument('--s3-prefix', help="Target S3 Prefix name", type=str, default="")
+parser.add_argument('--obfuscate', help="Target S3 Prefix name", type=bool, default=False)
+
+args = parser.parse_args()
+
+with open(args.template_file[0]) as f:
+    content = yaml.load(f, Loader=yaml.FullLoader)
+
+    parameters = content["Parameters"]
+    resources  = content["Resources"]
+
+    for r in resources:
+        res = resources[r]
+        properties = res["Properties"]
+
+        for pr in ["ContentUri", "CodeUri"]:
+            if pr in properties: 
+                prop = properties[pr]
+                m = re.search("^s3://([-.\w]+)/(.*)/(\w+)", prop)
+                if len(m.groups()) != 3:
+                   raise Exception("Can't parse property %s/%s !" % (pr, prop))
+                bucket, prefix, key = [m.group(1), m.group(2), m.group(3)]
+
+                if not args.obfuscate and r == "MainFunction":
+                    t = "Customization"
+                    parameters["%sRepositoryS3BucketName" % t]["Default"] = args.s3_bucket
+                    parameters["%sRepositoryS3Prefix"     % t]["Default"] = args.s3_prefix
+                    param_b = '%sRepositoryS3BucketName' % t if pr != "CodeUri" else '%sRepositoryS3BucketName' % t
+                    param_p = '%sRepositoryS3Prefix'     % t if pr != "CodeUri" else '%sRepositoryS3Prefix' % t
+                    properties[pr] = {}
+                    #properties[pr]["Fn::Sub"] = "s3://${%s}/${%s}/%s" % (param_b, param_p, key)
+                    properties[pr]["Bucket"] = {
+                            "Fn::Sub" : "${%s}" % param_b,
+                            }
+                    properties[pr]["Key"]    = {
+                            "Fn::Sub" : "${%s}/%s" % (param_p, key)
+                            }
+                else:
+                    properties[pr] = "s3://%s/%s/%s" % (
+                            args.s3_bucket if not args.obfuscate else "XXXXXXXXXXXXXX", 
+                            args.s3_prefix if not args.obfuscate else "YYYYYYYYYYYYYY", 
+                            key)
+
+print(yaml.dump(content))

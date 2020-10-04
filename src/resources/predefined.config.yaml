@@ -1,0 +1,35 @@
+ec2.schedule.min_instance_count: 2
+cloudwatch.alarm00.configuration_url: "internal:ec2.scaleup.alarm-cpu-gt-75pc.yaml,Points=1001,BaselineThreshold=20.0"
+
+min-desired-count-0-pcent:
+  ec2.schedule.min_instance_count: 0%
+
+min-desired-count-10-pent:
+  ec2.schedule.min_instance_count: 10%
+
+min-desired-count-20-pcent:
+  ec2.schedule.min_instance_count: 20%
+
+min-desired-count-30-pcent:
+  ec2.schedule.min_instance_count: 30%
+
+min-desired-count-40-pcent:
+  ec2.schedule.min_instance_count: 40%
+
+min-desired-count-50-pcent:
+  ec2.schedule.min_instance_count: 50%
+
+min-desired-count-60-pcent:
+  ec2.schedule.min_instance_count: 60%
+
+min-desired-count-70-pcent:
+  ec2.schedule.min_instance_count: 70%
+
+min-desired-count-80-pcent:
+  ec2.schedule.min_instance_count: 80%
+
+min-desired-count-90-pcent:
+  ec2.schedule.min_instance_count: 90%
+
+min-desired-count-100-pcent:
+  ec2.schedule.min_instance_count: 100%

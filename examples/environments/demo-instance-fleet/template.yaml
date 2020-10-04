@@ -1,0 +1,245 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'CloneSquad Demo Template to deploy a set of EC2 instances combining On-Demand and Spot instances.'
+Parameters:
+  KeyName:
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instance
+    Type: AWS::EC2::KeyPair::KeyName
+    ConstraintDescription: must be the name of an existing EC2 KeyPair.
+  InstanceAMI:
+    Description: Managed AMI ID for EC2 Instance
+    Type : String
+  IAMRole:
+    Description: EC2 attached IAM role
+    Type: String
+    Default: CloudWatchAgentAdminRole
+    ConstraintDescription: must be an existing IAM role which will be attached to EC2 instance.
+  GroupName:
+    Description: Name of the Squad to join
+    Type: String
+    Default: test
+  SSHLocation:
+    Description: The IP address range that can be used to SSH to the EC2 instances
+    Type: String
+    MinLength: '9'
+    MaxLength: '18'
+    Default: 0.0.0.0/0
+    AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
+  {% for i in range(subnet_count) %}
+  Subnet{{i}}:
+    Description: "Subnet #{{i}}"
+    Type: String
+  {% endfor %}
+
+  {% set count = namespace(value=0) %}
+Resources:
+  {% for i in range(parameters.nb_of_instance_specs) %}
+  {% for j in range(parameters.specs[i]["Count"]) %}
+  EC2Instance{{i}}x{{j}}:
+    Type: AWS::EC2::Instance
+    Properties:
+      LaunchTemplate:
+      {% if parameters.specs[i]["Spot"]  %}
+        LaunchTemplateId: !Ref SpotPersistentLaunchTemplate
+        Version: !GetAtt SpotPersistentLaunchTemplate.LatestVersionNumber
+      {% else %}
+        LaunchTemplateId: !Ref InstanceLaunchTemplate
+        Version: !GetAtt InstanceLaunchTemplate.LatestVersionNumber
+      {% endif %}
+      SubnetId: !Ref Subnet{{ count.value % subnet_count }}
+      InstanceType: {{parameters.specs[i]["InstanceType"]}}
+      Monitoring: 'True'
+      Tags:
+        - Key: "Name"
+      {% if parameters.specs[i]["Spot"]  %}
+          Value: !Sub "CS-${GroupName}-Spot{{i}}.{{j}}"
+      {% else %}
+          Value: !Sub "CS-${GroupName}-Inst{{i}}.{{j}}"
+      {% endif %}
+        - Key: "clonesquad:group-name"
+          Value: !Ref GroupName
+      {% set count.value = count.value + 1 %}
+  {% endfor %}
+  {% endfor %}
+
+  {% for i in range(parameters.nb_of_static_fleets) %}
+  {% for j in range(parameters.static_fleet_specs[i]["Count"]) %}
+  EC2InstanceStaticFleet{{i}}x{{j}}:
+    Type: AWS::EC2::Instance
+    Properties:
+      LaunchTemplate:
+      {% if parameters.static_fleet_specs[i]["Spot"]  %}
+        LaunchTemplateId: !Ref SpotPersistentLaunchTemplate
+        Version: !GetAtt SpotPersistentLaunchTemplate.LatestVersionNumber
+      {% else %}
+        LaunchTemplateId: !Ref InstanceLaunchTemplate
+        Version: !GetAtt InstanceLaunchTemplate.LatestVersionNumber
+      {% endif %}
+      SubnetId: !Ref Subnet{{ count.value % subnet_count }}
+      InstanceType: {{parameters.static_fleet_specs[i]["InstanceType"]}}
+      Monitoring: 'True'
+      Tags:
+        - Key: "Name"
+      {% if parameters.static_fleet_specs[i]["Spot"]  %}
+          Value: !Sub "CS-${GroupName}-SpotSF{{i}}.{{j}}"
+      {% else %}
+          Value: !Sub "CS-${GroupName}-InstSF{{i}}.{{j}}"
+      {% endif %}
+        - Key: "clonesquad:group-name"
+          Value: !Ref GroupName
+        - Key: "clonesquad:static-subfleet-name"
+          Value: {{ parameters.static_fleet_specs[i]["SubFleetName"] }}
+  {% endfor %}
+  {% endfor %}
+
+  {% for i in range(parameters.nb_of_static_rds_fleets) %}
+  {% for j in range(parameters.static_fleet_rds_spec[i]["Count"]) %}
+  RDS{{i}}x{{j}}:
+    Type: 'AWS::RDS::{{parameters.static_fleet_rds_spec[i]["type"]}}'
+    Properties:
+        #{{parameters.static_fleet_rds_spec[i]["type"]}}Identifier: "CS-RDS{{i}}x{{j}}"
+        {% if "DBClass" in parameters.static_fleet_rds_spec[i] %}
+        DBInstanceClass: {{parameters.static_fleet_rds_spec[i]["DBClass"]}}
+        {% endif %}
+        {% if "Storage" in parameters.static_fleet_rds_spec[i] %}
+        AllocatedStorage: {{parameters.static_fleet_rds_spec[i]["Storage"]}}
+        {% endif %}
+        Engine: {{parameters.static_fleet_rds_spec[i]["Engine"]}}
+        MasterUsername: {{parameters.user}}
+        MasterUserPassword: {{parameters.password}}
+
+        Tags:
+        - Key: "Name"
+          Value: !Sub "CS-${GroupName}-RDS{{i}}.{{j}}"
+        - Key: "clonesquad:group-name"
+          Value: !Ref GroupName
+        - Key: "clonesquad:static-subfleet-name"
+          Value: {{ parameters.static_fleet_rds_spec[i]["SubFleetName"] }}
+  {% endfor %}
+  {% endfor %}
+
+  SpotPersistentLaunchTemplate: 
+    Properties:
+    {% block properties %}
+      LaunchTemplateData:
+        KeyName:
+          Ref: KeyName
+        ImageId:
+          Ref: InstanceAMI
+        IamInstanceProfile:
+          Name: !Ref IAMInstanceProfile
+        SecurityGroupIds:
+          - !GetAtt InstanceSecurityGroup.GroupId
+        TagSpecifications:
+        - ResourceType: instance
+          Tags:
+            - Key: clonesquad:group-name
+              Value: !Ref GroupName
+        UserData: 
+          Fn::Base64: 
+            !Sub |
+              #cloud-config
+              #
+              write_files:
+              - owner: root:root
+                permissions: '0644'
+                path: /var/www/html/index.html
+                content: |
+                  <!DOCTYPE html>
+                  <html>
+                      <head>
+                        <title>CloneQuad Test page</title>
+                      </head>
+                      <body>
+                        <p>This is an example of a simple HTML page with one paragraph.</p>
+                      </body>
+                  </html>
+
+              - owner: root:root
+                permissions: '0644'
+                path: /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
+                content: |
+                  {
+                    "metrics": {
+                      "append_dimensions": {
+                        "InstanceId": "${!aws:InstanceId}"
+                      },
+                      "metrics_collected": {
+                        "mem": {
+                          "measurement": [
+                            "mem_used_percent"
+                          ]
+                        },
+                        "swap": {
+                          "measurement": [
+                            "swap_used_percent"
+                          ]
+                        }
+                      }
+                    }
+                  }
+              - owner: root:root
+                permissions: "755"
+                path: /var/www/cgi-bin/cpu
+                content: |
+                  #!/bin/python3
+                  import hashlib
+                  import os
+                  m = hashlib.sha256()
+                  seed=bytes("","utf-8")
+                  messages = []
+                  try:
+                        iterations = int(os.environ["QUERY_STRING"])
+                        messages.append("Read QUERY_STRING %s" % iterations)
+                  except:
+                        iterations = 200000
+                        messages.append("Default 200000 iterations")
+                  for i in range(0,iterations):
+                     m.update(seed)
+                     seed = m.digest()
+                  print("Content-Type: text/plain\n\nCPU consumption done!\n%s" % "\n".join(messages))
+              runcmd:
+                - /usr/bin/rpm -Uvh https://s3.amazonaws.com/amazoncloudwatch-agent/amazon_linux/amd64/latest/amazon-cloudwatch-agent.rpm
+                - /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json -s
+                - /usr/bin/yum install -y python3 || /usr/bin/yum upgrade -y python3
+                - /usr/bin/yum install -y httpd || /usr/bin/yum upgrade -y httpd
+                - /usr/sbin/service httpd start
+                - /usr/sbin/chkconfig httpd on
+                - echo "GroupName=${GroupName}" >/.metadata
+
+    {% endblock %}
+        InstanceMarketOptions:
+          MarketType: spot
+          SpotOptions:
+            InstanceInterruptionBehavior: stop
+            SpotInstanceType: persistent
+    Type: AWS::EC2::LaunchTemplate
+
+  InstanceLaunchTemplate: 
+    Properties: {{self.properties() | indent(-2, True)}}
+    Type: AWS::EC2::LaunchTemplate
+
+  IAMInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties: 
+      Roles: 
+        - !Ref IAMRole
+
+
+  InstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable SSH access via port 22
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: '22'
+        ToPort: '22'
+        CidrIp:
+          Ref: SSHLocation
+      - IpProtocol: tcp
+        FromPort: '80'
+        ToPort: '80'
+        CidrIp:
+          Ref: SSHLocation
+

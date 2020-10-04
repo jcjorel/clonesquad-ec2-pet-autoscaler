@@ -1,0 +1,19 @@
+#!/bin/bash -e 
+
+if [ -e ${CLONESQUAD_PARAMETER_DIR}/samconfig.toml ]; then
+	exit
+fi
+S3_BUCKET="clonesquad-sam-build-$(uuid)"
+aws s3 mb s3://$S3_BUCKET --region ${AWS_DEFAULT_REGION}
+cat >${CLONESQUAD_PARAMETER_DIR}/samconfig.toml <<EOF
+version = 0.1
+[default]
+[default.deploy]
+[default.deploy.parameters]
+stack_name = "sam-app"
+s3_bucket = "$S3_BUCKET"
+s3_prefix = "sam-app"
+region = "${AWS_DEFAULT_REGION}"
+capabilities = "CAPABILITY_IAM"
+EOF
+

@@ -1,0 +1,160 @@
+pset-50:
+  ec2.schedule.scalein.rate: 10
+  ec2.schedule.desired_instance_count: -1
+  ec2.schedule.min_instance_count: 50%
+pset-55:
+  ec2.schedule.scalein.rate: 10
+  ec2.schedule.desired_instance_count: -1
+  ec2.schedule.min_instance_count: 55%
+pset-60:
+  ec2.schedule.scalein.rate: 10
+  ec2.schedule.desired_instance_count: -1
+  ec2.schedule.min_instance_count: 60%
+pset-65:
+  ec2.schedule.scalein.rate: 10
+  ec2.schedule.desired_instance_count: -1
+  ec2.schedule.min_instance_count: 65%
+pset-70:
+  ec2.schedule.scalein.rate: 10
+  ec2.schedule.desired_instance_count: -1
+  ec2.schedule.min_instance_count: 70%
+pset-75:
+  ec2.schedule.scalein.rate: 10
+  ec2.schedule.desired_instance_count: -1
+  ec2.schedule.min_instance_count: 75%
+pset-80:
+  ec2.schedule.scalein.rate: 10
+  ec2.schedule.desired_instance_count: -1
+  ec2.schedule.min_instance_count: 80%
+pset-85:
+  ec2.schedule.scalein.rate: 10
+  ec2.schedule.desired_instance_count: -1
+  ec2.schedule.min_instance_count: 85%
+pset-90:
+  ec2.schedule.scalein.rate: 10
+  ec2.schedule.desired_instance_count: -1
+  ec2.schedule.min_instance_count: 90%
+pset-95:
+  ec2.schedule.scalein.rate: 10
+  ec2.schedule.desired_instance_count: -1
+  ec2.schedule.min_instance_count: 95%
+pset-100:
+  ec2.schedule.scalein.rate: 10
+  ec2.schedule.desired_instance_count: -1
+  ec2.schedule.min_instance_count: 100%
+pset-95:
+  ec2.schedule.scalein.rate: 10
+  ec2.schedule.desired_instance_count: -1
+  ec2.schedule.min_instance_count: 95%
+pset-90:
+  ec2.schedule.scalein.rate: 10
+  ec2.schedule.desired_instance_count: -1
+  ec2.schedule.min_instance_count: 90%
+pset-85:
+  ec2.schedule.scalein.rate: 10
+  ec2.schedule.desired_instance_count: -1
+  ec2.schedule.min_instance_count: 85%
+pset-80:
+  ec2.schedule.scalein.rate: 10
+  ec2.schedule.desired_instance_count: -1
+  ec2.schedule.min_instance_count: 80%
+pset-75:
+  ec2.schedule.scalein.rate: 10
+  ec2.schedule.desired_instance_count: -1
+  ec2.schedule.min_instance_count: 75%
+pset-70:
+  ec2.schedule.scalein.rate: 10
+  ec2.schedule.desired_instance_count: -1
+  ec2.schedule.min_instance_count: 70%
+pset-65:
+  ec2.schedule.scalein.rate: 10
+  ec2.schedule.desired_instance_count: -1
+  ec2.schedule.min_instance_count: 65%
+pset-60:
+  ec2.schedule.scalein.rate: 10
+  ec2.schedule.desired_instance_count: -1
+  ec2.schedule.min_instance_count: 60%
+pset-55:
+  ec2.schedule.scalein.rate: 10
+  ec2.schedule.desired_instance_count: -1
+  ec2.schedule.min_instance_count: 55%
+pset-50:
+  ec2.schedule.scalein.rate: 10
+  ec2.schedule.desired_instance_count: -1
+  ec2.schedule.min_instance_count: 50%
+pset-45:
+  ec2.schedule.scalein.rate: 10
+  ec2.schedule.desired_instance_count: -1
+  ec2.schedule.min_instance_count: 45%
+pset-40:
+  ec2.schedule.scalein.rate: 10
+  ec2.schedule.desired_instance_count: -1
+  ec2.schedule.min_instance_count: 40%
+pset-35:
+  ec2.schedule.scalein.rate: 10
+  ec2.schedule.desired_instance_count: -1
+  ec2.schedule.min_instance_count: 35%
+pset-30:
+  ec2.schedule.scalein.rate: 10
+  ec2.schedule.desired_instance_count: -1
+  ec2.schedule.min_instance_count: 30%
+pset-25:
+  ec2.schedule.scalein.rate: 10
+  ec2.schedule.desired_instance_count: -1
+  ec2.schedule.min_instance_count: 25%
+pset-20:
+  ec2.schedule.scalein.rate: 10
+  ec2.schedule.desired_instance_count: -1
+  ec2.schedule.min_instance_count: 20%
+pset-15:
+  ec2.schedule.scalein.rate: 10
+  ec2.schedule.desired_instance_count: -1
+  ec2.schedule.min_instance_count: 15%
+pset-10:
+  ec2.schedule.scalein.rate: 10
+  ec2.schedule.desired_instance_count: -1
+  ec2.schedule.min_instance_count: 10%
+pset-5:
+  ec2.schedule.scalein.rate: 10
+  ec2.schedule.desired_instance_count: -1
+  ec2.schedule.min_instance_count: 5%
+pset-0:
+  ec2.schedule.scalein.rate: 10
+  ec2.schedule.desired_instance_count: -1
+  ec2.schedule.min_instance_count: 0%
+pset-5:
+  ec2.schedule.scalein.rate: 10
+  ec2.schedule.desired_instance_count: -1
+  ec2.schedule.min_instance_count: 5%
+pset-10:
+  ec2.schedule.scalein.rate: 10
+  ec2.schedule.desired_instance_count: -1
+  ec2.schedule.min_instance_count: 10%
+pset-15:
+  ec2.schedule.scalein.rate: 10
+  ec2.schedule.desired_instance_count: -1
+  ec2.schedule.min_instance_count: 15%
+pset-20:
+  ec2.schedule.scalein.rate: 10
+  ec2.schedule.desired_instance_count: -1
+  ec2.schedule.min_instance_count: 20%
+pset-25:
+  ec2.schedule.scalein.rate: 10
+  ec2.schedule.desired_instance_count: -1
+  ec2.schedule.min_instance_count: 25%
+pset-30:
+  ec2.schedule.scalein.rate: 10
+  ec2.schedule.desired_instance_count: -1
+  ec2.schedule.min_instance_count: 30%
+pset-35:
+  ec2.schedule.scalein.rate: 10
+  ec2.schedule.desired_instance_count: -1
+  ec2.schedule.min_instance_count: 35%
+pset-40:
+  ec2.schedule.scalein.rate: 10
+  ec2.schedule.desired_instance_count: -1
+  ec2.schedule.min_instance_count: 40%
+pset-45:
+  ec2.schedule.scalein.rate: 10
+  ec2.schedule.desired_instance_count: -1
+  ec2.schedule.min_instance_count: 45%

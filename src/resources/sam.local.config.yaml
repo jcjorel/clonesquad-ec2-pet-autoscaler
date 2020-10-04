@@ -1,0 +1,11 @@
+#ec2.schedule.min_instance_count: 2
+#----ec2.schedule.desired_instance_count: 50%
+config.dump_configuration: 1
+#ec2.schedule.to_scaledown_state.cooldown_delay: 30
+#ec2.schedule.scaledown.rate: 20
+#app.run_period: 0
+#ec2.schedule.bounce_delay: 'minutes=12'
+
+#config.active_parameter_set: debug-min-desired-count-90-per-cent
+#debug-min-desired-count-90-per-cent:
+#   ec2.schedule.min_instance_count: 90%

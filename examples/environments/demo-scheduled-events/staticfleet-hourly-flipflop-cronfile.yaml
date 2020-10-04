@@ -1,0 +1,2 @@
+demo-staticfleet-all-running: "cron(0 * * * ? *),staticfleet.MyStaticFleet1.state=running,staticfleet.MyStaticFleet2.state=running,staticfleet.MyStaticFleet3.state=running"
+demo-staticfleet-all-stopped: "cron(30 * * * ? *),staticfleet.MyStaticFleet1.state=stopped,staticfleet.MyStaticFleet2.state=stopped,staticfleet.MyStaticFleet3.state=stopped"

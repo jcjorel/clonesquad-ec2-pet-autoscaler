@@ -1,0 +1,1750 @@
+import math
+import re
+import boto3
+import json
+import yaml
+import pdb
+import hashlib
+import random
+from datetime import datetime
+from datetime import timedelta
+from collections import defaultdict
+
+import notify
+from notify import record_call as R
+import sqs
+import kvtable
+import misc
+import config as Cfg
+import debug as Dbg
+
+from aws_xray_sdk.core import xray_recorder
+
+import cslog
+log = cslog.logger(__name__)
+
+class EC2_Schedule:
+    @xray_recorder.capture(name="EC2_Schedule.__init__")
+    def __init__(self, context, ec2, targetgroup, cloudwatch):
+        self.context                = context
+        self.ec2                    = ec2
+        self.targetgroup            = targetgroup
+        self.cloudwatch             = cloudwatch
+        self.scaling_state_changed  = False
+        self.alarm_points           = 0.0
+        self.instance_scale_score   = 0.0
+        self.would_like_to_scalein  = False
+        self.would_like_to_scaleout = False
+        Cfg.register({
+                 "ec2.schedule.min_instance_count,Stable" : {
+                     "DefaultValue" : 0,
+                     "Format"       : "PositiveInteger",
+                     "Description"  : """Minimum number of healthy serving instances. 
+
+CloneSquad will ensure that at least this number of instances
+are runnning at a given time. A serving instance has passed all the health checks (if part of Target group) and is not detected with
+system issues."""
+                  },
+                 "ec2.schedule.desired_instance_count,Stable" : {
+                     "DefaultValue" : -1,
+                     "Format"       : "Integer", 
+                     "Description"  : """If set to -1, the auto-scaler controls freely the number of running instances. Set to a value greater than [`ec2.schedule.min_instance_count`](#ec2schedulemin_instance_count), the auto-scaler is disabled and this value will control the precise number of serving 
+instances at a given time. 
+
+A typical usage for this key is to temporarily force all the instances to run at the same time to perform mutable maintenance
+(System and/or SW patching).
+                     """
+                 },
+                 "ec2.schedule.max_instance_start_at_a_time" : 5,
+                 "ec2.schedule.max_instance_stop_at_a_time" : 4,
+                 "ec2.schedule.max_cpu_crediting_instances,Stable" : {
+                     "DefaultValue" : "50%",
+                     "Format"       : "IntegerOrPercentage",
+                     "Description"  : """Maximum number of instances that could be in the CPU crediting state at the same time.
+
+Setting this parameter to 100% could lead to fleet availability issues and so is not recommended. Under scaleout stress
+condition, CloneSquad will automatically stop and restart instances in CPU Crediting state but it may take time (up to 3 mins). 
+                     
+    If you need to increase this value, it may mean that your burstable instance types are too 
+    small for your workload. Consider upgrading instance types instead.
+                     """
+                 },
+                 "ec2.schedule.max_cpu_credit_instance_issues" : {
+                     "DefaultValue" : "50%",
+                     "Format"       : "Integer >= 0 _OR_ Percentage",
+                     "Description"  : """Maximum number of instances that could be considered as unhealthy because their CPU credit are exhausted.
+                     Setting this parameter to 100% will indicate that all instances could marked as unhealthy at the same time.
+                     """
+                 },
+                 "ec2.schedule.state_ttl" : "hours=2",
+                 "ec2.schedule.base_points" : 1000,
+                 "ec2.schedule.scaleout.disable,Stable": {
+                     "DefaultValue" : 0,
+                    "Format"        : "Bool",
+                    "Description"   : """Disable the scaleout part of the auto-scaler.
+
+    Setting this value to 1 makes the auto-scaler scalein only.
+                    """
+                 },
+                 "ec2.schedule.scaleout.rate,Stable": {
+                     "DefaultValue" : 5,
+                     "Format"       : "PositiveInteger",
+                     "Description"  : """Number of instances to start per period.   
+
+This core parameter is used by the auto-scaler to compute when to 
+start a new instance under a scaleout condition. By default, it is set to 5 instances per period (see [`ec2.schedule.scaleout.period`](#ec2schedulescaleoutperiod)) that 
+is quite a slow growth rate. This number can be increased to grow faster the running fleet under scale out condition.
+
+Increasing too much this parameter makes the auto-scaler very reactive and can lead to over-reaction inducing unexpected costs:
+A big value can be sustainable when [CloudWatch High-Precision alarms](https://aws.amazon.com/fr/about-aws/whats-new/2017/07/amazon-cloudwatch-introduces-high-resolution-custom-metrics-and-alarms/)
+are used allowing the auto-scaler to get very quickly a 
+feedback loop of the impact of added instances. With standard alarms from the AWS namespace, precision is at best 1 minute and 
+the associated CloudWatch metrics can't react fast enough to inform the algorithm with accurate data.
+
+    **Do not use big value there when using Cloudwatch Alarms with 1 min ou 5 mins precision.**
+                     """
+                 },
+                 "ec2.schedule.scaleout.period,Stable": {
+                     "DefaultValue" : "minutes=10",
+                     "Format"       : "Duration",
+                     "Description"  : """Period of scaling assesment. 
+
+This parameter is strongly linked with [`ec2.scheduler.scaleout.rate`](#ec2schedulerscaleoutrate) and is 
+used by the scaling algorithm as a devider to determine the fleet growth rate under scalout condition.
+                     """
+                 },
+                 "ec2.schedule.scaleout.instance_upfront_count,Stable" : {
+                     "DefaultValue" : 1,
+                     "Format"       : "Integer",
+                     "Description"  : """Number of instances to start upfront of a new scaleout condition.
+
+When auto-scaling is enabled, the auto-scaler algorithm compute when to start a new instance using its internal time-based and point-based
+algorithm. This parameter is used to bypass this algorithm (only at start of a scaleout sequence) and make it appears more responsive
+by starting immediatly the specified amount of instances. 
+
+    It is not recommended to put a big value for this parameter (it is better 
+    to let the auto-scaler algorithm do its smoother job instead)
+                     """
+                 },
+                 "ec2.schedule.scalein.disable,Stable": {
+                     "DefaultValue"  : 0,
+                     "Format"        : "Bool",
+                     "Description"   : """Disable the scalein part of the auto-scaler.
+
+    Setting this value to 1 makes the auto-scaler scaleout only.
+                     """
+                 },
+                 "ec2.schedule.scalein.rate,Stable": {
+                     "DefaultValue": 3,
+                     "Format"      : "Integer",
+                     "Description" : """Same than `ec2.schedule.scaleout.rate` but for the scalein direction.
+
+Must be a greater than `0` Integer.
+
+                     """
+                 },
+                 "ec2.schedule.scalein.period,Stable": {
+                     "DefaultValue": "minutes=10",
+                     "Format"      : "Duration",
+                     "Description" : """Same than `ec2.schedule.scaleout.period` but for the scalein direction.
+
+Must be a greater than `0` Integer.
+
+                     """
+                 },
+                 "ec2.schedule.scalein.instance_upfront_count,Stable" : {
+                         "DefaultValue": 0,
+                         "Format"      : "Integer",
+                         "Description" : """Number of instances to stop upfront of a new scalein condition
+
+When auto-scaling is enabled, the auto-scaler algorithm compute when to drain and stop a new instance using its internal time-based and point-based
+algorithm. This parameter is used to bypass this algorithm (only at start of a scalein sequence) and make it appears more responsive
+by draining immediatly the specified amount of instances. 
+
+    It is not recommended to put a big value for this parameter (it is better 
+    to let the auto-scaler algorithm do its smoother job instead)
+                         """
+                 },
+                 "ec2.schedule.scalein.threshold_ratio" : 0.66,
+                 "ec2.schedule.to_scalein_state.cooldown_delay" : 120,
+                 "ec2.schedule.to_scaleout_state.cooldown_delay" : 0,
+                 "ec2.schedule.horizontalscale.integration_period": "minutes=5",
+                 "ec2.schedule.verticalscale.instance_type_distribution,Stable": {
+                         "DefaultValue": "",
+                         "Format"      : "MetaStringList",
+                         "Description" : """Policy for vertical scaling. 
+
+This setting is a core critical one and defines the vertical scaling policy.
+This parameter controls how the vertical scaler will prioritize usage and on-the-go instance type modifications.
+
+By default, no vertical scaling is configured meaning all instances whatever their instance type or launch model (Spot vs
+On-Demand) are handled the same way. 
+                         
+This parameter is a [MetaStringList](#MetaStringList)
+    Ex: t3.medium,count=3,lighthouse;c5.large,spot;c5.large;c5.xlarge
+
+Please consider reading [detailed decumentation about vertical scaling](SCALING.md) to ensure proper use.
+                         """
+                 },
+                 "ec2.schedule.verticalscale.lighthouse_replacement_graceperiod" : "minutes=2",
+                 "ec2.schedule.verticalscale.max_instance_type_modified_per_batch": 5,
+                 "ec2.schedule.verticalscale.lighthouse_disable,Stable": {
+                         "DefaultValue": 0,
+                         "Format"      : "Bool",
+                         "Description" : """Completly disable the LightHouse instance algorithm. 
+
+As consequence, all instances matching the 'LightHouse' directive won't be scheduled.
+
+Typical usage for this key is to ensure the fleet always run with best performing instances. As a example, Users could consider to use this 
+key in combination with the instance scheduler to force the fleet to be 'LightHouse' instance free on peak load hours.
+                         """
+                 },
+                 "ec2.schedule.bounce_delay,Stable" : {
+                         "DefaultValue": 'minutes=0',
+                         "Format"      : "Duration",
+                         "Description" : """Max instance running time before bouncing.
+
+By default, the bouncing algorithm is disabled. When this key is defined with a duration greated than 0 second, the fleet instances
+are monitored for maximum age. Ex: 'days=2' means that, a instance running for more than 2 days will be bounced implying 
+a fresh one will be started before the too old one is going to be stoppped (See [`ec2.schedule.bounce_cooldown`](#ec2schedulebounce_cooldown) parameter for more information
+about time spent by instances in 'bounced' state). 
+
+Bouncing Tx burstable instances is interesting to better leverage CPU Credit mechanism. 
+As [CPU Credits are kept one week for stopped instances](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/burstable-credits-baseline-concepts.html) it is valuable to bounce running burstable instances to refresh stopped T3 instances CPU credits before they expire.
+                         """
+                 },
+                 "ec2.schedule.bounce_instance_jitter" : 'minutes=10',
+                 "ec2.schedule.bounce_instance_cooldown" : 'minutes=10',
+                 "ec2.schedule.bounce.instances_with_issue_grace_period": "minutes=5",
+                 "ec2.schedule.draining.instance_cooldown": "minutes=2",
+                 "ec2.schedule.start.warmup_delay": "minutes=2",
+                 "ec2.schedule.burstable_instance.max_time_stopped": "days=6,hours=12",
+                 "ec2.schedule.burstable_instance.max_cpucrediting_time,Stable": {
+                         "DefaultValue": "hours=12",
+                         "Format"      : "Duration",
+                         "Description" : """Maximum duration that an instance can spent in the 'CPU Crediting' state.
+
+This parameter is a safety guard to avoid a burstable instance with a faulty high-cpu condition to induce 'unlimited' credit
+over spending for ever.
+                        """
+                 },
+                 "ec2.schedule.metrics.time_resolution": "60",
+                 "ec2.schedule.min_cpu_credit_required,Stable": {
+                         "DefaultValue" : "30%",
+                         "Format"       : "IntegerOrPercentage",
+                         "Description"  : """The minimun amount CPU Credit that a burstable instance should have before to be shutdown.
+
+This value is used by the 'CPU Crediting' algorithm to determine when a Burstable instance has gained enough credits to leave the
+CPU Crediting mode and be shutdown.
+
+When specified in percentage, 100% represents the ['Maximum earned credits than be accrued in a single day'](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/burstable-credits-baseline-concepts.html).
+
+    Ex: `30%` for a t3.medium means a minimum cpu credit of `0.3 * 576 = 172`
+
+                         """
+                 },
+                 "ec2.schedule.spot.min_stop_period": {
+                         "DefaultValue": "minutes=4",
+                         "Format"      : "Duration",
+                         "Description" : """Minimum duration a Spot instance needs to spend in 'stopped' state.
+
+A very recently stopped persistent Spot instance can not be restarted immediatly for technical reasons. This 
+parameter should NOT be modified by user.
+                         """
+                 },
+                 "ec2.schedule.verticalscale.disable_instance_type_plannning": 0
+        })
+
+        self.state_ttl = Cfg.get_duration_secs("ec2.schedule.state_ttl")
+
+        metric_time_resolution = Cfg.get_int("ec2.schedule.metrics.time_resolution")
+        if metric_time_resolution < 60: metric_time_resolution = 1 # Switch to highest resolution
+
+        self.cloudwatch.register_metric([
+                { "MetricName": "DrainingInstances",
+                  "Unit": "Count",
+                  "StorageResolution": metric_time_resolution },
+                { "MetricName": "RunningInstances",
+                  "Unit": "Count",
+                  "StorageResolution": metric_time_resolution },
+                { "MetricName": "PendingInstances",
+                  "Unit": "Count",
+                  "StorageResolution": metric_time_resolution },
+                { "MetricName": "StoppedInstances",
+                  "Unit": "Count",
+                  "StorageResolution": metric_time_resolution },
+                { "MetricName": "StoppingInstances",
+                  "Unit": "Count",
+                  "StorageResolution": metric_time_resolution },
+                { "MetricName": "NbOfInstanceInInitialState",
+                  "Unit": "Count",
+                  "StorageResolution": metric_time_resolution },
+                { "MetricName": "NbOfInstanceInUnuseableState",
+                  "Unit": "Count",
+                  "StorageResolution": metric_time_resolution },
+                { "MetricName": "NbOfBouncedInstances",
+                  "Unit": "Count",
+                  "StorageResolution": metric_time_resolution },
+                { "MetricName": "NbOfExcludedInstances",
+                  "Unit": "Count",
+                  "StorageResolution": metric_time_resolution },
+                { "MetricName": "NbOfCPUCreditExhaustedInstances",
+                  "Unit": "Count",
+                  "StorageResolution": metric_time_resolution },
+                { "MetricName": "NbOfCPUCreditingInstances",
+                  "Unit": "Count",
+                  "StorageResolution": metric_time_resolution },
+                { "MetricName": "InstanceScaleScore",
+                  "Unit": "None",
+                  "StorageResolution": metric_time_resolution },
+                { "MetricName": "FleetSize",
+                  "Unit": "Count",
+                  "StorageResolution": metric_time_resolution },
+                { "MetricName": "MinInstanceCount",
+                  "Unit": "Count",
+                  "StorageResolution": metric_time_resolution },
+                { "MetricName": "DesiredInstanceCount",
+                  "Unit": "Count",
+                  "StorageResolution": metric_time_resolution },
+                { "MetricName": "NbOfInstancesInError",
+                  "Unit": "Count",
+                  "StorageResolution": metric_time_resolution },
+                { "MetricName": "RunningLighthouseInstances",
+                  "Unit": "Count",
+                  "StorageResolution": metric_time_resolution },
+                { "MetricName": "StaticFleet.Size",
+                  "Unit": "Count",
+                  "StorageResolution": metric_time_resolution },
+                { "MetricName": "StaticFleet.RunningInstances",
+                  "Unit": "Count",
+                  "StorageResolution": metric_time_resolution },
+                { "MetricName": "StaticFleet.DrainingInstances",
+                  "Unit": "Count",
+                  "StorageResolution": metric_time_resolution },
+            ])
+        self.ec2.register_state_aggregates([
+            {
+                "Prefix": "ec2.schedule.instance.",
+                "Compress": True,
+                "DefaultTTL": Cfg.get_duration_secs("ec2.schedule.state_ttl")
+            }
+            ])
+
+
+
+    def get_prerequisites(self):
+        self.cpu_credits = yaml.safe_load(str(misc.get_url("internal:cpu-credits.yaml"),"utf-8"))
+        self.ec2_alarmstate_table   = kvtable.KVTable(self.context, self.context["AlarmStateEC2Table"])
+        self.ec2_alarmstate_table.reread_table()
+
+        # The scheduler part is making an extensive use of filtered/sorted lists that could become
+        #   cpu and time consuming to build. We build here a library of filtered/sorted lists 
+        #   available to all algorithms.
+        # Library of filtered/sorted lists excluding the 'excluded' instances
+        xray_recorder.begin_subsegment("prerequisites:prepare_instance_lists")
+        self.instances_wo_excluded                                = self.ec2.get_instances(ScalingState="-excluded")
+        self.instances_wo_excluded_error                          = self.ec2.get_instances(instances=self.instances_wo_excluded, ScalingState="-error")
+        self.running_instances_wo_excluded                        = self.ec2.get_instances(instances=self.instances_wo_excluded, State="running")
+        self.pending_instances_wo_draining_excluded               = self.ec2.get_instances(instances=self.instances_wo_excluded, State="pending", ScalingState="-draining")
+        self.stopped_instances_wo_excluded                        = self.ec2.get_instances(instances=self.instances_wo_excluded, State="stopped")
+        self.stopped_instances_wo_excluded_error                  = self.ec2.get_instances(instances=self.instances_wo_excluded, State="stopped", ScalingState="-error")
+        self.stopping_instances_wo_excluded                       = self.ec2.get_instances(instances=self.instances_wo_excluded, State="stopping")
+        self.pending_running_instances_draining_wo_excluded       = self.ec2.get_instances(instances=self.instances_wo_excluded, State="pending,running", ScalingState="draining")
+        self.pending_running_instances_bounced_wo_excluded        = self.ec2.get_instances(instances=self.instances_wo_excluded, State="pending,running", ScalingState="bounced")
+        self.pending_running_instances_wo_excluded                = self.ec2.get_instances(instances=self.instances_wo_excluded, State="pending,running")
+        self.pending_running_instances_wo_excluded_draining_error = self.ec2.get_instances(instances=self.instances_wo_excluded, State="pending,running", ScalingState="-draining,error")
+
+        # Useable and serving instances
+        self.initializing_instances                 = self.get_initial_instances()
+        self.cpu_exhausted_instances                = self.get_cpu_exhausted_instances()
+        self.instances_with_issues                  = self.get_instances_with_issues()
+        self.useable_instances                      = self.get_useable_instances()
+        self.useable_instances_wo_excluded_draining = self.get_useable_instances(instances=self.instances_wo_excluded, ScalingState="-draining")
+        self.serving_instances                      = self.get_useable_instances(exclude_initializing_instances=True)
+
+        # LightHouse filtered/sorted lists
+        self.lighthouse_instances_wo_excluded_ids     = self.get_lighthouse_instance_ids(self.instances_wo_excluded)
+        self.draining_lighthouse_instances_ids        = self.get_lighthouse_instance_ids(instances=self.pending_running_instances_draining_wo_excluded)
+        self.serving_lighthouse_instances_ids         = self.get_lighthouse_instance_ids(self.serving_instances)
+        self.useable_lighthouse_instance_ids          = self.get_lighthouse_instance_ids(self.useable_instances)
+        self.serving_non_lighthouse_instance_ids              = list(filter(lambda i: i["InstanceId"] not in self.lighthouse_instances_wo_excluded_ids, self.useable_instances_wo_excluded_draining))
+        self.serving_non_lighthouse_instance_ids_initializing = list(filter(lambda i: i["InstanceId"] not in self.useable_lighthouse_instance_ids, self.get_useable_instances(initializing_only=True)))
+        self.lh_stopped_instances_wo_excluded_error   = self.get_lighthouse_instance_ids(instances=self.stopped_instances_wo_excluded_error)
+
+        # Other filtered/sorted lists
+        self.stopped_instances_wo_excluded_error    = self.ec2.get_instances(State="stopped", ScalingState="-excluded,error")
+        self.pending_running_instances_draining     = self.ec2.get_instances(State="pending,running", ScalingState="draining")
+        self.excluded_instances                     = self.ec2.get_instances(ScalingState="excluded")
+        self.error_instances                        = self.ec2.get_instances(ScalingState="error")
+        self.non_burstable_instances                = self.ec2.get_non_burstable_instances()
+        self.stopped_instances_bounced_draining     = self.ec2.get_instances(State="stopped", ScalingState="bounced,draining")
+
+        # Static fleet
+        self.static_subfleet_instances              = self.ec2.get_static_subfleet_instances()
+        self.running_static_subfleet_instances      = self.ec2.get_instances(instances=self.static_subfleet_instances, State="running")
+        self.draining_static_subfleet_instances     = self.ec2.get_instances(instances=self.static_subfleet_instances, ScalingState="draining")
+        xray_recorder.end_subsegment()
+
+
+        # Garbage collect incorrect statuses (can happen when user stop the instance 
+        #   directly on console
+        instances = self.stopped_instances_bounced_draining 
+        for i in instances:
+            instance_id = i["InstanceId"]
+            log.debug("Garbage collection instance '%s' with improper 'draining' status..." % instance_id)
+            self.ec2.set_scaling_state(instance_id, "")
+        # Garbage collect zombie states (i.e. instances do not exist anymore but have still states
+        instances = self.ec2.get_instances() 
+        for state in self.ec2.list_states(not_matching_instances=instances):
+            log.debug("Garbage collect key '%s'..." % state)
+            self.ec2.set_state(state, "", TTL=1)
+
+        disabled_azs = self.get_disabled_azs()
+        if len(disabled_azs) > 0:
+            log.info("Some Availability Zones are disabled: %s" % disabled_azs)
+
+
+
+    ###############################################
+    #### EVENT GENERATION #########################
+    ###############################################
+
+    @xray_recorder.capture()
+    def generate_instance_transition_events(self):
+        #  Generate events on instance state transition 
+        transitions = []
+        for instance in self.instances_wo_excluded: #ec2.get_instances(ScalingState="-excluded"):
+            instance_id    = instance["InstanceId"]
+            previous_state = self.ec2.get_state("ec2.schedule.instance.last_known_state.%s" % instance_id)
+            if previous_state is None: previous_state = "None"
+            current_state = instance["State"]["Name"]
+            if current_state != previous_state:
+                transitions.append({
+                        "InstanceId": instance_id,
+                        "PreviousState" : previous_state,
+                        "NewState": current_state
+                    })
+            self.set_state("ec2.schedule.instance.last_known_state.%s" % instance_id, current_state)
+        if len(transitions):
+            R(None, self.instance_transitions, Transitions=transitions)
+
+    def instance_transitions(self, Transitions=None):
+        return {}
+
+
+
+    ###############################################
+    #### UTILITY FUNCTIONS ########################
+    ###############################################
+
+    def get_min_instance_count(self):
+        instances = self.instances_wo_excluded # ec2.get_instances(ScalingState="-excluded")
+        c         = Cfg.get_abs_or_percent("ec2.schedule.min_instance_count", -1, len(instances))
+        return c if c > 0 else 0
+
+    def desired_instance_count(self):
+        instances = self.instances_wo_excluded # ec2.get_instances(ScalingState="-excluded")
+        return Cfg.get_abs_or_percent("ec2.schedule.desired_instance_count", -1, len(instances))
+
+    def get_instances_with_issues(self):
+        active_instances        = self.pending_running_instances_wo_excluded #ec2.get_instances(State="pending,running", ScalingState="-excluded")
+        instances_with_issue_ids= []
+
+        #TargetGroup related issues
+        instances_with_issue_ids.extend(self.targetgroup.get_registered_instance_ids(state="unavail,unhealthy"))
+
+        # EC2 related issues
+        impaired_instances      = [ i["InstanceId"] for i in active_instances if self.ec2.is_instance_state(i["InstanceId"], ["impaired"]) ]
+        [ instances_with_issue_ids.append(i) for i in impaired_instances if i not in instances_with_issue_ids]
+
+        # CPU credit "issues"
+        exhausted_cpu_instances = sorted([ i["InstanceId"] for i in self.cpu_exhausted_instances])
+        all_instances          = self.instances_wo_excluded_error # ec2.get_instances(ScalingState="-excluded,error")
+        max_i                   = len(all_instances)
+        for i in exhausted_cpu_instances:
+            if max_i <= 0 or i in instances_with_issue_ids:
+                continue
+            instances_with_issue_ids.append(i)
+            max_i -= 1
+
+        return instances_with_issue_ids
+
+    def get_useable_instances(self, instances=None, State="pending,running", ScalingState=None,
+            exclude_problematic_instances=True, exclude_bounced_instances=True, 
+            exclude_initializing_instances=False, initializing_only=False):
+        if ScalingState is None: ScalingState = "-excluded,draining,error%s" % (",bounced" if exclude_bounced_instances else "")
+        active_instances = self.ec2.get_instances(instances=instances, State=State, ScalingState=ScalingState)
+        
+        instances_ids_with_issues   = self.instances_with_issues # get_instances_with_issues()
+
+        initializing_instances      = self.initializing_instances # get_initial_instances()
+        
+        if exclude_initializing_instances:
+            active_instances = list(filter(lambda i: i["InstanceId"] not in instances_ids_with_issues, active_instances))
+
+        if initializing_only:
+            active_instances = list(filter(lambda i: i["InstanceId"] in initializing_instances, active_instances))
+
+        if exclude_initializing_instances:
+            active_instances = list(filter(lambda i: i["InstanceId"] not in initializing_instances, active_instances))
+
+        return active_instances
+
+    def get_useable_instance_count(self, exclude_problematic_instances=True, exclude_bounced_instances=True, 
+            exclude_initializing_instances=False, initializing_only=False):
+        return len(self.get_useable_instances(exclude_problematic_instances=exclude_problematic_instances, 
+                exclude_bounced_instances=exclude_bounced_instances, exclude_initializing_instances=exclude_initializing_instances,
+                initializing_only=initializing_only))
+
+    def get_cpu_exhausted_instances(self, threshold=1):
+        instances = []
+        for i in self.running_instances_wo_excluded: # ec2.get_instances(State="running", ScalingState="-excluded"):
+            instance_type           = i["InstanceType"]
+            cpu_credit = self.ec2.get_cpu_creditbalance(i)
+            if cpu_credit >= 0 and cpu_credit <= threshold:
+                instances.append(i)
+        return instances
+
+    def get_young_instance_ids(self):
+        now                     = self.context["now"]
+        warmup_delay            = Cfg.get_duration_secs("ec2.schedule.start.warmup_delay")
+        active_instances        = self.pending_running_instances_wo_excluded # ec2.get_instances(State="pending,running", ScalingState="-excluded")
+        return [ i["InstanceId"] for i in active_instances if (now - i["LaunchTime"]).total_seconds() < warmup_delay]
+
+    def get_initial_instances(self):
+        active_instances        = self.pending_running_instances_wo_excluded # ec2.get_instances(State="pending,running", ScalingState="-excluded")
+        initializing_instances  = []
+        initializing_instances.extend([ i["InstanceId"] for i in active_instances if self.ec2.is_instance_state(i["InstanceId"], ["initializing"]) ])
+        initializing_instances.extend(self.targetgroup.get_registered_instance_ids(state="initial"))
+        young_instances         = self.get_young_instance_ids()
+        return list(filter(lambda i: i["InstanceId"] in young_instances or i["InstanceId"] in initializing_instances, active_instances))
+
+    def get_initial_instances_ids(self):
+        return [i["InstanceId"] for i in self.initializing_instances]
+
+    def get_disabled_azs(self):
+        return self.ec2.get_azs_with_issues()
+
+    def set_state(self, key, value, TTL=None):
+        if TTL is None: TTL=self.state_ttl
+        self.ec2.set_state(key, value, TTL=TTL)
+
+
+    ###############################################
+    #### MAIN MODULE ENTRYPOINT ###################
+    ###############################################
+
+    @xray_recorder.capture()
+    def schedule_instances(self):
+        """
+        This is the function that manage all decisions related to scaling
+        """
+        self.generate_instance_transition_events()
+        self.compute_instance_type_plan()
+        self.shelve_extra_lighthouse_instances()
+        self.scale_desired()
+        self.scale_bounce()
+        self.scale_bounce_instances_with_issues()
+        self.scale_in_out()
+        self.wakeup_burstable_instances()
+        self.manage_static_subfleets()
+
+    @xray_recorder.capture()
+    def prepare_metrics(self):
+        # Update statistics
+        cw = self.cloudwatch
+        fleet_instances        = self.instances_wo_excluded
+        draining_instances     = self.pending_running_instances_draining_wo_excluded
+        running_instances      = self.running_instances_wo_excluded
+        pending_instances      = self.pending_instances_wo_draining_excluded
+        stopped_instances      = self.stopped_instances_wo_excluded
+        stopping_instances     = self.stopping_instances_wo_excluded
+        excluded_instances     = self.excluded_instances
+        bounced_instances      = self.pending_running_instances_bounced_wo_excluded
+        error_instances        = self.error_instances
+        exhausted_cpu_credits  = self.cpu_exhausted_instances
+        instances_with_issues  = self.instances_with_issues
+        static_subfleet_instances         = self.static_subfleet_instances
+        running_static_subfleet_instances = self.running_static_subfleet_instances
+        draining_static_subfleet_instances = self.draining_static_subfleet_instances
+        fl_size                = len(fleet_instances)
+        cw.set_metric("FleetSize",             len(fleet_instances) if fl_size > 0 else None)
+        cw.set_metric("DrainingInstances",     len(draining_instances) if fl_size > 0 else None)
+        cw.set_metric("RunningInstances",      len(running_instances) if fl_size > 0 else None)
+        cw.set_metric("PendingInstances",      len(pending_instances) if fl_size > 0 else None)
+        cw.set_metric("StoppedInstances",      len(stopped_instances) if fl_size > 0 else None)
+        cw.set_metric("StoppingInstances",     len(stopping_instances) if fl_size > 0 else None)
+        cw.set_metric("MinInstanceCount",      self.get_min_instance_count() if fl_size > 0 else None)
+        cw.set_metric("DesiredInstanceCount",  max(self.desired_instance_count(), 0) if fl_size > 0 else None)
+        cw.set_metric("NbOfExcludedInstances", len(excluded_instances) - len(static_subfleet_instances))
+        cw.set_metric("NbOfBouncedInstances",  len(bounced_instances) if fl_size > 0 else None)
+        cw.set_metric("NbOfInstancesInError",  len(error_instances) if fl_size > 0 else None)
+        cw.set_metric("InstanceScaleScore", self.instance_scale_score if fl_size > 0 else None)
+        cw.set_metric("RunningLighthouseInstances", len(self.get_lighthouse_instance_ids(running_instances)) if fl_size > 0 else None)
+        cw.set_metric("NbOfInstanceInInitialState", len(self.get_initial_instances()) if fl_size > 0 else None)
+        cw.set_metric("NbOfInstanceInUnuseableState", len(instances_with_issues) if fl_size > 0 else None)
+        cw.set_metric("NbOfCPUCreditExhaustedInstances", len(exhausted_cpu_credits))
+        if len(static_subfleet_instances):
+            # Send metrics only if there are Static fleet instances
+            cw.set_metric("StaticFleet.Size", len(static_subfleet_instances))
+            cw.set_metric("StaticFleet.RunningInstances", len(running_static_subfleet_instances))
+            cw.set_metric("StaticFleet.DrainingInstances", len(draining_static_subfleet_instances))
+        else:
+            cw.set_metric("StaticFleet.Size", None)
+            cw.set_metric("StaticFleet.RunningInstances", None)
+            cw.set_metric("StaticFleet.DrainingInstances", None)
+
+        if len(error_instances):
+            log.info("These instances are in 'ERROR' state: %s" % [i["InstanceId"] for i in error_instances])
+        if len(instances_with_issues): 
+            log.info("These instances are 'unuseable' (unavail/unhealthy/impaired/lackofcpucredit...) : %s" % instances_with_issues)
+
+
+    ###############################################
+    #### LOW LEVEL INSTANCE HANDLING ##############
+    ###############################################
+
+    def filter_stopped_instance_candidates(self, caller, expected_instance_count, target_for_dispatch=None):
+        disabled_azs     = self.get_disabled_azs()
+        active_instances = self.pending_running_instances_wo_excluded_draining_error # ec2.get_instances(State="pending,running", ScalingState="-excluded,draining,error")
+        # Get all stopped instances
+        stopped_instances = self.ec2.get_instances(State="stopped", azs_filtered_out=disabled_azs)
+
+        # Filter out Spot instances recently stopped as we can't technically restart them before some time
+        stopped_instances = self.ec2.filter_instance_recently_stopped(stopped_instances, 
+                Cfg.get_duration_secs("ec2.schedule.spot.min_stop_period"), filter_only_spot=True)
+
+        # Ensure we pick instances in a way that keep AZs balanced
+        stopped_instances = self.ec2.sort_by_balanced_az(stopped_instances, active_instances, 
+                smallest_to_biggest_az=True, excluded_instance_ids=self.instances_with_issues)
+
+        # Let the cale up algorithm influence the instance selection
+        stopped_instances = self.scaleup_sort_instances(stopped_instances, 
+                target_for_dispatch if target_for_dispatch is not None else expected_instance_count, 
+                caller)
+        return stopped_instances
+
+    @xray_recorder.capture()
+    def instance_action(self, desired_instance_count, caller, reject_if_initial_in_progress=False, target_for_dispatch=None):
+        """
+        Perform action (start or stop instances) needed to achieve specified 'desired_instance_count'
+        """
+        now = self.context["now"]
+
+        min_instance_count = self.get_min_instance_count()
+        log.log(log.NOTICE, "Min required instance count : %d" % min_instance_count)
+
+        is_scalein_caller = caller == "scalein" 
+        useable_instances_count = self.get_useable_instance_count(exclude_problematic_instances=not is_scalein_caller) 
+        log.log(log.NOTICE, "Number of useable instances : %d" % useable_instances_count)
+        
+        expected_instance_count  = max(desired_instance_count, min_instance_count)
+        delta_instance_count    = expected_instance_count - useable_instances_count
+
+        if delta_instance_count != 0: 
+            log.debug("[INFO] instance_action (%d) from '%s'... " % (delta_instance_count, caller))
+
+        if delta_instance_count > 0:
+            c = min(delta_instance_count, Cfg.get_int("ec2.schedule.max_instance_start_at_a_time"))
+
+            stopped_instances = self.filter_stopped_instance_candidates(caller, expected_instance_count, target_for_dispatch=target_for_dispatch)
+
+            instance_ids_to_start = self.ec2.get_instance_ids(stopped_instances[:c])
+
+            # Start selected instances
+            if len(instance_ids_to_start) > 0:
+                log.info("Starting up to %s (shaped to %d) instances..." % (delta_instance_count, c))
+
+                self.ec2.start_instances(instance_ids_to_start)
+                self.scaling_state_changed = True
+
+        if delta_instance_count < 0:
+            # We need to assume that instance inserted in a target group and in a 'initial' state
+            #    can't be stated as useable instances yet. We delay downsize decision
+            if reject_if_initial_in_progress:
+                initial_target_instance_ids = self.get_initial_instances_ids()
+                log.log(log.NOTICE, "Number of instance target in 'initial' state: %d" % len(initial_target_instance_ids))
+                if len(initial_target_instance_ids) > 0:
+                    log.log(log.NOTICE, "Some targets are still initializing. Do not consider stopping instances now...")
+                    return False
+
+            c = min(-delta_instance_count, Cfg.get_int("ec2.schedule.max_instance_stop_at_a_time"))
+            log.info("Draining up to %s (shapped to %d) instances..." % (-delta_instance_count, c))
+
+            # Ensure we picked instances in a way that we keep AZs balanced
+            active_instances = self.pending_running_instances_wo_excluded_draining_error # ec2.get_instances(State="pending,running", ScalingState="-excluded,draining,error")
+            active_instances = self.ec2.sort_by_balanced_az(active_instances, active_instances, smallest_to_biggest_az=False)
+
+            # If we have disabled AZs, we placed them in front to remove associated instances first
+            active_instances = self.ec2.sort_by_prefered_azs(active_instances, prefered_azs=self.get_disabled_azs()) 
+
+            # We place instance with unuseable status in front of the list
+            active_instances = self.ec2.sort_by_prefered_instance_ids(active_instances, prefered_ids=self.instances_with_issues) 
+
+            # Take into account scaledown algorithm
+            active_instances = self.scaledown_sort_instances(active_instances, 
+                    target_for_dispatch if target_for_dispatch is not None else expected_instance_count, 
+                    caller)
+            
+            instance_ids_to_drain = []
+            for i in self.ec2.get_instance_ids(active_instances):
+                if self.ec2.get_scaling_state(i) != "draining":
+                    self.ec2.set_scaling_state(i, "draining")
+                    self.scaling_state_changed = True
+                    instance_ids_to_drain.append(i)
+                    c -= 1
+                if c == 0:
+                    break
+            # Send an event to interested users
+            R(None, self.drain_instances, DrainedInstanceIds=instance_ids_to_drain)
+        return True
+
+    def drain_instances(self, DrainedInstanceIds=None):
+        return {}
+
+    def is_instance_need_cpu_crediting(self, i, meta):
+       now           = self.context["now"]
+       instance_id   = i["InstanceId"]
+
+       instance_type = i["InstanceType"]
+       if instance_type not in self.cpu_credits:
+           return False # Not a burstable instance
+
+       # This instance to stop is a burstable one
+       stopped_instances    = self.stopped_instances_wo_excluded_error
+       lighthouse_instances = self.lh_stopped_instances_wo_excluded_error
+
+       # Burstable machine needs to run enough time to get their CPU Credit balance updated
+       draining_date = meta["last_draining_date"]
+       draining_time = misc.seconds_from_epoch_utc()
+       if draining_date is not None:
+           draining_time     = (now - draining_date).total_seconds()
+       running_time          = (now - i["LaunchTime"]).total_seconds()
+
+       assessment_time       = min(draining_time, running_time)
+       maximum_draining_time = Cfg.get_duration_secs("ec2.schedule.burstable_instance.max_cpucrediting_time")
+       if assessment_time > maximum_draining_time:
+           log.warning("Instance '%s' is CPU crediting for a too long time. Timeout..." % instance_id)
+           return False
+
+       max_earned_credits      = self.cpu_credits[instance_type][1]
+       min_cpu_credit_required = Cfg.get_abs_or_percent("ec2.schedule.min_cpu_credit_required", -1, max_earned_credits)
+       cpu_credit              = self.ec2.get_cpu_creditbalance(i)
+       if cpu_credit == -1: 
+           log.info("Waiting CPU Credit balance metric for instance %s..." % (instance_id))
+           return True
+
+       if cpu_credit >= 0 and cpu_credit < min_cpu_credit_required:
+           log.info("'%s' is CPU crediting... (is_static_fleet_instance=%s, current_credit=%.2f, minimum_required_credit=%s, maximum_possible_credit=%s, %s)" % 
+                   (instance_id, self.ec2.is_static_subfleet_instance(instance_id), cpu_credit, min_cpu_credit_required, max_earned_credits, instance_type))
+           return True
+       return False
+
+    @xray_recorder.capture()
+    def stop_drained_instances(self):
+        now              = self.context["now"]
+        cw               = self.cloudwatch
+
+        now = self.context["now"]
+        draining_target_instance_ids = self.targetgroup.get_registered_instance_ids(state="draining")
+        if len(draining_target_instance_ids):
+            registered_targets = self.targetgroup.get_registered_targets(state="draining")
+            log.debug(Dbg.pprint(registered_targets))
+
+        # Retrieve list of instance marked as draining and running
+        instances     = self.pending_running_instances_draining
+        instances_ids = self.ec2.get_instance_ids(instances) 
+
+        nb_cpu_crediting               = 0
+        non_burstable_instances        = self.non_burstable_instances
+        max_number_crediting_instances = Cfg.get_abs_or_percent("ec2.schedule.max_cpu_crediting_instances", -1, 
+                len(self.instances_wo_excluded))
+        max_startable_stopped_instances= self.filter_stopped_instance_candidates("stop_drained_instances", len(self.useable_instances))
+        # To avoid availability issues, we do not allow more cpu crediting instances than startable instances
+        #    It ensures that burstable instances are still available *even CPU Exhausted* to the fleet.
+        max_number_crediting_instances = min(max_number_crediting_instances, len(max_startable_stopped_instances) 
+                + len(self.draining_lighthouse_instances_ids)) # We add the number of draining LH instances as they may be in CPU crediting state and
+                                                               # can't be part of a full scaleout sequence (so are useless to rendered available)
+        ids_to_stop                    = []
+        for i in instances:
+           instance_id = i["InstanceId"]
+           # Refresh the TTL if the 'draining' operation takes a long time
+           meta = {}
+           self.ec2.set_scaling_state(instance_id, "draining", meta=meta)
+
+           need_stop_now = False
+           # Special management for static subfleet instances. We need to check if each draining instance
+           #   are marked for 'running' state. If True, we must shutdown this instance immediatly
+           #   to allow its restart ASAP
+           is_static_subfleet_instance = False
+           if self.ec2.is_static_subfleet_instance(instance_id):
+                subfleet_name  = self.ec2.get_static_subfleet_name_for_instance(i)
+                expected_state = Cfg.get("staticfleet.%s.state" % subfleet_name)
+                is_static_subfleet_instance = True
+                need_stop_now  = expected_state == "running"
+           
+           if Cfg.get("ec2.schedule.desired_instance_count") == "100%":
+               need_stop_now = True
+
+           if not need_stop_now:
+               if self.is_instance_need_cpu_crediting(i, meta):
+                   if is_static_subfleet_instance:
+                       continue
+                   if nb_cpu_crediting > max_number_crediting_instances:
+                       log.info("Maximum number of CPU Crediting instances reached! (nb_cpu_crediting=%s,ec2.schedule.max_cpu_crediting_instances=%d)" %
+                               (nb_cpu_crediting, max_number_crediting_instances))
+                   else:
+                       nb_cpu_crediting += 1
+                       continue
+
+               if instance_id in draining_target_instance_ids:
+                   log.info("Can't stop yet instance %s. Target Group is still draining it..." % instance_id)
+                   continue
+
+               if self.targetgroup.is_instance_registered(None, instance_id):
+                   log.log(log.NOTICE, "Instance if still part of a Target Group. Wait for eviction before to stop it...")
+                   continue
+
+               draining_date = meta["last_draining_date"]
+               if draining_date is not None:
+                   elapsed_time  = now - draining_date
+                   cooldown      = Cfg.get_duration_secs("ec2.schedule.draining.instance_cooldown")
+                   if elapsed_time < timedelta(seconds=cooldown):
+                       log.info("Instance '%s' is still in draining cooldown period (elapsed_time=%d, ec2.schedule.draining.instance_cooldown=%d): "
+                            "Do not assess stop now..." % (instance_id, elapsed_time.total_seconds(), cooldown))
+                       continue
+               need_stop_now = True
+
+           if need_stop_now:
+               ids_to_stop.append(instance_id)
+
+        cw.set_metric("NbOfCPUCreditingInstances", nb_cpu_crediting)
+
+        if len(ids_to_stop) > 0:
+            if self.scaling_state_changed:
+                log.debug("Instance state changed. Do stop instance stop now...")
+                return
+
+            self.ec2.stop_instances(ids_to_stop)
+            log.info("Sent stop request for instances %s." % ids_to_stop)
+            self.scaling_state_changed = True
+
+    def wakeup_burstable_instances(self):
+        """
+        Start burstable instances that are stopped for a long time and could lose their CPU Credits soon.
+        """
+        now                = self.context["now"]
+        stopped_instances  = self.stopped_instances_wo_excluded_error # ec2.get_instances(State="stopped", ScalingState="-excluded,error")
+        for i in stopped_instances:
+            if i["InstanceType"].startswith("t2") or not i["InstanceId"].startswith("t"):
+                continue # T2 can't preserve their CPU credits
+            instance_id    = i["InstanceId"]
+            last_stop_date = self.ec2.instance_last_stop_date(instance_id, default=None)
+            if last_stop_date is None:
+                continue
+            if (now - last_stop_date).total_seconds() > Cfg.get_duration_secs("ec2.schedule.burstable_instance.max_time_stopped"):
+                log.info("Starting stopped too long burstable instance '%s' to preserve its CPU Credits" % instance_id)
+                self.ec2.start_instances([instance_id])
+                self.scaling_state_changed = True
+
+    def manage_static_subfleets(self):
+        """Manage start/stop actions for static subfleet instances
+        """
+        instances = self.static_subfleet_instances
+        for i in instances:
+            instance_id    = i["InstanceId"]
+            subfleet_name  = self.ec2.get_static_subfleet_name_for_instance(i)
+            forbidden_chars = "[ .]"
+            if re.match(forbidden_chars, subfleet_name):
+                log.warning("Instance '%s' contains invalid characters (%s)!! Ignore this instance..." % (instance_id, forbidden_chars))
+                continue
+            expected_state = Cfg.get("staticfleet.%s.state" % subfleet_name, none_on_failure=True)
+            if expected_state is None:
+                log.log(log.NOTICE, "Encountered a static fleet instance (%s) without state directive. Please set 'staticfleet.%s.state' configuration key..." % 
+                        (instance_id, subfleet_name))
+                continue
+            log.debug("Manage static fleet instance '%s': subfleet_name=%s, expected_state=%s" % (instance_id, subfleet_name, expected_state))
+
+            allowed_expected_states = ["running", "stopped", "undefined", ""]
+            if expected_state not in allowed_expected_states:
+                log.warning("Expected state '%s' for static subfleet '%s' is not valid : (not in %s!)" % (expected_state, subfleet_name, allowed_expected_states))
+                continue
+
+            if expected_state == "running" and i["State"]["Name"] == "stopped":
+                # Filter out Spot instances recently stopped as we can't technically restart them before some time
+                valid_spot = self.ec2.filter_instance_recently_stopped([i], Cfg.get_duration_secs("ec2.schedule.spot.min_stop_period"), filter_only_spot=True)
+                if len(valid_spot) == 0:
+                    log.log(log.NOTICE, "Instance '%s' is a Spot one that can't be started yet..." % instance_id)
+                    continue
+                log.info("Starting static fleet instance '%s'..." % instance_id)
+                self.ec2.start_instances([instance_id])
+                self.scaling_state_changed = True
+            if (expected_state == "stopped" and i["State"]["Name"] == "running" 
+                    and self.ec2.get_scaling_state(instance_id, do_not_return_excluded=True) != "draining"):
+                log.info("Draining static fleet instance '%s'..." % instance_id)
+                self.ec2.set_scaling_state(instance_id, "draining")
+
+
+    ###############################################
+    #### SCALE DESIRED & SCALE BOUNCE ALGOS #######
+    ###############################################
+
+
+    @xray_recorder.capture()
+    def scale_desired(self):
+        """
+        Take scale decisions based on Min/Desired criteria
+        """
+        if self.scaling_state_changed:
+            return
+
+        # Step 0) Compute number of instance to start
+        desired_instance_count = self.desired_instance_count()
+        log.debug("Desired instance count : % d" % desired_instance_count)
+
+        minimal_instance_count    = max(desired_instance_count, self.get_min_instance_count())
+
+        # If you specify a precise number of instances, we assume that he is requesting
+        #   useable instances and so we have to take into account problematic instances
+        active_instance_count   = self.get_useable_instance_count()
+        expected_instance_count = max(minimal_instance_count, active_instance_count) if desired_instance_count == -1 else minimal_instance_count
+
+        # Step 1) Ask for the desired instance count
+        self.instance_action(expected_instance_count, "scale_desired", reject_if_initial_in_progress=True)
+
+    
+    def scale_bounce_is_draining_condition(self):
+        scale_down_disabled = Cfg.get_int("ec2.schedule.scalein.disable") != 0
+        return scale_down_disabled or self.instance_scale_score < Cfg.get_float("ec2.schedule.scalein.threshold_ratio")
+
+    @xray_recorder.capture()
+    def scale_bounce(self):
+        """
+        IF configured, bounce old out-of-date by spawning new ones
+        """
+        if self.scaling_state_changed:
+            return
+
+        now = self.context["now"]
+        bounce_delay_delta             = timedelta(seconds=Cfg.get_duration_secs("ec2.schedule.bounce_delay"))
+        bounce_instance_cooldown_delta = timedelta(seconds=Cfg.get_duration_secs("ec2.schedule.bounce_instance_cooldown"))
+
+        instances = self.pending_running_instances_wo_excluded # ec2.get_instances(State="pending,running", ScalingState="-excluded")
+        bouncing_ids = []
+        if self.scale_bounce_is_draining_condition():
+            most_recent_bouncing_action = None
+            for i in instances:
+                instance_id = i["InstanceId"]
+                meta={}
+                status = self.ec2.get_scaling_state(instance_id, meta=meta)
+                bounce_instance_jitter = timedelta(seconds=random.randint(0, Cfg.get_duration_secs("ec2.schedule.bounce_instance_jitter")))
+
+                if status == "bounced":
+                    bouncing_ids.append(instance_id)
+                    if meta["last_action_date"] is not None:
+                        bounce_time = meta["last_action_date"]
+                        if most_recent_bouncing_action is None or most_recent_bouncing_action < bounce_time: most_recent_bouncing_action = bounce_time 
+                        if now - bounce_time < bounce_instance_cooldown_delta + bounce_instance_jitter:
+                            continue
+                    self.ec2.set_scaling_state(instance_id, "draining")
+                    self.scaling_state_changed = True
+            if len(bouncing_ids):
+                log.debug("Instances %s are already marked for bouncing..." % bouncing_ids)
+
+        if bounce_delay_delta.total_seconds() == 0:
+            log.log(log.NOTICE, "Instance bouncing not configured.")
+            return
+
+        # User requested that the whole fleet to be up, so disable bouncing algorithm
+        if Cfg.get("ec2.schedule.desired_instance_count") == "100%":
+            log.info("Bouncing algorithm disabled because 'ec2.schedule.desired_instance_count' == 100% !")
+            return
+
+        initial_target_instance_ids = self.get_initial_instances_ids()
+        if len(initial_target_instance_ids):
+            log.log(log.NOTICE, "Some targets are still in 'initial' state: Delaying instance bouncing assessment...")
+            return
+
+        #fleet_instances        = self.instances_wo_excluded # ec2.get_instances(ScalingState="-excluded")
+        if len(self.pending_running_instances_bounced_wo_excluded): # ec2.get_instances(instances=fleet_instances, State="pending,running", ScalingState="bounced")):
+            log.log(log.NOTICE, "Some instances are already bouncing... Wait to finish this task before another bounce...")
+            return
+
+
+        to_bounce_instance_ids = []
+        # Put in front of the instance list, instances with issues to bounce them first
+        unuseable_instance_ids = self.instances_with_issues
+        instances = self.ec2.sort_by_prefered_instance_ids(instances, prefered_ids=unuseable_instance_ids) 
+        bounce_instance_jitter = timedelta(seconds=random.randint(0, Cfg.get_duration_secs("ec2.schedule.bounce_instance_jitter")))
+
+        for i in instances:
+            instance_id = i["InstanceId"]
+            timegap = now - i["LaunchTime"]
+
+            status = self.ec2.get_scaling_state(instance_id)
+
+            # Mark instance 'bounced'
+            if (status not in ["bounced", "draining", "error"] and timegap > bounce_delay_delta + bounce_instance_jitter
+                    and len(to_bounce_instance_ids) == 0): #Note: We bounce only one instance at a time to avoid tempest of restarts
+                instance_id = i["InstanceId"]
+                log.info("Bounced instance '%s' (%s)..." % (instance_id, 
+                    "oldest" if instance_id not in unuseable_instance_ids else "unuseable"))
+
+                to_bounce_instance_ids.append(instance_id)
+                # Mark instance as 'bounced' with a not too big TTL. If bouncing
+                self.ec2.set_scaling_state(instance_id, "bounced")
+                                                                                                      
+
+        if len(to_bounce_instance_ids) == 0:
+            return
+
+        log.info("Bouncing of instances %s in progress..." % to_bounce_instance_ids)
+        self.instance_action(self.get_useable_instance_count() + len(to_bounce_instance_ids), "scale_bounce")
+
+    @xray_recorder.capture()
+    def scale_bounce_instances_with_issues(self):
+        """ Function responsible to bounce instances identified with issues after a 
+            configurable amount of time.
+        """
+        if self.scaling_state_changed:
+            return
+        # User requested that the whole fleet to be up, so disable draining of faulty instances...
+        if Cfg.get("ec2.schedule.desired_instance_count") == "100%":
+            return
+
+        now                   = self.context["now"]
+        grace_period          = Cfg.get_duration_secs("ec2.schedule.bounce.instances_with_issue_grace_period")
+        instances_with_issues = self.instances_with_issues
+        for i in instances_with_issues:
+            if self.ec2.get_scaling_state(i) == "draining":
+                continue
+            last_seen_date = self.ec2.get_state_date("ec2.schedule.bounce.instance_with_issues.%s" % i)
+            if last_seen_date is None:
+                self.ec2.set_state("ec2.schedule.bounce.instance_with_issues.%s" % i, now, TTL=grace_period * 2)
+                last_seen_date = now
+            else:
+                self.ec2.set_state("ec2.schedule.bounce.instance_with_issues.%s" % i, last_seen_date, TTL=grace_period * 2)
+            if (now - last_seen_date).total_seconds() > grace_period + (grace_period * random.random()):
+                self.ec2.set_scaling_state(i, "draining")
+                log.info("Bounced instance '%s' with issues as grace period expired!" % i)
+        
+
+    
+    ###############################################
+    #### CORE SCALEUP/DOWN ALGORITHM ##############
+    ###############################################
+
+    def get_lighthouse_instance_ids(self, instances):
+        # Collect instances that are marked as LightHouse through a Tag
+        ins = self.ec2.filter_instance_list_by_tag(instances, "clonesquad:lighthouse", ["True","true"])
+        ids = [i["InstanceId"] for i in ins]
+
+        # Collect instances that are declared as LightHouse through Vertical scaling
+        cfg = Cfg.get_list_of_dict("ec2.schedule.verticalscale.instance_type_distribution")
+        lighthouse_instance_types = [t["_"] for t in list(filter(lambda c: "lighthouse" in c and c["lighthouse"], cfg))]
+
+        ins = list(filter(lambda i: i["InstanceType"] in lighthouse_instance_types, instances))
+        for i in [i["InstanceId"] for i in ins]: 
+            if i not in ids: ids.append(i)
+        return ids
+
+    def are_lighthouse_instance_disabled(self):
+        #all_instances  = self.ec2.get_instances(ScalingState="-excluded")
+        all_lh_ids     = self.lighthouse_instances_wo_excluded_ids # get_lighthouse_instances(all_instances)
+        return (Cfg.get_int("ec2.schedule.verticalscale.lighthouse_disable") or
+                  self.get_min_instance_count() > len(all_lh_ids))
+
+    def are_all_non_lh_instances_started(self):
+        all_instances              = self.instances_wo_excluded #ec2.get_instances(ScalingState="-excluded")
+        lh_ids                     = self.lighthouse_instances_wo_excluded_ids # get_lighthouse_instances(all_instances)
+        useable_instances          = self.get_useable_instances()
+        non_lighthouse_instances   = list(filter(lambda i: i["InstanceId"] not in lh_ids, useable_instances))
+        all_non_lighthouse_instances       = list(filter(lambda i: i["InstanceId"] not in lh_ids, all_instances))
+        all_non_lighthouse_instances_count = len(all_non_lighthouse_instances)
+        return all_non_lighthouse_instances_count == len(non_lighthouse_instances)
+
+    def shelve_instance_dispatch(self, expected_count):
+        desired_instance_count= self.desired_instance_count()
+        min_instance_count    = self.get_min_instance_count()
+        useable_instance_count= self.get_useable_instance_count()
+        all_instances         = self.instances_wo_excluded # ec2.get_instances(ScalingState="-excluded")
+        useable_instances     = self.useable_instances
+        serving_instances     = self.serving_instances # get_useable_instances(exclude_initializing_instances=True)
+        all_lh_ids            = self.lighthouse_instances_wo_excluded_ids # get_lighthouse_instances(all_instances)
+        serving_lh_ids        = self.serving_lighthouse_instances_ids # get_lighthouse_instances(serving_instances)
+        running_lh_ids        = self.useable_lighthouse_instance_ids # get_lighthouse_instances(useable_instances)
+        non_lighthouse_instances              = self.serving_non_lighthouse_instance_ids # list(filter(lambda i: i["InstanceId"] not in running_lh_ids, serving_instances))
+        non_lighthouse_instances_initializing = self.serving_non_lighthouse_instance_ids_initializing # list(filter(lambda i: i["InstanceId"] not in running_lh_ids, self.get_useable_instances(initializing_only=True)))
+        serving_non_lighthouse_instance_count = len(non_lighthouse_instances) - len(non_lighthouse_instances_initializing)
+
+
+        target_count             = max(max(desired_instance_count, min_instance_count), expected_count)
+        recommended_amount_of_lh = max(min_instance_count - max(target_count - min_instance_count, 0), 0)
+
+        if self.are_lighthouse_instance_disabled(): 
+            recommended_amount_of_lh = 0
+
+        if desired_instance_count != -1:
+            # Special case for desired_instance_count != -1 were it is authorized to launch LightHouse instances
+            #    when non-lighthouse amoutn if exhausted
+            delta_lh = len(all_instances) - desired_instance_count
+            if delta_lh < len(all_lh_ids):
+                recommended_amount_of_lh = len(all_lh_ids) -  delta_lh
+        recommended_amount_of_non_lh = target_count - recommended_amount_of_lh
+        return [recommended_amount_of_lh, recommended_amount_of_non_lh]
+
+
+
+    def _match_spot(self, i, c, spot_implicit=None):
+        cc = c.copy()
+        if spot_implicit is not None and "spot" not in cc:
+            cc["spot"] = spot_implicit
+        if "spot" in cc:
+            if cc["spot"] and not "SpotInstanceRequestId" in i: return False
+            if not cc["spot"] and "SpotInstanceRequestId" in i: return False
+        return True
+
+    def scaleup_sort_instances(self, candidates, expected_count, caller):
+        cfg    = Cfg.get_list_of_dict("ec2.schedule.verticalscale.instance_type_distribution")
+
+        lh_ids = self.get_lighthouse_instance_ids(candidates)
+
+        instances                  = []
+        useable_instances          = self.get_useable_instances()
+        non_lighthouse_instances   = list(filter(lambda i: i["InstanceId"] not in lh_ids, useable_instances))
+        min_instance_count         = self.get_min_instance_count()
+        running_lh_ids             = self.get_lighthouse_instance_ids(useable_instances)
+
+        lighthouse_need     = 0
+        lighthouse_only     = False
+        lighthouse_disabled = False
+
+        delta_min_instance_count = len(useable_instances) - self.get_min_instance_count()
+        if delta_min_instance_count < 0: lighthouse_need = -delta_min_instance_count
+        amount_of_lh, amount_of_non_lh = self.shelve_instance_dispatch(expected_count)
+        if self.are_lighthouse_instance_disabled():
+            lighthouse_need = 0
+            lighthouse_disabled = True
+        else:
+            lighthouse_need = max(amount_of_lh - len(running_lh_ids), 0)
+        if caller in ["scale_bounce"]:
+            # Bounce algorithm wants a new instance!
+            if len(non_lighthouse_instances) == 0:
+                # No non-LH instance running : We make sure that
+                #   the next one will be a lighthouse kind
+                lighthouse_need = len(lh_ids)
+            else:
+                # When some non-LH instances are running, we favor to launch non-LH instances
+                lighthouse_need = 0
+
+        # Place the number of lighthouse instances needed in high priority
+        instances.extend(list(filter(lambda i: i["InstanceId"] in lh_ids, candidates))[:lighthouse_need])
+
+        if not lighthouse_only:
+            for c in cfg:
+                instances.extend(list(filter(lambda i: i["InstanceType"] == c["_"] and i["InstanceId"] not in lh_ids and self._match_spot(i, c), candidates)))
+
+            # All instances with unknown instance types are low priority
+            instance_types = [ c["_"] for c in cfg ]
+            instances.extend(list(filter(lambda i: i["InstanceType"] not in instance_types and i["InstanceId"] not in lh_ids, candidates)))
+
+            if not lighthouse_disabled:
+                # We consider to scaleout with Lighthouse instances only if there is no running non-lighthouse instance
+                #   or if all non-lighthouse instances are already started
+                if (len(non_lighthouse_instances) == 0 or 
+                    (self.desired_instance_count() != -1 and self.are_all_non_lh_instances_started())
+                   ):
+                    instances.extend(list(filter(lambda i: i["InstanceId"] in lh_ids, candidates))[lighthouse_need:])
+
+        return instances
+
+    def scaledown_sort_instances(self, candidates, expected_count, caller):
+        cfg             = Cfg.get_list_of_dict("ec2.schedule.verticalscale.instance_type_distribution")
+        instance_types  = [ i["_"] for i in cfg ]
+        cfg_r           = cfg.copy()
+        cfg_r.reverse()
+
+        instances = []
+        # Put instance with incorrect instance types first to make them drained first
+        instances.extend(list(filter(lambda i: i["InstanceType"] not in instance_types, candidates)))
+
+
+        # Pickup lighthouse instances first if enough other instances are up
+        lh_ids                     = self.get_lighthouse_instance_ids(candidates)
+        useable_instances          = self.get_useable_instances()
+        running_lh_ids             = self.get_lighthouse_instance_ids(useable_instances)
+        non_lighthouse_instances   = list(filter(lambda i: i["InstanceId"] not in lh_ids, candidates))
+        lighthouse_instances       = list(filter(lambda i: i["InstanceId"] in lh_ids, candidates))
+        amount_of_lh, amount_of_non_lh = self.shelve_instance_dispatch(expected_count)
+        bouncing_instances         = self.ec2.get_instances(
+                instances=self.get_useable_instances(exclude_bounced_instances = False), 
+                State="pending,running", ScalingState="bounced")
+
+        lighthouse_need            = -min(amount_of_lh - len(running_lh_ids), 0)
+        if len(bouncing_instances) and len(non_lighthouse_instances): 
+            lighthouse_need = 0 # We favor bouncing of non-LH instances first
+        if self.are_lighthouse_instance_disabled(): lighthouse_need = len(lh_ids)
+
+        # In some cases, we want to stop lighthouse instances first
+        instances.extend(lighthouse_instances[:lighthouse_need])
+
+        # We stop instance in reverse order of the distribution instance type list
+        for c in cfg_r:
+            instances.extend(list(filter(lambda i: i["InstanceType"] == c["_"] and self._match_spot(i, c, spot_implicit=False), non_lighthouse_instances)))
+
+        # By default, all lighthouse instances are low priority to stop (lighthouse instances are only stopped by
+        #   'shelve_extra_lighthouse_instances' process and not the 'scalin' one
+        instances.extend(lighthouse_instances[lighthouse_need:])
+
+        return instances
+
+    @xray_recorder.capture()
+    def shelve_extra_lighthouse_instances(self):
+        if self.scaling_state_changed:
+            return
+
+        # If the user is forcing the fleet to run at max capacity, disable all fancy algorithms
+        if Cfg.get("ec2.schedule.desired_instance_count") == "100%":
+            return
+
+        now = self.context["now"]
+
+        min_instance_count                       = self.get_min_instance_count()
+        all_instances                            = self.instances_wo_excluded                  # ec2.get_instances(ScalingState="-excluded")
+        all_useable_plus_special_state_instances = self.useable_instances_wo_excluded_draining # get_useable_instances(ScalingState="-draining,excluded")
+        serving_instances                        = self.serving_instances                      # get_useable_instances(exclude_initializing_instances=True)
+        lh_ids                                   = self.lighthouse_instances_wo_excluded_ids       # get_lighthouse_instances(all_instances)
+        running_lh_ids                           = self.get_lighthouse_instance_ids(all_useable_plus_special_state_instances)
+        non_lighthouse_instances                 = self.serving_non_lighthouse_instance_ids               # list(filter(lambda i: i["InstanceId"] not in running_lh_ids, serving_instances))
+        non_lighthouse_instances_initializing    = self.serving_non_lighthouse_instance_ids_initializing  # list(filter(lambda i: i["InstanceId"] not in running_lh_ids, self.get_initial_instances()))
+        serving_non_lighthouse_instance_count    = len(non_lighthouse_instances) - len(non_lighthouse_instances_initializing)
+        useable_instance_count                   = self.get_useable_instance_count()
+        desired_instance_count                   = self.desired_instance_count()
+
+        lighthouse_instance_excess = 0
+
+        initializing_lh_instances_ids = self.get_lighthouse_instance_ids(self.initializing_instances) #lh_instances_idsget_initial_instances())
+        if not self.are_lighthouse_instance_disabled():
+            if len(initializing_lh_instances_ids):
+                log.debug("Some LightHouse instances (%s) are still initializing... Postpone shelve processing..." % 
+                        initializing_lh_instances_ids)
+                return
+            if serving_non_lighthouse_instance_count < min_instance_count and len(non_lighthouse_instances_initializing):
+                log.debug("Not enough serving non-LH instances while some are initializing (%s)... Postpone shelve processing..." % 
+                        non_lighthouse_instances_initializing)
+                return
+
+        max_lh_instances = len(lh_ids)
+        expected_count   = desired_instance_count if desired_instance_count != -1 else useable_instance_count
+        amount_of_lh, amount_of_non_lh = self.shelve_instance_dispatch(expected_count)
+
+        # Take into account unhealthy/unavailable LH instances
+        instances_with_issues_ids = self.instances_with_issues  # get_instances_with_issues()
+        instances_with_issues     = [ i for i in self.instances_wo_excluded if i["InstanceId"] in instances_with_issues_ids] # self.ec2.get_instances(ScalingState="-excluded")
+        lh_instances_with_issues  = self.get_lighthouse_instance_ids(instances_with_issues) 
+        lh_instances_to_exclude   = instances_with_issues_ids.copy()
+        lh_draining_instances     = self.get_lighthouse_instance_ids(
+                self.ec2.get_instances(State="pending,running", ScalingState="draining,error"))
+        [lh_instances_to_exclude.append(i) for i in lh_draining_instances if i not in lh_instances_to_exclude]
+        amount_of_lh     = min(max_lh_instances - len(lh_instances_to_exclude), amount_of_lh)
+
+        # Compute the number of LH instances to finally add
+        delta_lh         = 0
+        running_lh_count = len(running_lh_ids)
+        if self.are_lighthouse_instance_disabled():
+            delta_lh = -running_lh_count
+        elif desired_instance_count == -1: 
+            # Do not stop LH instances when approaching (or leaving) min_instance_count amount of non-LH instances.
+            #  => desired_instance_count == -1 so the autoscaler is active and will get rid of unnecessary instances
+            if serving_non_lighthouse_instance_count > min_instance_count:
+                delta_lh = -min(max(serving_non_lighthouse_instance_count - running_lh_count, 0), running_lh_count)
+            else:
+                # We are close to the condition where LH instances need to be started again
+                #   Note: We start LH instance one at a time to avoid jerky behavior of the scalein algorithm
+                delta_lh  = min(max(amount_of_lh - running_lh_count, 0), 1)
+        else:
+            delta_lh  = amount_of_lh - running_lh_count 
+
+        extra_instance_count = self.get_useable_instance_count() - min_instance_count
+        if extra_instance_count + delta_lh < 0:
+            # We do not have enough spare instances available to reduce the fleet size without
+            #   falling under min_instance_count.
+            #   As consequence, we prefer to launch new fresh instances to have the opportunity
+            #   later to discard the ones that should go.
+            delta_lh = abs(delta_lh)
+
+        if delta_lh != 0:
+            if desired_instance_count != -1:
+                if self.get_useable_instance_count(exclude_initializing_instances=True) < desired_instance_count: 
+                    delta_lh = abs(delta_lh)
+            else:
+                if delta_lh < 0: 
+                    if len(running_lh_ids) >= serving_non_lighthouse_instance_count: 
+                        # Let the scalein algorithm to get rid of LH instances when needed except in the case where there are 
+                        #   enough non-LH instances to fully replace them
+                        delta_lh = 0
+                    else:
+                        # We start new instances to replace the LH ones that we will stop soon
+                        pre_lh_stop_date = self.ec2.get_state_date("ec2.schedule.shelve.pre_lh_stop_date")
+                        if pre_lh_stop_date is None:
+                            self.set_state("ec2.schedule.shelve.pre_lh_stop_date", now)
+                            delta_lh = running_lh_count
+                        elif (now - pre_lh_stop_date).total_seconds() < Cfg.get_duration_secs("ec2.schedule.verticalscale.lighthouse_replacement_graceperiod"):
+                            delta_lh = 0
+                        else:
+                            self.set_state("ec2.schedule.shelve.pre_lh_stop_date", "")
+            
+            if delta_lh != 0:
+                self.instance_action(useable_instance_count + delta_lh, "shelve", target_for_dispatch=expected_count)
+
+    @xray_recorder.capture()
+    def compute_instance_type_plan(self):
+        if Cfg.get_int("ec2.schedule.verticalscale.disable_instance_type_plannning"):
+            return
+        cfg             = Cfg.get_list_of_dict("ec2.schedule.verticalscale.instance_type_distribution")
+        fleet_instances = self.instances_wo_excluded # ec2.get_instances(ScalingState="-excluded")
+        fleet_size      = len(fleet_instances)
+
+        schedule_size        = fleet_size
+        cfg                  = cfg[:schedule_size] # Can't have more instance type definitions than fleet size
+        nb_of_instance_types = len(cfg) 
+
+        expected_distribution      = defaultdict(int)
+        instance_types       = []
+        for i in range(0, nb_of_instance_types):
+            instance_type                   = cfg[i]["_"]
+            count                           = schedule_size / nb_of_instance_types
+            if "count" in cfg[i]:
+                try:
+                    count                 = int(cfg[i]["count"])
+                    schedule_size        -= count
+                    nb_of_instance_types -= 1
+                except Exception as e:
+                    log.exception("Failed to convert count=%s into integer! %s" % (cfg[i][count], e))
+            expected_distribution[instance_type] += count 
+            if instance_type not in instance_types: instance_types.append(instance_type)
+
+        # Round number of instances
+        allocated_instances  = 0
+        for typ in instance_types:
+            count                = round(expected_distribution[typ])
+            expected_distribution[typ] = count
+            allocated_instances += count
+        if len(instance_types) and fleet_size > allocated_instances: 
+            expected_distribution[instance_types[-1:][0]] += fleet_size - allocated_instances
+
+        # Compute what is missing
+        for inst in fleet_instances:
+            instance_type = inst["InstanceType"]
+            if instance_type in expected_distribution.keys():
+                expected_distribution[instance_type] -= 1
+
+        stopped_instances = self.stopped_instances_wo_excluded # ec2.get_instances(State="stopped", ScalingState="-excluded")
+        i = 0
+        max_modified_per_batch = Cfg.get_int("ec2.schedule.verticalscale.max_instance_type_modified_per_batch")
+        for inst in stopped_instances:
+            typ = inst["InstanceType"]
+
+            # Test if this instance has already he right instance type
+            if typ in instance_types and expected_distribution[typ] >= 0: 
+                # It looks so but check if a more prioritary instance type needs to be fulfilled first
+                index = instance_types.index(typ)
+                if len(list(filter(lambda t: expected_distribution[t] > 0, instance_types[:index]))) == 0:
+                    continue
+
+            if "SpotInstanceRequestId" in inst: continue # Can't change instance type for Spot instance
+
+            for t in instance_types:
+                if expected_distribution[t] <= 0: continue # Too many instances of this type
+
+                # Need to update the instance type for this instance
+                instance_id = inst["InstanceId"]
+                response    = None
+                try:
+                    response = self.context["ec2.client"].modify_instance_attribute(
+                            InstanceId=instance_id, InstanceType={
+                                  'Value': t,
+                            })
+                except Exception as e:
+                    log.exception("Failed to modify InstanceType for instance '%s' : %s" % (instance_id, e))
+                if response is None or response["ResponseMetadata"]["HTTPStatusCode"] != 200:
+                    log.error("Failed to change instance type for instance %s! : %s" % (instance_id, response))
+                else:
+                    self.scaling_state_changed = True
+                    max_modified_per_batch -= 1
+                    expected_distribution[t] -= 1
+                    break
+
+            if max_modified_per_batch < 0: 
+                break
+
+
+
+
+
+    ###############################################
+    #### CORE SCALEIN/OUT ALGORITHM ###############
+    ###############################################
+
+    def get_scale_start_date(self, direction):
+        return self.ec2.get_state_date("ec2.schedule.%s.start_date" % direction)
+
+    def is_scale_transition_too_early(self, to_direction):
+        now = self.context["now"]
+        opposite = "scaleout" if to_direction == "scalein" else "scaleout"
+        last_scale_action_date = self.ec2.get_state_date("ec2.schedule.%s.last_action_date" % opposite)
+        if last_scale_action_date is None:
+            return 0
+
+        time_to_wait =  timedelta(seconds=Cfg.get_duration_secs("ec2.schedule.to_%s_state.cooldown_delay" % to_direction)) - (now - last_scale_action_date)
+        seconds = time_to_wait.total_seconds()
+
+        return seconds if seconds > 0 else 0
+
+    @xray_recorder.capture()
+    def get_guilties_sum_points(self, assessment, default_points):
+        now                     = self.context["now"]
+        useable_instances_count = self.get_useable_instance_count(exclude_initializing_instances=True)
+        alarm_with_metrics      = self.cloudwatch.get_alarm_names_with_metrics()
+        alarm_in_ALARM          = [ a["AlarmName"] for a in assessment["upscale"]["guilties"] ]
+
+        all_alarm_names         = alarm_with_metrics.copy()
+        all_alarm_names.extend(list(filter(lambda a: a not in alarm_with_metrics, alarm_in_ALARM)))
+
+        oldest_metric_secs = 1
+        for a in alarm_with_metrics:
+            metric = self.cloudwatch.get_metric_by_id(a)
+            if metric is not None:
+                metric_date = misc.str2utc(metric["_SamplingTime"])
+                oldest_metric_secs = max(oldest_metric_secs, (now - metric_date).total_seconds())
+
+
+        all_points    = defaultdict(dict)
+        sum_of_deltas = 1 
+        sum_of_unkwnown_divider_delta_time = 1
+        scores        = []
+        for alarm_name in all_alarm_names:
+            alarm_def           = self.cloudwatch.get_alarm_configuration_by_name(alarm_name)
+            if alarm_def is None: 
+                continue
+
+            instance_id  = alarm_def["InstanceId"] if "InstanceId" in alarm_def else None
+            meta         = alarm_def["AlarmDefinition"]["Metadata"]
+            alarm_group  = alarm_def["AlarmDefinition"]["Metadata"]["AlarmGroup"] if "AlarmGroup" in alarm_def["AlarmDefinition"]["Metadata"] else None
+
+            k = "alarmname:%s" % alarm_name if alarm_group is None else "alarmgroup:%s" % alarm_group
+            if instance_id is not None: k = "instance:%s" % instance_id
+
+            all_points[k][alarm_name] = 0
+            alarm_points              = int(default_points)
+            if "Points" in meta:
+                try:
+                    alarm_points = int(meta["Points"])
+                except:
+                    log.exception("[WARNING] Failed to process 'Points' metadata for alarm %s! (%s)" % (alarm_name, meta["Points"]))
+
+            if alarm_name in alarm_in_ALARM:
+                # Alarm that are in ALARM state are directly earning their points
+                all_points[k][alarm_name] = int(alarm_points)
+
+            metric_data        = self.cloudwatch.get_alarm_data_by_name(alarm_name)
+            if "MetricDetails" not in metric_data or len(metric_data["MetricDetails"]["Values"]) == 0:
+                log.log(log.NOTICE, "No metric available yet for '%s'..." % alarm_name)
+                continue
+
+            latest_metric_value= float(metric_data["MetricDetails"]["Values"][0])
+            alarm_threshold    = float(metric_data["Threshold"])
+
+            reverse_alarm      = "Less" in metric_data["ComparisonOperator"]
+            baseline_threshold = alarm_threshold * 3.0/1.0 if reverse_alarm else alarm_threshold * 1.0/3.0 # By default
+            try:
+                if "BaselineThreshold" in meta and meta["BaselineThreshold"] != "": 
+                    baseline_threshold = float(meta["BaselineThreshold"])
+            except Exception as e:
+                log.error("Failed to process 'BaselineThreshold' in %s/%s : %s" % 
+                    (alarm_def["Key"], alarm_def["Definition"]))
+
+            gap       = abs(alarm_threshold - baseline_threshold)
+            if gap == 0: continue
+            gap_ratio = (latest_metric_value - baseline_threshold) / gap 
+            s = {
+                "AlarmName": alarm_name,
+                "ResourceKey": k,
+                "GapRatio": gap_ratio,
+                # We favor metrics that are younger...
+                "DeltaWeight": 1 + oldest_metric_secs - (now - misc.str2utc(metric_data["MetricDetails"]["_SamplingTime"])).total_seconds()
+                }
+            # Younger metrics get a greater weight...
+            s["DividerWeight"] = s["DeltaWeight"] / oldest_metric_secs 
+            try:
+                if "Divider" in meta:
+                    s["Divider"] = float(meta["Divider"])
+            except: 
+                log.warning("Failed to convert Divider '%s' as float for alarm '%s'!" % (meta["Divider"], alarm_name))
+            if not "Divider" in s: 
+                sum_of_unkwnown_divider_delta_time += s["DividerWeight"]
+            scores.append(s)
+
+        for s in scores:
+            # Determine the divider to use (default is the amount of useable instances)
+            if "Divider" in s:
+                weight = 1 / s["Divider"]
+            else:
+                weight = s["DividerWeight"] / float(sum_of_unkwnown_divider_delta_time) 
+
+            gap_ratio    = s["GapRatio"]
+            score_points = alarm_points * gap_ratio * weight
+
+            alarm_name   = s["AlarmName"]
+            resource_key = s["ResourceKey"]
+            all_points[resource_key][alarm_name] = max(all_points[resource_key][alarm_name], int(score_points))
+
+        # Take only the biggest score point per instance
+        points = 0
+        for k in all_points.keys():
+            ps = [ all_points[k][p] for p in all_points[k] ]
+            ps = sorted(ps, reverse=True)
+            if len(ps): 
+                log.info("Scores for '%s' : %s" % (k, all_points[k]))
+                points += ps[0]
+        return points
+
+
+    @xray_recorder.capture()
+    def scale_in_out(self):
+        """
+        This is the function that takes decisions about starting or stopping instances based on Alarms
+        """
+
+        now = self.context["now"]
+
+        # Main decision loop 
+        assessment = {
+                "upscale" : {
+                        "guilties" : []
+                    }
+            }
+        items = self.ec2_alarmstate_table.get_items()
+        for item in items:
+            instance_id = item["InstanceId"]
+            alarm_name  = item["AlarmName"]
+            p = "[%s/%s]" % (instance_id, alarm_name)
+
+            ALARM_LastAlarmTimeStamp = misc.str2utc(item["ALARM_LastAlarmTimeStamp"]) if "ALARM_LastAlarmTimeStamp" in item else None
+            OK_LastAlarmTimeStamp    = misc.str2utc(item["OK_LastAlarmTimeStamp"]) if "OK_LastAlarmTimeStamp" in item else None
+
+            if ALARM_LastAlarmTimeStamp is None:
+                continue
+
+            if OK_LastAlarmTimeStamp is not None and OK_LastAlarmTimeStamp >= ALARM_LastAlarmTimeStamp:
+                continue
+
+            # Here, we know that there is a valid Alarm 
+            if "ALARM_Event" not in item:
+                log.debug("Invalid record (missing event field)")
+                return
+
+            event = item["ALARM_Event"]
+            if OK_LastAlarmTimeStamp is None or OK_LastAlarmTimeStamp < ALARM_LastAlarmTimeStamp:
+                # This alarm has an inconsistent OK state for a long time so that is suspicous (ex: We
+                #      may have missed one OK SNS message.
+                # In order to mitigate this kind of event, we read the metric directly
+                response = self.context["cloudwatch.client"].describe_alarms(
+                            AlarmNames=[item["AlarmName"]]
+                )
+                log.debug("Suspicious long running alarm. Getting alarm state '%s' directly : %s" % (item["AlarmName"], response))
+                if "MetricAlarms" not in response or len(response["MetricAlarms"]) == 0:
+                    # Ignore this alarm as we failed to get a valid status (Alarm was deleted?)
+                    continue
+
+                if response["MetricAlarms"][0]["StateValue"] != "ALARM":
+                    log.debug("Detected an Alarm item '%s' that is not backed by a CloudWatch ALARM state. Ignoring." % alarm_name)
+                    continue
+            # This item looks as an alarm condition
+            assessment["upscale"]["guilties"].append(item)
+
+        # Calculate decision
+        self.take_scale_decision(items, assessment)
+
+    @xray_recorder.capture()
+    def get_scale_instance_count(self, direction, boost_rate, text):
+        now = self.context["now"]
+
+        instance_upfront_count = 0
+        last_scale_start_date = self.get_scale_start_date(direction)
+        new_scale_sequence    = False
+        if last_scale_start_date is None:
+            # Remember when we started to scale up
+            last_scale_start_date = now
+            last_event_date       = last_scale_start_date
+            new_scale_sequence    = True
+            # Do we have to (over)react because of new sequence?
+            instance_upfront_count = Cfg.get_int("ec2.schedule.%s.instance_upfront_count" % direction)
+        else:
+            last_event_date       = self.ec2.get_state_date("ec2.schedule.%s.last_action_date" % direction, default=last_scale_start_date)
+            if last_event_date < last_scale_start_date: last_event_date = last_scale_start_date
+
+        seconds_since_scale_start        = now - last_scale_start_date
+        seconds_since_latest_scale_event = now - last_event_date
+
+        period = Cfg.get_duration_secs("ec2.schedule.%s.period" % direction) 
+        rate   = Cfg.get_int("ec2.schedule.%s.rate" % direction)
+
+        ratio              = float(rate) / (float(period) / boost_rate)
+        raw_instance_count = ratio * seconds_since_latest_scale_event.total_seconds() 
+
+        delta_count = int(raw_instance_count) + instance_upfront_count 
+        # Ensure that we never fall under 'min_instance_count' running instances
+        if direction == "scalein":
+            min_instance_count        = self.get_min_instance_count()
+            running_instances_count   = self.get_useable_instance_count(exclude_problematic_instances=False)
+            max_instance_suppressed   = running_instances_count - min_instance_count 
+            if max_instance_suppressed <= 0: 
+                # Algorithm can't go below 'min_instance_count' so we reset it
+                self.set_state("ec2.schedule.%s.start_date" % direction, "")
+                text.append("Scale Down can't reduce fleet size below 'min_instance_count")
+                return 0
+
+            delta_count = min(delta_count, max_instance_suppressed)
+
+        if new_scale_sequence:
+            self.set_state("ec2.schedule.%s.start_date" % direction, str(last_scale_start_date))
+
+        text.append("\n".join(["[INFO] Scaling data for direction '%s' :" % direction,
+                "  Now: %s" % now,
+                "  [INFO] Scale start date: %s" % str(last_scale_start_date),
+                "  [INFO] Latest scale event date: %s" % str(last_event_date),
+                "  [INFO] Seconds since scale start: %d" % seconds_since_scale_start.total_seconds(),
+                "  [INFO] Seconds since latest scale event date: %d" % seconds_since_latest_scale_event.total_seconds(),
+                "  [INFO] Rate: %d instance(s) per period" % rate,
+                "  [INFO] Nominal Period: %d seconds" % period,
+                "  [INFO] Boost rate: %f" % boost_rate,
+                "  [INFO] Boosted effective period: %d seconds" % (period / boost_rate),
+                "  [INFO] Effective rate over %ds period: %.1f instance per period (%.1f instance(s) per minute)" % (period, ratio * period, ratio * 60),
+                "  Computed raw instance count: %.2f" % raw_instance_count
+                ]))
+
+        return delta_count
+
+    @xray_recorder.capture()
+    def take_scale_decision(self, items, assessment):
+        now = self.context["now"]
+
+        # Step 1) Calculate the number of instances to start or stop
+        
+        base_points               = Cfg.get_int("ec2.schedule.base_points")
+        self.alarm_points         = self.get_guilties_sum_points(assessment, base_points)
+        instance_scale_score      = float(self.alarm_points) / float(base_points)
+
+        # To avoid jerky scale score, we integrate it over a period of time
+        integration_period        = Cfg.get_duration_secs("ec2.schedule.horizontalscale.integration_period")
+        self.ec2.set_integrated_float_state("ec2.schedule.scaleout.instance_scale_score", instance_scale_score, 
+                integration_period, self.state_ttl)
+        self.instance_scale_score = self.ec2.get_integrated_float_state("ec2.schedule.scaleout.instance_scale_score",
+                integration_period, default=instance_scale_score)
+        log.info("Scale score: (Raw=%f/Integrated=%f)" % (instance_scale_score, self.instance_scale_score))
+
+        if self.desired_instance_count() != -1:
+            log.info("Autoscaler disabled due to 'ec2.schedule.desired_instance_count' set to a value different than -1!")
+            return
+
+        scale_up_disabled = Cfg.get_int("ec2.schedule.scaleout.disable") != 0
+        if scale_up_disabled: log.log(log.NOTICE, "ScaleOut scheduler disabled!")
+
+        if self.scaling_state_changed:
+            return
+
+        if not scale_up_disabled and self.instance_scale_score >= 1.0:
+            self.take_scale_decision_scaleout()
+            return
+
+        # Remember that we are not in an scaleout condition here
+        self.set_state("ec2.schedule.scaleout.start_date", "")
+        self.set_state("ec2.schedule.scaleout.last_action_date", "")
+
+        # Step 2) Check if we are allowed to downscale now
+        scale_down_disabled = Cfg.get_int("ec2.schedule.scalein.disable") != 0
+        if scale_down_disabled: log.log(log.NOTICE, "ScaleIn scheduler disabled!")
+
+        if not scale_down_disabled and self.instance_scale_score < Cfg.get_float("ec2.schedule.scalein.threshold_ratio"):
+            self.take_scale_decision_scalein()
+            return
+
+        # Remember that we are not in an scalein condition here
+        self.set_state("ec2.schedule.scalein.start_date", "")
+        self.set_state("ec2.schedule.scalein.last_action_date", "")
+
+    @xray_recorder.capture()
+    def take_scale_decision_scaleout(self):
+        now = self.context["now"]
+        time_to_wait = self.is_scale_transition_too_early("scaleout")
+        if time_to_wait > 0:
+            log.log(log.NOTICE, "Transition period from scalein to scaleout (%d seconds still to go...)" % time_to_wait)
+            return
+
+        text = []
+        instance_to_start = self.get_scale_instance_count("scaleout", self.instance_scale_score, text)
+        if instance_to_start == 0: 
+            self.would_like_to_scaleout = True
+            return
+        log.debug(text[0])
+        useable_instances_count = self.get_useable_instance_count()
+        desired_instance_count = useable_instances_count + instance_to_start
+
+        log.log(log.NOTICE, "Need to start up to '%d' more instances (Total expected=%d)" % (instance_to_start, desired_instance_count))
+        self.instance_action(desired_instance_count, "scaleout")
+        self.set_state("ec2.schedule.scaleout.last_action_date", now)
+
+    @xray_recorder.capture()
+    def take_scale_decision_scalein(self):
+        now = self.context["now"]
+        # Reset the scalein algorithm while targets are in 'initial' state
+        initial_target_instance_ids = self.get_initial_instances_ids()
+        if len(initial_target_instance_ids):
+            log.log(log.NOTICE, "Instances %s are still initializing... Delaying scalein assessment..." % initial_target_instance_ids)
+            self.set_state("ec2.schedule.scalein.start_date", "",
+                    TTL=self.state_ttl)
+            return
+
+        time_to_wait = self.is_scale_transition_too_early("scalein")
+        if time_to_wait > 0:
+            log.log(log.NOTICE, "Transition period from scaleout to scalein (%d seconds still to go...)" % time_to_wait)
+            return
+
+        text = []
+        instance_to_stop = self.get_scale_instance_count("scalein", 1.0, text)
+        if instance_to_stop == 0:
+            self.would_like_to_scalein = True
+            return
+        log.debug(text[0])
+        active_instance_count  = self.get_useable_instance_count(exclude_problematic_instances=False)
+        desired_instance_count = active_instance_count - instance_to_stop
+        if desired_instance_count < 0: desired_instance_count = 0
+
+        log.log(log.NOTICE, "Need to stop up to '%d' more instances (Total expected=%d)" % (instance_to_stop, desired_instance_count))
+        self.instance_action(desired_instance_count, "scalein")
+        self.set_state("ec2.schedule.scalein.last_action_date", now)
+
+###############################################
+#### SPOT INSTANCE MANAGEMENT #################
+###############################################
+
+def manage_spot_notification(sqs_record, ctx):
+    try:
+        body = json.loads(sqs_record["body"])
+    except:
+        return False
+    if not "detail-type" in body or body["detail-type"] != "EC2 Spot Instance Interruption Warning":
+        return False
+    instance_id = body["detail"]["instance-id"]
+    ctx["o_state"].get_prerequisites()
+    ctx["o_notify"].get_prerequisites()
+    ctx["o_ec2"].get_prerequisites(only_if_not_already_done=True)
+
+    log.info("EC2 Spot instance interruption received. Mark '%s' as 'draining'! " % instance_id)
+    ctx["o_ec2"].set_scaling_state(instance_id, "draining")
+    R(None, spot_interruption_request, InstanceId=instance_id, Event=body)
+    return True
+
+def spot_interruption_request(InstanceId=None, Event=None):
+    return {}
