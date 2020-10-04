@@ -76,7 +76,7 @@ You should see a `CloneSquad-test` dashboard in the CloudWatch console looking l
 Next step is to create instances with this appropriate tag defined. For a quick demonstration using a fleet of 20 VMs mixing Spot and 
 On-Demand instances, go to [examples/environments/demo-instance-fleet](examples/environments/demo-instance-fleet). 
 > In order to deploy this 
-demonstration, you **MUST** to configure the CloneSquad DevKit once and run the deploy script from within this container: See [instructions](docs/BUILD_RELEASE_DEBUG.md#configuring-the-devkit-to-start-demonstrations)!
+demonstration, you **MUST** configure the CloneSquad DevKit once and run the deploy script from within this container: See [instructions](docs/BUILD_RELEASE_DEBUG.md#configuring-the-devkit-to-start-demonstrations)!
 
 Optional next step is to define also the tag *'clonesquad:group-name'* with value *'test'* on one or more EC2 targetgroups: CloneSquad will
 automatically manage the membership of previousy created instances to these targetgroups. The [demo-loadbalancers](examples/environments/demo-loadbalancers/) demonstration is showing this.
