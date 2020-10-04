@@ -1,0 +1,7 @@
+.build/
+.venv/
+.delivery/
+.aws-sam/
+.dependencies/
+__pycache__/
+src/__pycache__/
