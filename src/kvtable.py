@@ -292,6 +292,8 @@ class KVTable():
             if "Key" in item and item["Key"] == k:
                 if "ExpirationTime" not in item or int(item["ExpirationTime"]) > misc.seconds_from_epoch_utc(now=now):
                     return item
+                # Expired record. Garbage collect it now...
+                del self.table_cache[item]
                 return None
         return None
 
