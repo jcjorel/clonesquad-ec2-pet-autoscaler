@@ -27,12 +27,12 @@ a service malfunction. Users needs to take into account this expected behavior.
 The configuration subsystem allows reference to external URLs located in S3 or other Web servers. Some may have
 concerns that it creates dependencies to resources that could be unreachable under a Large Scale Event condition 
 (Ex: AZ unvailability).
-In order to mitigate this concern, users can customize the Lambda package to emded their own configuration resources
+In order to mitigate this concern, users can customize the Lambda package to embed their own configuration resources
 and so, be able to access them with the reliable `internal:` protocol scheme.
 
 To do so, create a ZIP file containing your YAML files and push it to an S3 Bucket accessible to CloudFormation. 
 
-	Tip: In the ZIP file, create a file named custom.config.yaml that will be read automatically at startup  
+	Tip: In the ZIP file, create a file named 'custom.config.yaml' that will be read automatically at startup.
 
 The [Cloudformation template](../template.yaml) contains 2 parameters to inject this customization ZIP file at
 deployment time:
@@ -47,7 +47,7 @@ The parameter set mechanism allows dynamic configuration override. It is mainly 
 
 When set, the configuration subsystem is looking for a parameter set with the specified name.
 
-A parameter set is a YAML dict or using a special syntax in DynamoDB.
+A parameter set is a YAML dict (or using a special syntax in DynamoDB).
 
 Ex:
 
