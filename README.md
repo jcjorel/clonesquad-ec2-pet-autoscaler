@@ -1,5 +1,5 @@
 
-# CloneSquad, the AWS Pet Autoscaler
+# CloneSquad, the AWS EC2 Pet Autoscaler
 > An Autoscaler for mutable architectures on AWS [EC2](https://aws.amazon.com/what-is-cloud-computing/)
 
 Because mutables architectures are still highly common and as they are encountered in most Cloud migrations, CloneSquad is a Serverless Autoscaler software with the main goal to get the most of the [Cloud benefits](https://aws.amazon.com/what-is-cloud-computing/) while taking the constraint
