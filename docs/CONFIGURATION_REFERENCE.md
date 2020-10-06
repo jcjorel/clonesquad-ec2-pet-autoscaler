@@ -47,7 +47,7 @@ The parameter set mechanism allows dynamic configuration override. It is mainly 
 
 When set, the configuration subsystem is looking for a parameter set with the specified name.
 
-A parameter set is a YAML dict or using a special syntax in DynamoDB.
+A parameter set is a YAML dict (or using a special syntax in DynamoDB).
 
 Ex:
 

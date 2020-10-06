@@ -26,7 +26,7 @@ a service malfunction. Users needs to take into account this expected behavior.
 
 The configuration subsystem allows reference to external URLs located in S3 or other Web servers. Some may have
 concerns that it creates dependencies to resources that could be unreachable under a Large Scale Event condition 
-(Ex: AZ unvailability).
+(Ex: AZ unavailability).
 In order to mitigate this concern, users can customize the Lambda package to embed their own configuration resources
 and so, be able to access them with the reliable `internal:` protocol scheme.
 
