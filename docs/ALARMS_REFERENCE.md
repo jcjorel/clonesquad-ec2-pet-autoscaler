@@ -55,7 +55,7 @@ The 'Point based scaling criteria` (aka PBSC Algorithm) is calculating a float s
 			[ Sum(TriggeredAlarmGeneratedPoints) ] / 1000.0
 
 The autoscaler will scale out if the calculated *Scaling criteria* is above or equal to 1.0. It will scalein if
-*Scaling criteria* is below 0.25. Between 0.25 and 1.0, the autoscaler will let the fleet as-is untouched.
+*Scaling criteria* is below 0.66. Between 0.66 and 1.0, the autoscaler will let the fleet as-is untouched.
 
 The Cloudwatch Alarms are taken into account differently according their status:
 * Alarms that are not in ALARM state (aka non-Triggered) are generating points **if a `BaselineThreshold`is defined**. If no
