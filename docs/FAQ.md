@@ -1,13 +1,13 @@
 
 # FAQ
 
-## Is CloneSquad a replacement of [AWS Auto-Scaling](https://aws.amazon.com/autoscaling/)?
+## Is CloneSquad a replacement of [AWS Auto Scaling](https://aws.amazon.com/autoscaling/)?
 
 No. Functionally, CloneSquad relates to AWS Auto Scaling but it manages a corner-case that AWS Auto Scaling doesn't.
 The Cloud best practice is to build and run immutable architectures so AWS Auto Scaling is definitively the good
 choice in such modern environment.
 
-CloneSquad features that look alike but are performed in a very different way than AWS Auto-Scaling are:
+CloneSquad features that look alike but are performed in a very different way than AWS Auto Scaling are:
 * Instance fleet management,
 * AWS EC2 Target groups management attached to ALB/NLB
 
