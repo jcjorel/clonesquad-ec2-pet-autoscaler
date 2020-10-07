@@ -8,7 +8,7 @@ It contains multiple variants:
 2) [`ec2.schedule.min_instance_count`](../../../docs/CONFIGURATION_REFERENCE.md#ec2schedulemin_instance_count) or [`ec2.schedule.desired_instance_count`](../../../docs/CONFIGURATION_REFERENCE.md#ec2scheduledesired_instance_count) variation.
 
 This demonstration allows to see graphically the CloneSquad behavior while these parameters
-varie over time.
+vary over time.
 
 Ex: Scheduling a Sinus wave (with parameter set mechanism).
 
@@ -35,11 +35,14 @@ Generated dashboard output for [`ec2.schedule.min_instance_count`](../../../docs
 Please notice some significant facts with these graphs:
 * The condition to start 'LightHouse' instances are 1) low activity 2) or [`ec2.schedule.desired_instance_count`](../../../docs/CONFIGURATION_REFERENCE.md#ec2scheduledesired_instance_count) set at a very high value (see first demo graph on this page).
 In the [`ec2.schedule.min_instance_count`](../../../docs/CONFIGURATION_REFERENCE.md#ec2schedulemin_instance_count) demo graph, we clearly see that LighHouse instances
-did not start even [`ec2.scheduler.min_instance_count`] is set at 100%. This behavior will also be seen while in scaleout condition.
-* In both demonstarations, we can observe that LightHouse instances are restarted progressively while the expected amount of instances fall to a low value. It will
+did not start even [`ec2.scheduler.min_instance_count`](../../../docs/CONFIGURATION_REFERENCE.md#ec2schedulermin_instance_count) is set at 100%. This behavior will also be seen while in scaleout condition.
+* In both demonstrations, we can observe that LightHouse instances are restarted progressively while the expected amount of instances fall to a low value. It will
 be also seen with scalein/scaleout condition.
 
 ## Static fleet flip-flop demo
+
+Static subfleet are not autoscaled resources but are managed in a on/off manner in a very simple way. Static subfleet is provided to offer more cost 
+reduction options to CloneSquad users event not directly related to autoscaling.
 
 A very simple demonstration of static fleet scheduling is enabled when the file [staticfleet-hourly-flipflop-cronfile.yaml](staticfleet-hourly-flipflop-cronfile.yaml)
 is injected in the CloneQuad-${GroupName}-Scheduler DynamoDB table.
@@ -52,4 +55,5 @@ To inject this demo configuration, use the following command:
 ```shell
 ${CLONESQUAD_DIR}/tools/cs-kvtable CloneSquad-${STACK_NAME}-Scheduler import <staticfleet-hourly-flipflop-cronfile.yaml
 ```
+
 
