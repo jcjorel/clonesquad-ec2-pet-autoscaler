@@ -4,7 +4,7 @@
 To increase portability of execution envrionment needed by CloneSquad activities (dev/run/build/test...), a DevKit is provided as
 a Docker container.
 
-It is the vehicule for publishing the CloneSquad releases but also the envrionment where to launch the various demonstrations.
+It is the vehicule for publishing the CloneSquad releases but also the environment where to launch the various demonstrations.
 
 The DevKit must be configured with essential contextual informations contained in 2 files:
 * /clonesquad-deployment-parameters/deployment-parameters.txt
