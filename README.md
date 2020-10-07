@@ -106,6 +106,7 @@ Below, some rough key figures to build an estimate:
 	- Should be a few $ per month depending on scaling activities.
 * X-Ray
 	- Few cents per month (can be disabled)
+
 **WARNING: The provided demonstrations deploy EC2 Instances with AWS Cloudwatch Log agents enabled that create tens of Custom metrics (RAM...).  These custom
 metrics will generate a significant part of the demonstration bill and should not be considered as part of the CloneSquad cost.**
 
