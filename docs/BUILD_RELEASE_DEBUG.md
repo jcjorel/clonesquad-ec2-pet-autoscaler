@@ -111,7 +111,7 @@ This report contains the following information:
 * Python stack trace with input arguments,
 * A dump of all CloneSquad DynamodB tables at time of the event,
 * PNG files of the CloudWatch dashboard (even if the dashboard is disabled),
-* Dump of EC2.DescribeInstances(), EC2.DescribeTargetGrousp()
+* Dump of EC2.DescribeInstances(), EC2.DescribeTargetGroups()
 
 2 reports are generated at the same time: 
 * Obfuscated of sensitive information,
