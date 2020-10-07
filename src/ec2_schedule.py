@@ -48,7 +48,7 @@ system issues."""
                  "ec2.schedule.desired_instance_count,Stable" : {
                      "DefaultValue" : -1,
                      "Format"       : "Integer", 
-                     "Description"  : """If set to -1, the auto-scaler controls freely the number of running instances. Set to a value greater than [`ec2.schedule.min_instance_count`](#ec2schedulemin_instance_count), the auto-scaler is disabled and this value will control the precise number of serving 
+                     "Description"  : """If set to -1, the autoscaler controls freely the number of running instances. Set to a value greater than [`ec2.schedule.min_instance_count`](#ec2schedulemin_instance_count), the autoscaler is disabled and this value will control the precise number of serving 
 instances at a given time. 
 
 A typical usage for this key is to temporarily force all the instances to run at the same time to perform mutable maintenance
@@ -81,9 +81,9 @@ condition, CloneSquad will automatically stop and restart instances in CPU Credi
                  "ec2.schedule.scaleout.disable,Stable": {
                      "DefaultValue" : 0,
                     "Format"        : "Bool",
-                    "Description"   : """Disable the scaleout part of the auto-scaler.
+                    "Description"   : """Disable the scaleout part of the autoscaler.
 
-    Setting this value to 1 makes the auto-scaler scalein only.
+    Setting this value to 1 makes the autoscaler scalein only.
                     """
                  },
                  "ec2.schedule.scaleout.rate,Stable": {
@@ -91,13 +91,13 @@ condition, CloneSquad will automatically stop and restart instances in CPU Credi
                      "Format"       : "PositiveInteger",
                      "Description"  : """Number of instances to start per period.   
 
-This core parameter is used by the auto-scaler to compute when to 
+This core parameter is used by the autoscaler to compute when to 
 start a new instance under a scaleout condition. By default, it is set to 5 instances per period (see [`ec2.schedule.scaleout.period`](#ec2schedulescaleoutperiod)) that 
 is quite a slow growth rate. This number can be increased to grow faster the running fleet under scale out condition.
 
-Increasing too much this parameter makes the auto-scaler very reactive and can lead to over-reaction inducing unexpected costs:
+Increasing too much this parameter makes the autoscaler very reactive and can lead to over-reaction inducing unexpected costs:
 A big value can be sustainable when [CloudWatch High-Precision alarms](https://aws.amazon.com/fr/about-aws/whats-new/2017/07/amazon-cloudwatch-introduces-high-resolution-custom-metrics-and-alarms/)
-are used allowing the auto-scaler to get very quickly a 
+are used allowing the autoscaler to get very quickly a 
 feedback loop of the impact of added instances. With standard alarms from the AWS namespace, precision is at best 1 minute and 
 the associated CloudWatch metrics can't react fast enough to inform the algorithm with accurate data.
 
@@ -118,20 +118,20 @@ used by the scaling algorithm as a devider to determine the fleet growth rate un
                      "Format"       : "Integer",
                      "Description"  : """Number of instances to start upfront of a new scaleout condition.
 
-When auto-scaling is enabled, the auto-scaler algorithm compute when to start a new instance using its internal time-based and point-based
+When autoscaling is enabled, the autoscaler algorithm compute when to start a new instance using its internal time-based and point-based
 algorithm. This parameter is used to bypass this algorithm (only at start of a scaleout sequence) and make it appears more responsive
 by starting immediatly the specified amount of instances. 
 
     It is not recommended to put a big value for this parameter (it is better 
-    to let the auto-scaler algorithm do its smoother job instead)
+    to let the autoscaler algorithm do its smoother job instead)
                      """
                  },
                  "ec2.schedule.scalein.disable,Stable": {
                      "DefaultValue"  : 0,
                      "Format"        : "Bool",
-                     "Description"   : """Disable the scalein part of the auto-scaler.
+                     "Description"   : """Disable the scalein part of the autoscaler.
 
-    Setting this value to 1 makes the auto-scaler scaleout only.
+    Setting this value to 1 makes the autoscaler scaleout only.
                      """
                  },
                  "ec2.schedule.scalein.rate,Stable": {
@@ -157,12 +157,12 @@ Must be a greater than `0` Integer.
                          "Format"      : "Integer",
                          "Description" : """Number of instances to stop upfront of a new scalein condition
 
-When auto-scaling is enabled, the auto-scaler algorithm compute when to drain and stop a new instance using its internal time-based and point-based
+When autoscaling is enabled, the autoscaler algorithm compute when to drain and stop a new instance using its internal time-based and point-based
 algorithm. This parameter is used to bypass this algorithm (only at start of a scalein sequence) and make it appears more responsive
 by draining immediatly the specified amount of instances. 
 
     It is not recommended to put a big value for this parameter (it is better 
-    to let the auto-scaler algorithm do its smoother job instead)
+    to let the autoscaler algorithm do its smoother job instead)
                          """
                  },
                  "ec2.schedule.scalein.threshold_ratio" : 0.66,

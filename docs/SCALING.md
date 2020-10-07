@@ -76,7 +76,7 @@ type for non-LightHouse ones.*
 
 # Static subfleet support
 
-CloneSquad can manage static subfleets of EC2 and RDS instances. This support is added to complement the cost reduction benefits of the auto-scaling feature.
+CloneSquad can manage static subfleets of EC2 and RDS instances. This support is added to complement the cost reduction benefits of the autoscaling feature.
 The static subfleets are a set of resources using the special tag `clonesquad:static-subfleet-name` that will be managed differently than ones
 not tagged this way.
 
