@@ -1,7 +1,7 @@
 
 ## Configuring the DevKit to launch demonstrations
 
-To increase portability of execution envrionment needed by CloneSquad activities (dev/run/build/test...), a DevKit is provided as
+To increase portability of execution environment needed by CloneSquad activities (dev/run/build/test...), a DevKit is provided as
 a Docker container.
 
 It is the vehicule for publishing the CloneSquad releases but also the environment where to launch the various demonstrations.
