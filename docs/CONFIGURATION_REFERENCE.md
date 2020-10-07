@@ -181,7 +181,7 @@ List of metric pattern names to not send to Cloudwatch
 This configuration key is used to do Cost optimization by filtering which CloneSquad Metrics are sent to Cloudwatch.
 It support regex patterns.
 
-Ex: StaticFleet.*;NbOfBouncedInstances
+> Ex: StaticFleet.*;NbOfBouncedInstances
 
                         
 
@@ -364,7 +364,7 @@ are used allowing the autoscaler to get very quickly a
 feedback loop of the impact of added instances. With standard alarms from the AWS namespace, precision is at best 1 minute and 
 the associated CloudWatch metrics can't react fast enough to inform the algorithm with accurate data.
 
-    **Do not use big value there when using Cloudwatch Alarms with 1 min ou 5 mins precision.**
+> **Do not use big value there when using Cloudwatch Alarms with 1 min ou 5 mins precision.**
                      
 
 
@@ -391,8 +391,8 @@ When autoscaling is enabled, the autoscaler algorithm compute when to start a ne
 algorithm. This parameter is used to bypass this algorithm (only at start of a scaleout sequence) and make it appears more responsive
 by starting immediatly the specified amount of instances. 
 
-    It is not recommended to put a big value for this parameter (it is better 
-    to let the autoscaler algorithm do its smoother job instead)
+> It is not recommended to put a big value for this parameter (it is better 
+to let the autoscaler algorithm do its smoother job instead)
                      
 
 
@@ -442,8 +442,8 @@ When autoscaling is enabled, the autoscaler algorithm compute when to drain and 
 algorithm. This parameter is used to bypass this algorithm (only at start of a scalein sequence) and make it appears more responsive
 by draining immediatly the specified amount of instances. 
 
-    It is not recommended to put a big value for this parameter (it is better 
-    to let the autoscaler algorithm do its smoother job instead)
+> It is not recommended to put a big value for this parameter (it is better 
+to let the autoscaler algorithm do its smoother job instead)
                          
 
 
@@ -461,6 +461,7 @@ By default, no vertical scaling is configured meaning all instances whatever the
 On-Demand) are handled the same way. 
                          
 This parameter is a [MetaStringList](#MetaStringList)
+
     Ex: t3.medium,count=3,lighthouse;c5.large,spot;c5.large;c5.xlarge
 
 Please consider reading [detailed decumentation about vertical scaling](SCALING.md) to ensure proper use.
