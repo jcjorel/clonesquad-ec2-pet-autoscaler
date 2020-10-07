@@ -14,7 +14,7 @@ optionnaly, with vertical scaling configuration.
 
 The script file named 'deploy-test-instances.sh' generates a Cloudformation template and deploys it directly.
 
-By default, it defines a fleet of 20 instances with 3 x t3.medium Spot instances, 4 x c5.large Spot instances and 13 x m5.large.
+By default, it defines a fleet of 20 instances with *3 x t3.medium Spot instances, 4 x c5.large Spot instances and 13 x m5.large*.
 
 ```shell
 FLEET_SPECIFICATION=${FLEET_SPECIFICATION:-"t3.medium,Spot=True,Count=3;c5.large,Spot=True,Count=4;m5.large,Count=13"}
@@ -42,6 +42,6 @@ ${CLONESQUAD_DIR}/tools/cs-kvtable CloneSquad-${GroupName}-Configuration import 
 
 # Known bugs
 
-* When existing persistent Spot instances are updated by the template.ymal Cloudformation scripts, former 
-Spot request are not currectly cancelled. User need to cancel it by himself (console or API).
+* When existing persistent Spot instances are updated by the template.yaml Cloudformation scripts, former 
+Spot request are not currectly cancelled (CloudFormation issue?). User need to cancel it by himself (console or API).
 
