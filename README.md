@@ -85,7 +85,7 @@ automatically manage the membership of previousy created instances to these targ
 
 The default configuration has autoscaling in/out active and a directive defined to keep the serving fleet with, at least, 2 serving/healthy instances. Vertical scaling is disabled; 'LightHouse' mode as well. In this default configuration, CloneSquad does not make distinction between Spot and On-Demand instances managing them as an homogenous fleet.
 
-Better benefits can be obtained by using vertical scaling and instance type priorities.
+Better benefits can be obtained by using [vertical scaling](docs/SCALING.md#vertical-scaling) and instance type priorities.
 
 As general concept, the CloneSquad configuration can be done dynamically through a DynamoDB table or using a cascading set of YAML files located on a external Web servers, one or more S3 buckets requiring SigV4 authentication or finally directly integrated within the CloneSquad deployment for maximum resiliency toward external runtime dependencies. See [Configuration reference](docs/CONFIGURATION_REFERENCE.md) for more information.
 
