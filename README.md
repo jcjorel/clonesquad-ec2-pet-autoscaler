@@ -62,7 +62,7 @@ aws cloudformation create-stack --template-url https://s3.amazonaws.com/${CLONES
     --parameter "[{\"ParameterKey\":\"GroupName\",\"ParameterValue\":\"${CLONESQUAD_GROUPNAME}\"}]"
 aws cloudformation wait stack-create-complete --stack-name MyFirstCloneSquad-${CLONESQUAD_GROUPNAME}
 ```
-> Note: If you get the error 'fatal error: Unable to locate credentials', it means you forgot to set a valid IAM role on the EC2 deployment instance.
+> Note: If you get the error *'fatal error: Unable to locate credentials'*, it means you may forget to set a valid IAM role on the EC2 deployment instance.
 
 This CloneSquad deployment is now ready to manage all EC2 instances and EC2 Targetgroups tagged with key *'clonesquad:group-name'* and value *'test'*.
 
