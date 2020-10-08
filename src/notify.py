@@ -49,7 +49,7 @@ def _record_call(need_shortterm_record, is_success_func, f, *args, **kwargs):
     except Exception as e:
         managed_exception = e
         record["Except"] = {
-                "Exception": traceback.print_exc(),
+                "Exception": traceback.format_exc(),
                 "Stackstrace": traceback.extract_stack(),
                 "Reason": json.dumps(e, default=str)
             }
@@ -148,6 +148,7 @@ def _record_call(need_shortterm_record, is_success_func, f, *args, **kwargs):
         if table["DBImages"]:
             # Insert snapshots of the CloudWatch dashboard
             try:
+                log.log(log.NOTICE, "Generating snapshots for Dashboard graphs...")
                 images = notify_mgr.cloudwatch.get_dashboard_images()
                 for i in images:
                     compressed_name   = i.replace(" ", "")
@@ -155,7 +156,7 @@ def _record_call(need_shortterm_record, is_success_func, f, *args, **kwargs):
                     ExpressionAttributeValues[":graph%s" % compressed_name] = {
                             'S': images[i]
                             }
-                log.info("/!\ Generated CloudWatch dashboard PNG snapshots in DynamoDb table '%s' for further event anaylysis!" % table["Name"])
+                log.info("/!\ Generated CloudWatch dashboard PNG snapshots in DynamoDb table '%s' for further event analysis!" % table["Name"])
             except Exception as e:
                 log.exception("Failed to retrieve CloudWatch snapshot images! : %s" % e)
 
@@ -206,20 +207,21 @@ def _record_call(need_shortterm_record, is_success_func, f, *args, **kwargs):
             xray_recorder.begin_subsegment("notifycall-publish_all_reports:%s" % f.__name__)
             if ctx["FunctionName"] == "Interact":
                 # Avoid recursion if throwing from InteractFunction
+                log.info("Publishing Debug reports synchronously...")
                 debug.publish_all_reports(ctx, url, "notifymgr_report")
             else:
-                response = ctx["lambda.client"].invoke(
-                    FunctionName=ctx["InteractLambdaArn"],
-                    InvocationType='Event',
-                    LogType='Tail',
-                    Payload=bytes(json.dumps({
-                        "OpType" : "PublishDebugReportNow",
+                client = ctx["sqs.client"]
+                log.info("Notifying Interact SQS Queue '%s' for asynchronous debug report generation..." % ctx["InteractSQSUrl"])
+                response = client.send_message(
+                    QueueUrl=ctx["InteractSQSUrl"],
+                    MessageBody=json.dumps({
+                        "OpType" : "Debug/PublishReportNow",
                         "Events" : {
                             "Timestamp": str(ctx["now"])
                             }
-                        }), "utf-8")
+                        })
                     )
-                log.log(log.NOTICE, "Called Interact() function to generate Debug report to S3")
+                log.debug(response)
             xray_recorder.end_subsegment()
 
     xray_recorder.end_subsegment()

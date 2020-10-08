@@ -77,47 +77,48 @@ def _metadata_data_detector(s, detected_strings):
     except: pass
     try:
         metadata = json.loads(metadata)
-        instances = metadata["EC2"]["AllInstanceDetails"]
-        for i in instances:
-            replacements.extend([{
-                "Keyword": i["KeyName"],
-                "Replacement": "SSH_KEY_NAME_OBFUSCATED"
-                },
-                {
-                "Keyword": i["PrivateDnsName"],
-                "Replacement": "PRIVATE_DNS_NAME_OBFUSCATED"
-                },
-                {
-                "Keyword": i["PrivateIpAddress"],
-                "Replacement": "PRIVATE_IP_ADDRESS_OBFUSCATED"
-                },
-                {
-                "Keyword": i["ImageId"],
-                "Replacement": "IMAGEID_OBFUSCATED"
-                }
-                ])
-            if "PublicDnsName" in i:
+        if "EC2" in metadata:
+            instances = metadata["EC2"]["AllInstanceDetails"]
+            for i in instances:
                 replacements.extend([{
-                    "Keyword": i["PublicDnsName"],
-                    "Replacement": "PUBLIC_DNS_NAME_OBFUSCATED"
-                    }])
-            if "PublicIpAddress" in i:
-                replacements.extend([{
-                    "Keyword": i["PublicIpAddress"],
-                    "Replacement": "PUBLIC_IP_ADDRESS_OBFUSCATED"
-                    }])
-
-            for eni in i["NetworkInterfaces"]:
-                for ip in eni["PrivateIpAddresses"]:
+                    "Keyword": i["KeyName"],
+                    "Replacement": "SSH_KEY_NAME_OBFUSCATED"
+                    },
+                    {
+                    "Keyword": i["PrivateDnsName"],
+                    "Replacement": "PRIVATE_DNS_NAME_OBFUSCATED"
+                    },
+                    {
+                    "Keyword": i["PrivateIpAddress"],
+                    "Replacement": "PRIVATE_IP_ADDRESS_OBFUSCATED"
+                    },
+                    {
+                    "Keyword": i["ImageId"],
+                    "Replacement": "IMAGEID_OBFUSCATED"
+                    }
+                    ])
+                if "PublicDnsName" in i:
                     replacements.extend([{
-                        "Keyword": ip["PrivateIpAddress"],
-                        "Replacement": "PRIVATE_IP_ADDRESS_OBFUSCATED"
-                        },
-                        {
-                        "Keyword": ip["PrivateDnsName"],
-                        "Replacement": "PRIVATE_DNS_NAME_OBFUSCATED"
-                        }
-                        ])
+                        "Keyword": i["PublicDnsName"],
+                        "Replacement": "PUBLIC_DNS_NAME_OBFUSCATED"
+                        }])
+                if "PublicIpAddress" in i:
+                    replacements.extend([{
+                        "Keyword": i["PublicIpAddress"],
+                        "Replacement": "PUBLIC_IP_ADDRESS_OBFUSCATED"
+                        }])
+
+                for eni in i["NetworkInterfaces"]:
+                    for ip in eni["PrivateIpAddresses"]:
+                        replacements.extend([{
+                            "Keyword": ip["PrivateIpAddress"],
+                            "Replacement": "PRIVATE_IP_ADDRESS_OBFUSCATED"
+                            },
+                            {
+                            "Keyword": ip["PrivateDnsName"],
+                            "Replacement": "PRIVATE_DNS_NAME_OBFUSCATED"
+                            }
+                            ])
     except Exception as e: 
         log.exception("[WARNING] Failed to detect sensitive data in metadata : %s " % e)
     return replacements

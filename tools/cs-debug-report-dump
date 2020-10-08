@@ -5,10 +5,15 @@ if [ -z "${CLONESQUAD_DIR}" ] ; then
 fi
 source ${CLONESQUAD_DIR}/scripts/_source-me.sh
 
+if [ -z "${LoggingS3Path}" ]; then
+	echo "[ERROR] 'LoggingS3Path' parameter is not defined in CloudFormation deployment template!" ; exit 1
+fi
+
 tmpfile=/tmp/cs-config.$$
-aws lambda invoke --function-name CloneSquad-Discovery-${GroupName} --payload '{"OpType" : "DumpConfiguration"}' $tmpfile 1>/dev/stderr
+aws lambda invoke --function-name CloneSquad-Discovery-${GroupName} --payload '' $tmpfile 1>/dev/stderr
 INTERACT_QUEUE=$(jq -r '.["InteractQueue"]' <$tmpfile)
 rm -f $tmpfile
-echo "Sending Debug/PublishReportNow command through SQS Interact queue as API Gateway will timeout if it takes more than 30s!"
+echo "Sending Debug/PublishReportNow command through SQS Interact queue (as API Gateway would timeout as it takes more than 30s)."
 aws sqs send-message --queue-url $INTERACT_QUEUE --message-body '{"OpType" : "Debug/PublishReportNow"}'
 
+echo "Debug report generation could take a few minutes... Watch logging bucket: '${LoggingS3Path}'!"
