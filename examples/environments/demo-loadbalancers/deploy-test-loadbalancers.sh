@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -e
 
 if [ -z "${CLONESQUAD_DIR}" ] ; then
 	echo "Please define CLONESQUAD_DIR environmen variable!" ; exit 1

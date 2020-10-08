@@ -9,7 +9,9 @@ import debug as Dbg
 
 import cslog
 log = cslog.logger(__name__)
-ctx = None
+
+ctx   = None
+_init = None
 
 from aws_xray_sdk.core import xray_recorder
 
@@ -146,6 +148,8 @@ def _parameterset_sanity_check():
     
 
 def register(config, ignore_double_definition=False):
+    if _init is None:
+        return
     builtin_config = _init["all_configs"][0]["config"]
     builtin_metas  = _init["all_configs"][0]["metas"]
     for c in config:
