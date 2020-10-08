@@ -5,10 +5,6 @@ if [ -z "${CLONESQUAD_DIR}" ] ; then
 fi
 source ${CLONESQUAD_DIR}/scripts/_source-me.sh
 
-if [ -z "${LoggingS3Path}" ]; then
-	echo "[ERROR] 'LoggingS3Path' parameter is not defined in CloudFormation deployment template!" ; exit 1
-fi
-
 tmpfile=/tmp/cs-config.$$
 aws lambda invoke --function-name CloneSquad-Discovery-${GroupName} --payload '' $tmpfile 1>/dev/stderr
 INTERACT_QUEUE=$(jq -r '.["InteractQueue"]' <$tmpfile)
