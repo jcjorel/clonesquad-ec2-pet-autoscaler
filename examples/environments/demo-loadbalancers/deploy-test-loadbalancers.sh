@@ -1,7 +1,7 @@
-#!/bin/bash -e
+#!/bin/bash 
 
 if [ -z "${CLONESQUAD_DIR}" ] ; then
-	echo "Please define CLONESQUAD_DIR environmen variable!" ; exit 1
+	echo "Please define CLONESQUAD_DIR environment variable!" ; exit 1
 fi
 source ${CLONESQUAD_DIR}/scripts/_source-me.sh
 
