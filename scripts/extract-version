@@ -33,7 +33,7 @@ cp * $tmpdir/
 echo $VERSION >$tmpdir/VERSION.txt
 
 # Patch template file with user supplied S3 bucket info
-${CLONESQUAD_DIR}/tools/patch-s3uri --s3-bucket $S3_BUCKET --s3-prefix $S3_PREFIX template.yaml >$tmpdir/template.yaml
+${CLONESQUAD_DIR}/tools/patch-s3uri --version $VERSION --s3-bucket $S3_BUCKET --s3-prefix $S3_PREFIX template.yaml >$tmpdir/template.yaml
 
 case $OUTPUT_FORMAT in
 	tar)

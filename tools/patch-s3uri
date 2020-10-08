@@ -22,6 +22,7 @@ import re
 
 parser = argparse.ArgumentParser(description="CloudFormation template patch tool (S3 absolute references to Parameters)")
 parser.add_argument('template_file', help="CloudFormation template file to patch", type=str, nargs=1)
+parser.add_argument('--version', help="CloneSquad version", type=str, default="")
 parser.add_argument('--s3-bucket', help="Target S3 Bucket name", type=str, default="")
 parser.add_argument('--s3-prefix', help="Target S3 Prefix name", type=str, default="")
 parser.add_argument('--obfuscate', help="Target S3 Prefix name", type=bool, default=False)
@@ -30,6 +31,7 @@ args = parser.parse_args()
 
 with open(args.template_file[0]) as f:
     content = yaml.load(f, Loader=yaml.FullLoader)
+    content["Description"] += " %s" % args.version
 
     parameters = content["Parameters"]
     resources  = content["Resources"]
