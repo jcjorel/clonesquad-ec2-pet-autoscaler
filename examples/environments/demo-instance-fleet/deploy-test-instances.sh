@@ -15,7 +15,7 @@ TemplatefileName="$demo_run_dir/template-generated.yaml"
 ./generate-env.py --specs $FLEET_SPECIFICATION --static-fleet-specs $STATIC_FLEET_SPECIFICATION \
 	--static-fleet-rds-specs $STATIC_FLEET_RDS_SPECIFICATION | tee $TemplatefileName
 
-aws cloudformation deploy  --template-file $TemplatefileName --stack-name "CS-Demo-TestInstances-$GroupName$Variant$1" --capabilities CAPABILITY_IAM \
+aws cloudformation deploy  --template-file $TemplatefileName --stack-name "CS-Demo-TestEC2nRDSInstances-$GroupName$Variant$1" --capabilities CAPABILITY_IAM \
 	--parameter-overrides $(get_parameters) GroupName=$GroupName
 
 cat <<EOF
@@ -24,8 +24,10 @@ Stack ready!
 Optionnaly, please consider activating Vertical Scaling with 'demo-loadbalancers' demonstration 
 to experience smart management of instance types!
 
+***** IMPORTANT *****
 To activate Vertical Scaling copy/paste this:
 	${CLONESQUAD_DIR}/tools/cs-kvtable CloneSquad-${GroupName}-Configuration import <configure-ligthhouse-instance.yaml
+***** IMPORTANT *****
 
 
 EOF

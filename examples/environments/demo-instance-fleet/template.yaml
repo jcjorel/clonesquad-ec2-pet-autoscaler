@@ -1,6 +1,6 @@
 ---
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'CloneSquad Demo Template to deploy a set of EC2 instances combining On-Demand and Spot instances.'
+Description: 'CloneSquad Demo Template to deploy a set of EC2 (and some RDS) instances combining On-Demand and Spot instances.'
 Parameters:
   KeyName:
     Description: Name of an existing EC2 KeyPair to enable SSH access to the instance
