@@ -497,7 +497,7 @@ Resources:
             Type: AWS::Serverless::Api
             Properties:
               StageName: v1
-              Name: "CloneSquad-${GroupName}"
+              Name: !Sub "CloneSquad-${GroupName}"
             Tags:
             - Key: "clonesquad:group-name"
               Value: !Ref GroupName
