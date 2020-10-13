@@ -486,7 +486,7 @@ Resources:
               LogGroupName: !Join ["", ["/aws/lambda/", !Ref "SNSMgrFunction"]]
               RetentionInDays: !Ref LogRetentionDuration
 
-    SNSMgrFunctionLogGroup:
+    SNSDiscoveryFunctionLogGroup:
             Type: "AWS::Logs::LogGroup"
             DependsOn: DiscoveryFunction
             Properties:
