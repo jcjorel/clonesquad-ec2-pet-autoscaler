@@ -24,7 +24,7 @@ git add releases/$VERSION VERSION.txt
 git commit -m "Releasing CloneSquad version $VERSION" releases/$VERSION releases/latest VERSION.txt
 git tag -a $VERSION -m "Releasing CloneSquad version $VERSION"
 scripts/devkit build $VERSION
-git push
+git push --tags
 
 docker push ${CLONESQUAD_DEVKIT_IMAGE}:$VERSION 
 docker push ${CLONESQUAD_DEVKIT_IMAGE}:latest
