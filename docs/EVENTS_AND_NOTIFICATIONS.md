@@ -12,7 +12,7 @@ Users can react to CloneSquad events:
 * drain_instances,
 * spot_interruption_request,
 * start_db_cluster/stop_db_cluster,
-* start_db_instance/start_db_instance.
+* start_db_instance/stop_db_instance.
 
 Each event has parameters allowing to retrieve the context of the event.
 
