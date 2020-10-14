@@ -234,7 +234,7 @@ shutdown in priority. This can be used during AWS LSE (Large Scale Event) to man
             return sorted_instances[:max_results]
         return sorted_instances
 
-    def start_instances(self, instance_ids_to_start):
+    def start_instances(self, instance_ids_to_start, max_started_instances=-1):
         # Remember when we tried to start all these instances. Used to detect instances with issues
         #    by placing them at end of get_instances() generated list
         if instance_ids_to_start is None or len(instance_ids_to_start) == 0:
@@ -242,6 +242,8 @@ shutdown in priority. This can be used during AWS LSE (Large Scale Event) to man
 
         client = self.context["ec2.client"]
         for i in instance_ids_to_start: 
+            if max_started_instances == 0:
+                break
             self.set_state("ec2.instance.last_start_attempt_date.%s" % i, misc.utc_now(),
                     TTL=Cfg.get_duration_secs("ec2.schedule.state_ttl"))
 
@@ -279,6 +281,7 @@ shutdown in priority. This can be used during AWS LSE (Large Scale Event) to man
                     if current_state["Name"] in ["pending", "running"]:
                         self.set_state("ec2.instance.last_start_date.%s" % instance_id, misc.utc_now(),
                                 TTL=Cfg.get_duration_secs("ec2.state.status_ttl"))
+                        max_started_instances -= 1
                     else:
                         log.error("Failed to start instance '%s'! Blacklist it for a while... (pre/current status=%s/%s)" %
                                 (instance_id, previous_state["Name"], current_state["Name"]))

@@ -541,6 +541,7 @@ parameter should NOT be modified by user.
         This is the function that manage all decisions related to scaling
         """
         self.generate_instance_transition_events()
+        self.scale_handle_spot_interruption()
         self.compute_instance_type_plan()
         self.shelve_extra_lighthouse_instances()
         self.scale_desired()
@@ -650,13 +651,13 @@ parameter should NOT be modified by user.
 
             stopped_instances = self.filter_stopped_instance_candidates(caller, expected_instance_count, target_for_dispatch=target_for_dispatch)
 
-            instance_ids_to_start = self.ec2.get_instance_ids(stopped_instances[:c])
+            instance_ids_to_start = self.ec2.get_instance_ids(stopped_instances)
 
             # Start selected instances
             if len(instance_ids_to_start) > 0:
                 log.info("Starting up to %s (shaped to %d) instances..." % (delta_instance_count, c))
 
-                self.ec2.start_instances(instance_ids_to_start)
+                self.ec2.start_instances(instance_ids_to_start, max_started_instances=c)
                 self.scaling_state_changed = True
 
         if delta_instance_count < 0:
@@ -890,6 +891,16 @@ parameter should NOT be modified by user.
     #### SCALE DESIRED & SCALE BOUNCE ALGOS #######
     ###############################################
 
+    @xray_recorder.capture()
+    def scale_handle_spot_interruption(self):
+        if "SpotInterruptionCount" not in self.context or self.desired_instance_count() != -1:
+            # desired_instance_count != -1: When the auto-scaler is disabled by desired_instance_count,
+            #   scale_desired() will automatically replace the drained Spot instances.
+            return
+        # We immediatly provision new instances to replace the Spot interrupted ones
+        log.info("Starting %s new instances to replace 'Spot interrupted' one(s)..." % self.context["SpotInterruptionCount"])
+        self.instance_action(self.get_useable_instance_count() + self.context["SpotInterruptionCount"], 
+                "scale_handle_spot_interruption")
 
     @xray_recorder.capture()
     def scale_desired(self):
@@ -1745,6 +1756,9 @@ def manage_spot_notification(sqs_record, ctx):
     log.info("EC2 Spot instance interruption received. Mark '%s' as 'draining'! " % instance_id)
     ctx["o_ec2"].set_scaling_state(instance_id, "draining")
     R(None, spot_interruption_request, InstanceId=instance_id, Event=body)
+
+    if "SpotInterruptionCount" not in ctx: ctx["SpotInterruptionCount"] = 0
+    ctx["SpotInterruptionCount"] += 1
     return True
 
 def spot_interruption_request(InstanceId=None, Event=None):
