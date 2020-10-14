@@ -40,12 +40,9 @@ to never create or terminate [EC2](https://aws.amazon.com/ec2/) instances but on
 
 Pre-requisites:
 - An S3 bucket to upload the CloneSquad artifacts
-- An EC2 instance with 'aws-cli', Docker installed and **an attached role allowing upload to the previoulsy defined S3 bucket**
+- An EC2 instance with 'aws-cli', Docker installed and **an attached role allowing upload to the previously defined S3 bucket**
 
 #### Step 1) Extract and Upload the latest CloneSquad CloudFormation template and associated artifacts
-
-*(Note: The Docker image is only used to customize initial configuration
-and is not part of the CloneSquad runtime)*
 
 ```shell
 docker pull clonesquad/devkit:latest
@@ -67,7 +64,7 @@ aws cloudformation wait stack-create-complete --stack-name MyFirstCloneSquad-${C
 This CloneSquad deployment is now ready to manage all EC2 instances and EC2 Targetgroups tagged with key *'clonesquad:group-name'* and value *'test'*.
 
 
-You should see a `CloneSquad-test` dashboard in the CloudWatch console looking like this (but blank, without any graphs):
+You should see a `CloneSquad-test` dashboard in the CloudWatch console looking like this *(but blank, without any graphs)*:
 
 ![CloudWatch dashboard](examples/environments/demo-loadbalancers/scaling_demo_capture.png)
 
