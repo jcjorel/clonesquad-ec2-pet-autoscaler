@@ -1,37 +1,14 @@
-## Welcome to GitHub Pages
+## Welcome to CloneSquad EC2 Pet Autoscaler
 
-You can use the [editor on GitHub](https://github.com/jcjorel/clonesquad/edit/gh-pages/index.md) to maintain and preview the content for your website in Markdown files.
 
-Whenever you commit to this repository, GitHub Pages will run [Jekyll](https://jekyllrb.com/) to rebuild the pages in your site, from the content in your Markdown files.
+> An Autoscaler for mutable architectures on AWS [EC2](https://aws.amazon.com/what-is-cloud-computing/)
 
-### Markdown
+Because mutables architectures are still highly common and as they are encountered in most Cloud migrations, CloneSquad is a Serverless Autoscaler software with the main goal to get the most of the [Cloud benefits](https://aws.amazon.com/what-is-cloud-computing/) while taking the constraint
+to never create or terminate [EC2](https://aws.amazon.com/ec2/) instances but only by doing start/stop of existing ones (='pet' machines).
 
-Markdown is a lightweight and easy-to-use syntax for styling your writing. It includes conventions for
+> CloneSquad is designed to be used when [AWS Auto Scaling](https://aws.amazon.com/autoscaling/) cannot be: It manages as well EC2 [ALB/NLBs](https://aws.amazon.com/elasticloadbalancing/), target groups and health checks mechanisms. It contains various strategies to reduce cost of running EC2 Pet instance fleets.
 
-```markdown
-Syntax highlighted code block
+> Please visit the [GitHub repository](https://github.com/jcjorel/clonesquad-ec2-pet-autoscaler) for download and instructions
 
-# Header 1
-## Header 2
-### Header 3
+![CloudWatch dashboard](scaling_demo_capture.png)
 
-- Bulleted
-- List
-
-1. Numbered
-2. List
-
-**Bold** and _Italic_ and `Code` text
-
-[Link](url) and ![Image](src)
-```
-
-For more details see [GitHub Flavored Markdown](https://guides.github.com/features/mastering-markdown/).
-
-### Jekyll Themes
-
-Your Pages site will use the layout and styles from the Jekyll theme you have selected in your [repository settings](https://github.com/jcjorel/clonesquad/settings). The name of this theme is saved in the Jekyll `_config.yml` configuration file.
-
-### Support or Contact
-
-Having trouble with Pages? Check out our [documentation](https://docs.github.com/categories/github-pages-basics/) or [contact support](https://github.com/contact) and we’ll help you sort it out.
