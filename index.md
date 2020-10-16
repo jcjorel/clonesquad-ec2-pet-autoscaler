@@ -13,7 +13,7 @@ Please visit the [GitHub repository](https://github.com/jcjorel/clonesquad-ec2-p
 ![CloudWatch dashboard](scaling_demo_capture.png)
 
 
-## Features and Benefits (Please also read the [FAQ](https://github.com/jcjorel/clonesquad-ec2-pet-autoscaler/docs/FAQ.md))
+# Features and Benefits (Please also read the [FAQ](https://github.com/jcjorel/clonesquad-ec2-pet-autoscaler/docs/FAQ.md))
 * Scaling (see [Documentation details](https://github.com/jcjorel/clonesquad-ec2-pet-autoscaler/docs/SCALING.md))
 	- Automatic autoscaling based on internal and/or user-defined alarms & metrics,
 	- Desired instance count mode (ex: temporarily force 100% of instances to run and allow mutable update),
