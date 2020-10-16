@@ -8,7 +8,8 @@ to never create or terminate [EC2](https://aws.amazon.com/ec2/) instances but on
 
 > CloneSquad is designed to be used when [AWS Auto Scaling](https://aws.amazon.com/autoscaling/) cannot be: It manages as well EC2 [ALB/NLBs](https://aws.amazon.com/elasticloadbalancing/), target groups and health checks mechanisms. It contains various strategies to reduce cost of running EC2 Pet instance fleets.
 
-> Please visit the [GitHub repository](https://github.com/jcjorel/clonesquad-ec2-pet-autoscaler) for download and instructions
+Please visit the [GitHub repository](https://github.com/jcjorel/clonesquad-ec2-pet-autoscaler) for download and instruction
 
 ![CloudWatch dashboard](scaling_demo_capture.png)
+
 
