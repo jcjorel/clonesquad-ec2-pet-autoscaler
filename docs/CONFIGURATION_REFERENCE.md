@@ -4,19 +4,19 @@
 
 ## Concepts
 
-CloneSquad uses a multi-layered configuration system using the YAML semantic and formats.
+CloneSquad uses a multi-layered configuration system using the YAML semantic and format.
 
 Each layer can override configuration defined in below layers.
 
 Layer overrides by order of precedence (highest priority to lowest one):
-1) DynamodDB configuration table Parameter set
-2) DynamodDB configuration table
-3) Main Lambda 'ConfigurationURL' URLs
-4) YAML URLs listed in configuration set 'config.loaded_files'
+1) DynamodDB configuration table Parameter set,
+2) DynamodDB configuration table,
+3) Main Lambda 'ConfigurationURL' URLs,
+4) YAML URLs listed in configuration set `config.loaded_files`,
 5) Built-in Defaults
 
 URLs can use the following protocols: ["s3", "http", "https", "internal"]. 
-* `internal:` references a file contained inside the Lambda filesystem
+* `internal:` references a file contained inside the Lambda filesystem,
 * `s3://` references a file located into S3 with support for SigV4 authentication.
 
 Note: If an URL resource fails to load, a warning is generated but it is safely ignored by the configuration subsystem to avoid
@@ -25,7 +25,7 @@ a service malfunction. Users needs to take into account this expected behavior.
 ### Customizing the Lambda package
 
 The configuration subsystem allows reference to external URLs located in S3 or other Web servers. Some may have
-concerns that it creates dependencies to resources that could be unreachable under a Large Scale Event condition 
+concerns that it creates dependencies to resources that could be unreachable under a *Large Scale Event* condition 
 (Ex: AZ unavailability).
 In order to mitigate this concern, users can customize the Lambda package to embed their own configuration resources
 and so, be able to access them with the reliable `internal:` protocol scheme.
@@ -43,7 +43,7 @@ deployment time:
 ### Parameter sets
 
 The parameter set mechanism allows dynamic configuration override. It is mainly used to enable a whole
-*named* bunch of configuration items with the single key [`config.active_parameter_set`](#configactive_parameter_set).
+*named* bunch of configuration items with the single switch key [`config.active_parameter_set`](#configactive_parameter_set).
 
 When set, the configuration subsystem is looking for a parameter set with the specified name.
 

@@ -12,7 +12,7 @@ CloneSquad uses Cloudwatch Alarms and associated underlying Cloudwatch metrics t
 For both kinds of Alarms, CloneSquad can react to and before an Alarm triggering following a point based system to 
 value a scaling criteria.
 
-The alarms are listed in the Configuration (See [Configuration concepts]() to understand how to defined configuration) as a [MetaString](CONFIGURATION_REFERENCE.md#MetaString).
+The alarms are listed in the Configuration (See [Configuration concepts](CONFIGURATION_REFERENCE.md#concepts) to understand how to defined configuration) as a [MetaString](CONFIGURATION_REFERENCE.md#MetaString).
 
 Example: 
 
@@ -23,7 +23,7 @@ Example:
 
 This example declares the Alarm #00 using alarm specification described in internal file [ec2.scaleup.alarm-cpu-gt-75pc.yaml](../src/resources/ec2.scaleup.alarm-cpu-gt-75pc.yaml). Note: This file is part of the CloneSquad delivery inside the Main Lambda filesystem.   
 
-The Alarm specification file uses a YAML format and will be passed directly to the [Cloudwatch.PutMetricAlarm API](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/cloudwatch.html#CloudWatch.Client.put_metric_alarm). Any valid Cloudwatch alarm should be expresseable in this YAML following the AWS PutMetricAlarm() documentation.
+The Alarm specification file uses a YAML format and will be passed directly to the [Cloudwatch.PutMetricAlarm API](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/cloudwatch.html#CloudWatch.Client.put_metric_alarm). Any valid Cloudwatch alarm should be expressable in this YAML following the AWS PutMetricAlarm() documentation.
 
 This example specifies also 2 meta information:
 * **Points=1001**            : Override default points associated to an alarm (by default, 1000),
@@ -39,7 +39,7 @@ Baselined point calculation:
 
 
 Note: Generated points can exceed AlarmPoints if the metric real data is above the main Threshold. CloneSquad algorithm will leverage this
-calculation as a way to sense the urgency to scale in or out.
+calculation as a way to sense the urgency to scale out.
 
 
 
@@ -72,22 +72,22 @@ unmanaged alarms (tracking 2 LoadBalancer Response times). By setting to 1 the D
 will generate more points than alarms tracking the CPU Utilization defined on each instances by the directive `cloudwatch.ec2.alarm00.configuration_url` and, so, scaling decisions will be more influenced by the Load Balancer response
 time that other alarm sources.
 
-Note: Technically, in order to recude Cloudwatch cost associated with GetMetricData API calls, the calculation *Sum(NonTriggeredAlarmGeneratedPoints_withNoDividerMeta ) / NbOfServingInstances* is working with cached data as much as possible synthetized by a weighted algorithm based on data age (recent data have more weight than older ones). This algorithm is
+Note: Technically, in order to reduce Cloudwatch cost associated with GetMetricData API calls, the calculation *Sum(NonTriggeredAlarmGeneratedPoints_withNoDividerMeta ) / NbOfServingInstances* is working with cached data as much as possible synthetized by a weighted algorithm based on data age (recent data have more weight than older ones). This algorithm is
 influenced by the [`cloudwatch.metrics.time_for_full_metric_refresh`](CONFIGURATION_REFERENCE.md#cloudwatchmetricstime_for_full_metric_refresh) parameter.
 
 ## Unmanaged alarms
 
 CloneSquad can use Cloudwatch Alarms that are not created/terminated by itself to take scaling decisions. 
-Typical use-case is to leverage outside-of-the-fleet metrics like response times of Load Balancers, SQS queues or 
+Typical use-case is to leverage *outside-of-the-fleet* metrics like response times of Load Balancers, length of SQS queues or 
 Custom metrics specific to applications.
 
 Ex:
 
 	cloudwatch.ec2.alarmXX.configuration_url: alarmname:<Cloudwatch_alarm_name>[,BaselineThreshold=0.200[,Divider=1]]
 	
-The main difference with managed alarms is that there is no alarm specification YAML file; only a Cloudwatch name.
+The main difference with managed alarms is that there is no alarm specification YAML file; only a Cloudwatch Alarm name.
 
-It is not an error to define a CloneSquad alarm pointing to a non-existing Cloudwatch alarm: It will be safely ignored.
+It is NOT an error to define a CloneSquad alarm pointing to a non-existing Cloudwatch alarm: It will be safely ignored.
 
 
 
