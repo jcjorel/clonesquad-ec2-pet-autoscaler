@@ -56,13 +56,16 @@ class RDS:
                 func           = rds_client.describe_db_instances
                 filter_key     = "db-instance-id"
                 response_index = "DBInstances"
-            self.databases[db_type].extend(func(
-                Filters=[
-                    {
-                        'Name': filter_key,
-                         'Values': [ t["ResourceARN"] for t in self.databases["%s.tags" % db_type] ]
-                    }]
-                )[response_index])
+            try:
+                self.databases[db_type].extend(func(
+                    Filters=[
+                        {
+                            'Name': filter_key,
+                            'Values': [ t["ResourceARN"] for t in self.databases["%s.tags" % db_type] ]
+                        }]
+                    )[response_index])
+            except Exception as e:
+                log.exception("Failed to describe RDS database type '%s'" % (db_type))
 
         #log.debug(Dbg.pprint(self.databases))
 
@@ -159,36 +162,36 @@ class RDS:
             cw.set_metric("StaticFleet.RDS.StartingDBs", None)
 
     def stop_db(self, arn):
-        client  = self.context["rds.client"]
-        db      = self.get_rds_db(arn)
-        db_type = db["_Meta"]["dbType"]
-        log.info("Stopping RDS DB '%s' (type:%s)" % (arn, db_type))
         try:
+            client  = self.context["rds.client"]
+            db      = self.get_rds_db(arn)
+            db_type = db["_Meta"]["dbType"]
+            log.info("Stopping RDS DB '%s' (type:%s)" % (arn, db_type))
             if db_type == "cluster":
                 response = R(lambda args, kwargs, r: "DBCluster" in r,
                         client.stop_db_cluster, DBClusterIdentifier=db["DBClusterIdentifier"])
             if db_type == "db":
                 response = R(lambda args, kwargs, r: "DBInstance" in r,
                         client.stop_db_instance, DBInstanceIdentifier=db["DBInstanceIdentifier"])
+            log.debug(Dbg.pprint(response))
         except Exception as e:
             log.warning("Got exception while stopping DB '%s'! : %s" % (arn, e))
-        log.debug(Dbg.pprint(response))
 
     def start_db(self, arn):
-        client  = self.context["rds.client"]
-        db      = self.get_rds_db(arn)
-        db_type = db["_Meta"]["dbType"]
-        log.info("Starting RDS DB '%s' (type:%s)" % (arn, db_type))
         try:
+            client  = self.context["rds.client"]
+            db      = self.get_rds_db(arn)
+            db_type = db["_Meta"]["dbType"]
+            log.info("Starting RDS DB '%s' (type:%s)" % (arn, db_type))
             if db_type == "cluster":
                 response = R(lambda args, kwargs, r: "DBCluster" in r,
                     client.start_db_cluster, DBClusterIdentifier=db["DBClusterIdentifier"])
             if db_type == "db":
                 response = R(lambda args, kwargs, r: "DBInstance" in r,
                     client.start_db_instance, DBInstanceIdentifier=db["DBInstanceIdentifier"])
+            log.debug(response)
         except Exception as e:
             log.warning("Got exception while starting DB '%s'! : %s" % (arn, e))
-        log.debug(response)
 
     def get_db_status(self, arn):
         db = self.get_rds_db(arn)
