@@ -115,9 +115,9 @@
                 "view": "timeSeries",
                 "stacked": false,
                 "metrics": [
-                    [ "CloneSquad", "StaticFleet.Size", "GroupName", "{GroupName}" ],
-                    [ ".", "StaticFleet.RunningInstances", ".", "." ],
-                    [ ".", "StaticFleet.DrainingInstances", ".", "." ],
+                    [ "CloneSquad", "StaticFleet.EC2.Size", "GroupName", "{GroupName}" ],
+                    [ ".", "StaticFleet.EC2.RunningInstances", ".", "." ],
+                    [ ".", "StaticFleet.EC2.DrainingInstances", ".", "." ],
                     [ ".", "StaticFleet.RDS.Size", ".", "." ],
                     [ ".", "StaticFleet.RDS.AvailableDBs", ".", "." ],
                     [ ".", "StaticFleet.RDS.StoppingDBs", ".", "." ],

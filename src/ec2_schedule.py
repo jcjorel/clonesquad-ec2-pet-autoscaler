@@ -313,13 +313,13 @@ parameter should NOT be modified by user.
                 { "MetricName": "RunningLighthouseInstances",
                   "Unit": "Count",
                   "StorageResolution": metric_time_resolution },
-                { "MetricName": "StaticFleet.Size",
+                { "MetricName": "StaticFleet.EC2.Size",
                   "Unit": "Count",
                   "StorageResolution": metric_time_resolution },
-                { "MetricName": "StaticFleet.RunningInstances",
+                { "MetricName": "StaticFleet.EC2.RunningInstances",
                   "Unit": "Count",
                   "StorageResolution": metric_time_resolution },
-                { "MetricName": "StaticFleet.DrainingInstances",
+                { "MetricName": "StaticFleet.EC2.DrainingInstances",
                   "Unit": "Count",
                   "StorageResolution": metric_time_resolution },
             ])
@@ -588,13 +588,13 @@ parameter should NOT be modified by user.
         cw.set_metric("NbOfCPUCreditExhaustedInstances", len(exhausted_cpu_credits))
         if len(static_subfleet_instances):
             # Send metrics only if there are Static fleet instances
-            cw.set_metric("StaticFleet.Size", len(static_subfleet_instances))
-            cw.set_metric("StaticFleet.RunningInstances", len(running_static_subfleet_instances))
-            cw.set_metric("StaticFleet.DrainingInstances", len(draining_static_subfleet_instances))
+            cw.set_metric("StaticFleet.EC2.Size", len(static_subfleet_instances))
+            cw.set_metric("StaticFleet.EC2.RunningInstances", len(running_static_subfleet_instances))
+            cw.set_metric("StaticFleet.EC2.DrainingInstances", len(draining_static_subfleet_instances))
         else:
-            cw.set_metric("StaticFleet.Size", None)
-            cw.set_metric("StaticFleet.RunningInstances", None)
-            cw.set_metric("StaticFleet.DrainingInstances", None)
+            cw.set_metric("StaticFleet.EC2.Size", None)
+            cw.set_metric("StaticFleet.EC2.RunningInstances", None)
+            cw.set_metric("StaticFleet.EC2.DrainingInstances", None)
 
         if len(error_instances):
             log.info("These instances are in 'ERROR' state: %s" % [i["InstanceId"] for i in error_instances])
