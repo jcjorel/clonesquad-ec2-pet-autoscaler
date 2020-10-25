@@ -47,7 +47,7 @@ Pre-requisites:
 ```shell
 docker pull clonesquad/devkit:latest
 CLONESQUAD_S3_BUCKETNAME="<your_S3_bucket_name_where_to_publish_clonesquad_artifacts>"
-CLONESQUAD_S3_PREFIX="<your_S3_prefix>"
+CLONESQUAD_S3_PREFIX="clonesquad-artifacts" # Note: Prefix MUST be non-empty
 CLONESQUAD_GROUPNAME="test"
 export AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-$(curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone | sed 's/\(.*\)[a-z]/\1/')}
 # Upload template.yaml and CloneSquad Lambda functions to specified S3 bucket and prefix
