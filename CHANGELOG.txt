@@ -1,0 +1,5 @@
+v0.0.54:
+- (Improvment/Minor) Renamed StaticFleet CloudWatch metrics related to EC2 instances to ease dashboard reading
+- (Improvment/Minor) Make RDS start/stop better protected against boto3 API exceptions
+
+
