@@ -11,11 +11,11 @@
 cloudwatch.alarm02.configuration_url: alarmname:CS-LB-{GroupName}-ResponseTime1,BaselineThreshold=0.100,Divider=1,AlarmGroup=MyAllLBs
 cloudwatch.alarm03.configuration_url: alarmname:CS-LB-{GroupName}-ResponseTime2,BaselineThreshold=0.100,Divider=1,AlarmGroup=MyAllLBs
 
-# WARNING: This is a quiet aggresive scalein rate (15 instances per 10 minutes) for demo purpose.
-#    Real life deployment should use lower scale in rate (or leave the default) as a very fast scalinrate can
+# WARNING: This is a quite aggressive scalein rate (15 instances per 10 minutes) for demo purpose.
+#    Real life deployment should use lower scalein rate (or leave the default) as a very fast scalin rate can
 #    confuse the autoscaler predictions.
 ec2.schedule.scalein.rate: 15
-# Very aggresive setting! Do not use in real life scenario as the autoscaler could flip-flop too fast between ScaleIn/ScaleOut states!
+# Very aggressive setting! Do not use in real life scenario as the autoscaler could flip-flop too fast between ScaleIn/ScaleOut states!
 #    Wait only 20 seconds before to switch from ScaleOut to ScaleIn mode
 ec2.schedule.to_scalein_state.cooldown_delay: 20
 
