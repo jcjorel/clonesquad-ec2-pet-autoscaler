@@ -173,7 +173,16 @@ See [Alarm specification documentation](ALARMS_REFERENCE.md)  for more details.
         #log.debug(Dbg.pprint(alarms))
         self.alarms = alarms
 
-
+        # Sanity check
+        for index in self.alarm_definitions.keys():
+            alarm_def = self.alarm_definitions[index]
+            if "AlarmName" not in alarm_def:
+                continue
+            alarm = next(filter(lambda a: a["AlarmName"] == alarm_def["AlarmName"], self.alarms), None)
+            if alarm is None:
+                log.warning("Alarm definition [%s](%s => %s) doesn't match an existing CloudWatch alarm!" % 
+                        (alarm_def["Definition"]["Key"], alarm_def["Definition"]["Value"], alarm_def["Definition"]["Status"]))
+        
 
 
         # Read all metrics associated with alarms
