@@ -26,15 +26,17 @@ log = cslog.logger(__name__)
 class EC2_Schedule:
     @xray_recorder.capture(name="EC2_Schedule.__init__")
     def __init__(self, context, ec2, targetgroup, cloudwatch):
-        self.context                = context
-        self.ec2                    = ec2
-        self.targetgroup            = targetgroup
-        self.cloudwatch             = cloudwatch
-        self.scaling_state_changed  = False
-        self.alarm_points           = 0.0
-        self.instance_scale_score   = 0.0
-        self.would_like_to_scalein  = False
-        self.would_like_to_scaleout = False
+        self.context                  = context
+        self.ec2                      = ec2
+        self.targetgroup              = targetgroup
+        self.cloudwatch               = cloudwatch
+        self.scaling_state_changed    = False
+        self.alarm_points             = 0.0
+        self.instance_scale_score     = 0.0
+        self.raw_instance_scale_score = 0.0
+        self.integrated_raw_instance_scale_score = 0.0
+        self.would_like_to_scalein    = False
+        self.would_like_to_scaleout   = False
         Cfg.register({
                  "ec2.schedule.min_instance_count,Stable" : {
                      "DefaultValue" : 0,
@@ -169,6 +171,7 @@ to let the autoscaler algorithm do its smoother job instead)
                  "ec2.schedule.to_scalein_state.cooldown_delay" : 120,
                  "ec2.schedule.to_scaleout_state.cooldown_delay" : 0,
                  "ec2.schedule.horizontalscale.integration_period": "minutes=5",
+                 "ec2.schedule.horizontalscale.raw_integration_period": "minutes=10",
                  "ec2.schedule.verticalscale.instance_type_distribution,Stable": {
                          "DefaultValue": "",
                          "Format"      : "MetaStringList",
@@ -311,6 +314,18 @@ parameter should NOT be modified by user.
                   "Unit": "Count",
                   "StorageResolution": metric_time_resolution },
                 { "MetricName": "RunningLighthouseInstances",
+                  "Unit": "Count",
+                  "StorageResolution": metric_time_resolution },
+                { "MetricName": "FleetvCPUCount",
+                  "Unit": "Count",
+                  "StorageResolution": metric_time_resolution },
+                { "MetricName": "FleetvCPUNeed",
+                  "Unit": "Count",
+                  "StorageResolution": metric_time_resolution },
+                { "MetricName": "FleetMemCount",
+                  "Unit": "Count",
+                  "StorageResolution": metric_time_resolution },
+                { "MetricName": "FleetMemNeed",
                   "Unit": "Count",
                   "StorageResolution": metric_time_resolution },
                 { "MetricName": "StaticFleet.EC2.Size",
@@ -581,7 +596,7 @@ parameter should NOT be modified by user.
         cw.set_metric("NbOfExcludedInstances", len(excluded_instances) - len(static_subfleet_instances))
         cw.set_metric("NbOfBouncedInstances",  len(bounced_instances) if fl_size > 0 else None)
         cw.set_metric("NbOfInstancesInError",  len(error_instances) if fl_size > 0 else None)
-        cw.set_metric("InstanceScaleScore", self.instance_scale_score if fl_size > 0 else None)
+        cw.set_metric("InstanceScaleScore",    self.instance_scale_score if fl_size > 0 else None)
         cw.set_metric("RunningLighthouseInstances", len(self.get_lighthouse_instance_ids(running_instances)) if fl_size > 0 else None)
         cw.set_metric("NbOfInstanceInInitialState", len(self.get_initial_instances()) if fl_size > 0 else None)
         cw.set_metric("NbOfInstanceInUnuseableState", len(instances_with_issues) if fl_size > 0 else None)
@@ -595,6 +610,25 @@ parameter should NOT be modified by user.
             cw.set_metric("StaticFleet.EC2.Size", None)
             cw.set_metric("StaticFleet.EC2.RunningInstances", None)
             cw.set_metric("StaticFleet.EC2.DrainingInstances", None)
+
+        # vCPU + Mem need estimations
+        serving_instances = self.ec2.get_instances(self.pending_running_instances_wo_excluded_draining_error, ScalingState="-bounced")
+        if len(serving_instances) and "_InstanceType" in serving_instances[0]:
+            fleet_vcpu_count = sum(i["_InstanceType"]["VCpuInfo"]["DefaultVCpus"] for i in serving_instances)
+            fleet_mem_count  = sum(i["_InstanceType"]["MemoryInfo"]["SizeInMiB"]  for i in serving_instances)
+            fleet_vcpu_need  = int(fleet_vcpu_count * self.integrated_raw_instance_scale_score * 100) / 100.0
+            fleet_mem_need   = int(fleet_mem_count  * self.integrated_raw_instance_scale_score * 100) / 100.0
+            log.info("Current Fleet resources: TotalvCPU=%s, TotalMem=%s MiB, vCPUNeed=%s, MemNeed=%s MiB" %
+                    (fleet_vcpu_count, fleet_mem_count, fleet_vcpu_need, fleet_mem_need))
+            cw.set_metric("FleetvCPUCount", fleet_vcpu_count)
+            cw.set_metric("FleetMemCount", fleet_mem_count)
+            cw.set_metric("FleetvCPUNeed", fleet_vcpu_need)
+            cw.set_metric("FleetMemNeed", fleet_mem_need)
+        else:
+            cw.set_metric("FleetvCPUCount", None)
+            cw.set_metric("FleetMemCount", None)
+            cw.set_metric("FleetvCPUNeed", None)
+            cw.set_metric("FleetMemNeed", None)
 
         if len(error_instances):
             log.info("These instances are in 'ERROR' state: %s" % [i["InstanceId"] for i in error_instances])
@@ -1644,17 +1678,26 @@ parameter should NOT be modified by user.
 
         # Step 1) Calculate the number of instances to start or stop
         
-        base_points               = Cfg.get_int("ec2.schedule.base_points")
-        self.alarm_points         = self.get_guilties_sum_points(assessment, base_points)
-        instance_scale_score      = float(self.alarm_points) / float(base_points)
+        base_points                   = Cfg.get_int("ec2.schedule.base_points")
+        self.alarm_points             = self.get_guilties_sum_points(assessment, base_points)
+        self.raw_instance_scale_score = float(self.alarm_points) / float(base_points)
 
         # To avoid jerky scale score, we integrate it over a period of time
+        # Integrate Raw Instance scale score
+        integration_period        = Cfg.get_duration_secs("ec2.schedule.horizontalscale.raw_integration_period")
+        self.ec2.set_integrated_float_state("ec2.schedule.scaleout.raw_instance_scale_score", self.raw_instance_scale_score, 
+                integration_period, self.state_ttl)
+        self.integrated_raw_instance_scale_score = self.ec2.get_integrated_float_state("ec2.schedule.scaleout.raw_instance_scale_score",
+                integration_period, default=self.raw_instance_scale_score, favor_max_value=False)
+        # Integrate synthetic Instance scale score
         integration_period        = Cfg.get_duration_secs("ec2.schedule.horizontalscale.integration_period")
-        self.ec2.set_integrated_float_state("ec2.schedule.scaleout.instance_scale_score", instance_scale_score, 
+        self.ec2.set_integrated_float_state("ec2.schedule.scaleout.instance_scale_score", self.raw_instance_scale_score, 
                 integration_period, self.state_ttl)
         self.instance_scale_score = self.ec2.get_integrated_float_state("ec2.schedule.scaleout.instance_scale_score",
-                integration_period, default=instance_scale_score)
-        log.info("Scale score: (Raw=%f/Integrated=%f)" % (instance_scale_score, self.instance_scale_score))
+                integration_period, default=self.raw_instance_scale_score)
+
+        log.info("Scale score: (Raw=%f/IntegratedRaw=%f/Integrated=%f)" % 
+                (self.raw_instance_scale_score, self.integrated_raw_instance_scale_score, self.instance_scale_score))
 
         if self.desired_instance_count() != -1:
             log.info("Autoscaler disabled due to 'ec2.schedule.desired_instance_count' set to a value different than -1!")
@@ -1724,7 +1767,10 @@ parameter should NOT be modified by user.
             return
 
         text = []
-        instance_to_stop = self.get_scale_instance_count("scalein", 1.0, text)
+        scalein_threshold = Cfg.get_float("ec2.schedule.scalein.threshold_ratio")
+        # Scale in rate depends on the distance of instance scale score and the scalein threshold 
+        scalein_rate      = 1.0 - (self.instance_scale_score / scalein_threshold)
+        instance_to_stop  = self.get_scale_instance_count("scalein", scalein_rate, text)
         if instance_to_stop == 0:
             self.would_like_to_scalein = True
             return

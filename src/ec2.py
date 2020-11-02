@@ -33,6 +33,7 @@ class EC2:
 
         Cfg.register({
                  "ec2.describe_instances.max_results" : "250",
+                 "ec2.describe_instance_types.enabled": "0",
                  "ec2.az.statusmgt.disable": 0,
                  "ec2.az.unavailable_list,Stable": {
                      "DefaultValue": "",
@@ -61,7 +62,7 @@ shutdown in priority. This can be used during AWS LSE (Large Scale Event) to man
                      with value 'True'.
                      """
                  },
-                 "ec2.debug.availability_zones_impaired": ""
+                 "ec2.debug.availability_zones_impaired": "",
         })
 
         self.o_state.register_aggregates([
@@ -101,6 +102,16 @@ shutdown in priority. This can be used during AWS LSE (Large Scale Event) to man
 
         self.instances    = non_terminated_instances
         self.instance_ids = [ i["InstanceId"] for i in self.instances]
+
+        # Enrich describe_instances output with instance type details
+        if Cfg.get_int("ec2.describe_instance_types.enabled"):
+            self.instance_types = []
+            [self.instance_types.append(i["InstanceType"]) for i in self.instances if i["InstanceType"] not in self.instance_types]
+            if len(self.instance_types):
+                response                   = client.describe_instance_types(InstanceTypes=self.instance_types)
+                self.instance_type_details = response["InstanceTypes"]
+                for i in self.instances:
+                    i["_InstanceType"] = next(filter(lambda it: it["InstanceType"] == i["InstanceType"], self.instance_type_details), None)
 
         # Get instances status
         instance_statuses = []
@@ -239,12 +250,13 @@ shutdown in priority. This can be used during AWS LSE (Large Scale Event) to man
         #    by placing them at end of get_instances() generated list
         if instance_ids_to_start is None or len(instance_ids_to_start) == 0:
             return 
+        now = self.context["now"]
 
         client = self.context["ec2.client"]
         for i in instance_ids_to_start: 
             if max_started_instances == 0:
                 break
-            self.set_state("ec2.instance.last_start_attempt_date.%s" % i, misc.utc_now(),
+            self.set_state("ec2.instance.last_start_attempt_date.%s" % i, now,
                     TTL=Cfg.get_duration_secs("ec2.schedule.state_ttl"))
 
             log.info("Starting instance %s..." % i)
@@ -279,7 +291,7 @@ shutdown in priority. This can be used during AWS LSE (Large Scale Event) to man
                     previous_state = r["PreviousState"]
                     current_state  = r["CurrentState"]
                     if current_state["Name"] in ["pending", "running"]:
-                        self.set_state("ec2.instance.last_start_date.%s" % instance_id, misc.utc_now(),
+                        self.set_state("ec2.instance.last_start_date.%s" % instance_id, now,
                                 TTL=Cfg.get_duration_secs("ec2.state.status_ttl"))
                         max_started_instances -= 1
                     else:
