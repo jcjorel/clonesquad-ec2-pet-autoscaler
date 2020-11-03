@@ -30,7 +30,7 @@ This example specifies also 2 meta information:
 * **BaselineThreshold=30.0** : Specify a baseline threshold to allow CloneSquad works in analogous mode instead of relying only on Alarm triggering. In this example, it defines a baseline threshold of 30.0 (float). The alarm specification [ec2.scaleup.alarm-cpu-gt-75pc.yaml](../src/resources/ec2.scaleup.alarm-cpu-gt-75pc.yaml) defines a main Threshold of 75.0 (meaning 75 percent). CloneSquad will poll Cloudwatch underlying metric (i.e. CPU utilization) and generate points using the below formula:
 > Tip: Even optional, it is strongly advised to always define a `BaselineThreshold` to avoid a jerky behavior of the autoscaler. 
 
-> Tip: The `BaselineThreshold` parameter should be set to a value that ensures a scaling criteria that is close to zero (but not zero) when the squad has no activity. It maximizes the autoscaling smoothness.
+> Tip: The `BaselineThreshold` parameter should be set to a value that ensures a scaling criteria that is very close to zero (but ideally not zero) when the squad has no activity. It maximizes the autoscaling smoothness.
 
 Baselined point calculation:
 
