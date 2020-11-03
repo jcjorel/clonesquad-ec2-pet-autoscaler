@@ -24,4 +24,7 @@ echo "LoadBalancer DNS names:"
 aws cloudformation describe-stacks --stack-name $STACK_NAME --output text | grep 'DNS' | awk '{print $7;}'
 
 # Configure CloneSquad to track the alarm defined in the CloudFormation template
+echo
+echo "Loading alarm definitions to track Load Balancers target response time metrics... See configure-lb-responsetime-alarm.yaml for details."
 sed "s/-{GroupName}-/-${GroupName}-/g" <configure-lb-responsetime-alarm.yaml | ${CLONESQUAD_DIR}/tools/cs-kvtable CloneSquad-$GroupName-Configuration import 
+echo
