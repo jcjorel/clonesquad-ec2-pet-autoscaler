@@ -11,7 +11,7 @@ to never create or terminate [EC2](https://aws.amazon.com/ec2/) instances but on
 ## Features and Benefits (Please also read the [FAQ](docs/FAQ.md))
 * Scaling (see [Documentation details](docs/SCALING.md))
 	- Automatic autoscaling based on internal and/or user-defined alarms & metrics,
-	- Desired instance count mode (ex: temporarily force 100% of instances to run and allow mutable update),
+	- [Desired instance count](docs/CONFIGURATION_REFERENCE.md#ec2scheduledesired_instance_count) mode (ex: temporarily force 100% of instances to run and allow mutable update),
 	- Always-on Availability Zone instance balancing algorithm,
 	- Multi targetgroup support (associated to one or multiple ALB or NLB) at the same time w/ smart instance draining before shutdown),
 	- Automatic replacement of unhealthy/unavail/impaired instances,
