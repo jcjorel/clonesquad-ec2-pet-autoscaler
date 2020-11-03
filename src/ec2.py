@@ -40,12 +40,12 @@ class EC2:
                      "Format"      : "StringList",
                      "Description" : """List of Availability Zone names (ex: *eu-west-3c*) or AZ Ids (ex: *euw3-az1*).
 
-Typical usage is to force a fleet to consider one or more AZs as unavailable. The autoscaler will then refuse to schedule
+Typical usage is to force a fleet to consider one or more AZs as unavailable (AZ eviction). The autoscaler will then refuse to schedule
 new instances on these AZs. Existing instances in those AZs are left unchanged but on scalein condition will be 
-shutdown in priority. This can be used during AWS LSE (Large Scale Event) to manually define than an AZ is unavailable.
+shutdown in priority. This can be used during an AWS LSE (Large Scale Event) to manually define that an AZ is unavailable.
 
-    Note: CloneSquad also use the EC2.describe_availability_zones() API to discover dynamically LSE events. So, setting directly this key
-    should not be needed in most cases.
+> Note: CloneSquad also uses the EC2.describe_availability_zones() API to discover dynamically LSE events. So, setting directly this key
+should not be needed in most cases.
                      """
                  },
                  "ec2.state.default_ttl": "days=1",
