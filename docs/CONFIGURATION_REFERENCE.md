@@ -311,18 +311,18 @@ system issues.
 
 ### ec2.schedule.desired_instance_count
 Default Value: `-1`   
-Format       :  [Integer](#Integer)
+Format       :  [IntegerOrPercentage](#IntegerOrPercentage)
 
 If set to -1, the autoscaler controls freely the number of running instances. Set to a value different than -1,
-the autoscaler is disabled and this value defines the number of serving (=running & healthy) instances to maintain all time.
-The [`ec2.schedule.min_instance_count`](#ec2schedulemin_instance_count) is still authoritative and `ec2.schedule.desired_instance_count` parameter cannot bring
+the autoscaler is disabled and this value defines the number of serving (=running & healthy) instances to maintain at all time.
+The [`ec2.schedule.min_instance_count`](#ec2schedulemin_instance_count) is still authoritative and the `ec2.schedule.desired_instance_count` parameter cannot bring
 the serving fleet size below this hard lower limit. 
 
 A typical usage for this key is to set it to `100%` to temporarily force all the instances to run at the same time to perform mutable maintenance
 (System and/or SW patching).
 
-> Tip: Setting this key to the special `100%` value has also the side effect to disable all instance health check management and so ensure full fleet stability 
-at its maximum size even if there are impaired/unhealthy instances in the fleet.
+> Tip: Setting this key to the special `100%` value has also the side effect to disable all instance health check management and so ensure the whole fleet running 
+at its maximum size in a stable manner (i.e. even if there are impaired/unhealthy instances in the fleet, they won't be restarted automatically).
                      
 
 
