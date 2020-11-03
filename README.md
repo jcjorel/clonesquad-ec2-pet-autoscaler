@@ -13,7 +13,8 @@ to never create or terminate [EC2](https://aws.amazon.com/ec2/) instances but on
 	- Automatic autoscaling based on internal and/or user-defined alarms & metrics,
 	- [Desired instance count](docs/CONFIGURATION_REFERENCE.md#ec2scheduledesired_instance_count) mode (ex: temporarily force 100% of instances to run and allow mutable update),
 	- Always-on Availability Zone instance balancing algorithm,
-	- Multi targetgroup support (associated to one or multiple ALB or NLB) at the same time w/ smart instance draining before shutdown),
+	- Multi targetgroup support (associated to one or multiple ALB or NLB) at the same time (w/ smart instance draining before shutdown),
+		* Note: CloneSquad can also work *without* any managed TargetGroup if not applicable to user use-case.
 	- Automatic replacement of unhealthy/unavail/impaired instances,
 	- (Optional) [Vertical scaling](docs/SCALING.md#vertical-scaling) (by leveraging instance type distribution in the fleet),
 * Cost optimization
