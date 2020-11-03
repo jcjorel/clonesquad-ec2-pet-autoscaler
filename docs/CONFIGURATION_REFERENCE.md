@@ -321,8 +321,8 @@ the serving fleet size below this hard lower limit.
 A typical usage for this key is to set it to `100%` to temporarily force all the instances to run at the same time to perform mutable maintenance
 (System and/or SW patching).
 
-> Tip: Setting this key to `100%` value has also the side effect to disable all instance health check management and so ensure full fleet stability 
-at its maximum size.
+> Tip: Setting this key to the special `100%` value has also the side effect to disable all instance health check management and so ensure full fleet stability 
+at its maximum size even if there are impaired/unhealthy instances in the fleet.
                      
 
 
