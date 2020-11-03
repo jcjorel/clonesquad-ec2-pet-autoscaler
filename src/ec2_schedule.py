@@ -1371,7 +1371,7 @@ parameter should NOT be modified by user.
                     schedule_size        -= count
                     nb_of_instance_types -= 1
                 except Exception as e:
-                    log.exception("Failed to convert count=%s into integer! %s" % (cfg[i][count], e))
+                    log.exception("Failed to convert count=%s into integer! %s" % (cfg[i]["count"], e))
             expected_distribution[instance_type] += count 
             if instance_type not in instance_types: instance_types.append(instance_type)
 
@@ -1396,7 +1396,7 @@ parameter should NOT be modified by user.
         for inst in stopped_instances:
             typ = inst["InstanceType"]
 
-            # Test if this instance has already he right instance type
+            # Test if this instance has already the right instance type
             if typ in instance_types and expected_distribution[typ] >= 0: 
                 # It looks so but check if a more prioritary instance type needs to be fulfilled first
                 index = instance_types.index(typ)
@@ -1418,6 +1418,7 @@ parameter should NOT be modified by user.
                             })
                 except Exception as e:
                     log.exception("Failed to modify InstanceType for instance '%s' : %s" % (instance_id, e))
+
                 if response is None or response["ResponseMetadata"]["HTTPStatusCode"] != 200:
                     log.error("Failed to change instance type for instance %s! : %s" % (instance_id, response))
                 else:
