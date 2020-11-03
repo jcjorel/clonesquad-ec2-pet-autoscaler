@@ -32,7 +32,7 @@ and so, be able to access them with the reliable `internal:` protocol scheme.
 
 To do so, create a ZIP file containing your YAML files and push it to an S3 Bucket accessible to CloudFormation. 
 
-	Tip: In the ZIP file, create a file named 'custom.config.yaml' that will be read automatically at startup.
+> Tip: In the ZIP file, create a file named 'custom.config.yaml' that will be read automatically at each scheduling Lambda function launch (every 20s by default).
 
 The [Cloudformation template](../template.yaml) contains 2 parameters to inject this customization ZIP file at
 deployment time:
