@@ -1,3 +1,10 @@
+v0.0.55:
+- (Improvment/Major) Scalin-in algorithm is now smoother as it is taking into account the instance scale ratio relative to 0.0. Prior to this patch, the ScaleIn algorithm was reducing the fleet at full defined scalein rate as soon as it was below the scalein threshold.
+- (Improvment/Minor) Added new config flag 'ec2.describe_instance_types.enabled' (disabled by default) to push 4 new CPU and Memory efficiency metrics:
+    FleetvCPUCount: Number of CPU serving in the fleet
+    FleetvCPUNeed: Number of CPU needed to sustain the load
+    FleetMemCount: Amount of Memory serving in the fleet
+    FleetMemNeed: Amount of Memory guessed as needed
 v0.0.54:
 - (Improvment/Minor) Renamed StaticFleet CloudWatch metrics related to EC2 instances to ease dashboard reading
 - (Improvment/Minor) Make RDS start/stop better protected against boto3 API exceptions
