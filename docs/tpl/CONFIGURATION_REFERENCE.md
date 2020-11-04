@@ -65,7 +65,7 @@ This example shows a dynamic override of the [`ec2.schedule.min_instance_count`]
 key [`ec2.schedule.min_instance_count`](#ec2.schedule.min_instance_count) to a value of 3 (instead of 2) when [`config.active_parameter_set`](#configactive_parameter_set) is set to
 'my-pset' value.
 
-This mechanism is used in the demonstration [demo-scheduled-events](./examples/environments/demo-scheduled-events/). 
+This mechanism is used in the demonstration [demo-scheduled-events](../examples/environments/demo-scheduled-events/). 
 The CloneSquad scheduler is used to set the [`config.active_parameter_set`](#configactive_parameter_set) to temporarily activate a set of 
 scaling parameters.
 
