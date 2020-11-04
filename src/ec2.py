@@ -42,7 +42,7 @@ class EC2:
 
 Typical usage is to force a fleet to consider one or more AZs as unavailable (AZ eviction). The autoscaler will then refuse to schedule
 new instances on these AZs. Existing instances in those AZs are left unchanged but on scalein condition will be 
-shutdown in priority (see [`ec2.az.instance_faulty_when_az_faulty`](#ec2azinstance_faulty_when_az_faulty) to change this behavior). 
+shutdown in priority (see [`ec2.az.evict_instances_when_az_faulty`](#ec2azinstance_faulty_when_az_faulty) to change this behavior). 
 
 This setting can be used during an AWS LSE (Large Scale Event) to manually define that an AZ is unavailable.
 
@@ -57,7 +57,7 @@ original value.
 
                      """
                  },
-                 "ec2.az.instance_faulty_when_az_faulty,Stable": {
+                 "ec2.az.evict_instances_when_az_faulty,Stable": {
                      "DefaultValue": "0",
                      "Format"      : "Bool",
                      "Description" : """Defines if instances running in a AZ with issues must be considered 'unavailable'
@@ -198,7 +198,7 @@ forcing their immediate replacement in healthy AZs in the region.
 
     def is_instance_state(self, instance_id, state):
         i = next(filter(lambda i: i["InstanceId"] == instance_id, self.instance_statuses), None)
-        if Cfg.get_int("ec2.az.instance_faulty_when_az_faulty") and "az_evicted" in state:
+        if Cfg.get_int("ec2.az.evict_instances_when_az_faulty") and "az_evicted" in state:
             az = self.get_instance_by_id(instance_id)["Placement"]["AvailabilityZone"]
             if az in self.get_azs_with_issues():
                 return True

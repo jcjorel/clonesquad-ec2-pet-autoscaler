@@ -81,7 +81,7 @@ class ManagedTargetGroup:
         instance = self.ec2.get_instance_by_id(instance_id)
         if instance is None or instance["State"]["Name"] != "running": return default
 
-        if Cfg.get_int("ec2.az.instance_faulty_when_az_faulty"):
+        if Cfg.get_int("ec2.az.evict_instances_when_az_faulty"):
             # If AWS indicate issues with some AZ, we assume instances located in them are 'unavail'
             if instance["Placement"]["AvailabilityZone"] in self.ec2.get_azs_with_issues(): 
                 return "unavail"

@@ -164,7 +164,7 @@ List of Availability Zone names (ex: *eu-west-3c*) or AZ Ids (ex: *euw3-az1*).
 
 Typical usage is to force a fleet to consider one or more AZs as unavailable (AZ eviction). The autoscaler will then refuse to schedule
 new instances on these AZs. Existing instances in those AZs are left unchanged but on scalein condition will be 
-shutdown in priority (see [`ec2.az.instance_faulty_when_az_faulty`](#ec2azinstance_faulty_when_az_faulty) to change this behavior). 
+shutdown in priority (see [`ec2.az.evict_instances_when_az_faulty`](#ec2azinstance_faulty_when_az_faulty) to change this behavior). 
 
 This setting can be used during an AWS LSE (Large Scale Event) to manually define that an AZ is unavailable.
 
@@ -181,7 +181,7 @@ original value.
 
 
 
-### ec2.az.instance_faulty_when_az_faulty
+### ec2.az.evict_instances_when_az_faulty
 Default Value: `0`   
 Format       :  [Bool](#Bool)
 
