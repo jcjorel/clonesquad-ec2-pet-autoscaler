@@ -1,3 +1,5 @@
+v0.0.57:
+- (Bug/Major) CloudFormation customization injection was incorrect and complex. Simplified the process with a single CloudFormation parameter 'CustomizationZipParameters'.
 v0.0.56:
 - (Improvment/Major) Added new setting `ec2.az.evict_instances_when_az_faulty` to force instance eviction from a faulty AZ. Prior to this patch, it was the duty of TargetGroup healthchecks to evict instances. When users use Clonesquad without TargetGroup, users had to scalein/scaleout manually the fleet to evict the instances from the faulty AZ.
 v0.0.55:
