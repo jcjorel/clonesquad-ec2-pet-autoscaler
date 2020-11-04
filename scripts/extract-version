@@ -13,7 +13,7 @@ fi
 
 if [ -z "$VERSION" ] || [ -z "$S3_BUCKET" ] || [ -z "$S3_PREFIX" ] || [ -z "$OUTPUT_FORMAT" ]; then
 	cat <<EOU
-Usage: $0 <target_S3_bucket_name> <target_S3_bucket_prefix> <output_format> <requested_version>"
+Usage: $0 <target_S3_bucket_name> <target_S3_bucket_prefix> <requested_version> <output_format>"
   output_format can be 'tar' or 's3.'
   * 'tar': a TAR file containing CloneSquad deployment files is streamed on stdout.
   * 's3' : $0 will attempt to publish the CloneSuad deployment files to specified S3 bucket/prefix.

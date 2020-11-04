@@ -14,15 +14,10 @@ Parameters:
     MinLength: 2
     Description: "CloneSquad group name"
 
-  CustomizationRepositoryS3BucketName:
+  CustomizationZipParameters:
     Type: String
     Default: ""
-    Description: "(Optional) S3 Bucketname where Customization artifacts are stored"
-
-  CustomizationRepositoryS3Prefix:
-    Type: String
-    Default: ""
-    Description: "(Optional) S3 prefix where Customization deployment artifacts are stored"
+    Description: "(Optional) Path to a ZIP file located in S3 expressed with special format '<S3_bucket_name>:<S3_key_path>'"
 
   ConfigurationURL: 
     Type: String
@@ -69,7 +64,8 @@ Parameters:
     ConstraintDescription: "[0|1]"
     Description: "(Debug) Trace CloneSquad to get visibility into execution time and associated costs"
 
-
+Conditions:
+    HasCustomizationZipParameters: !Not [ !Equals [ !Ref CustomizationZipParameters, ""]]
 
 
 Resources:

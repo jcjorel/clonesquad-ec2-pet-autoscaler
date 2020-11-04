@@ -29,15 +29,27 @@ parser.add_argument('--obfuscate', help="Target S3 Prefix name", type=bool, defa
 
 args = parser.parse_args()
 
+def select_customization_parameter(index, default):
+    split_parameter = { "Fn::Split" : [
+            ":",
+            {"Ref": "CustomizationZipParameters"}
+        ]}
+    select_parameter = { "Fn::Select" : [
+            str(index),
+            split_parameter
+            ]}
+    return { "Fn::If" : [
+            "HasCustomizationZipParameters",
+            select_parameter,
+            default
+            ]}
+
 with open(args.template_file[0]) as f:
     content = yaml.load(f, Loader=yaml.FullLoader)
     content["Description"] += " %s" % args.version
 
-    parameters = content["Parameters"]
-    resources  = content["Resources"]
-
-    for r in resources:
-        res = resources[r]
+    for r in content["Resources"]:
+        res = content["Resources"][r]
         properties = res["Properties"]
 
         for pr in ["ContentUri", "CodeUri"]:
@@ -48,24 +60,13 @@ with open(args.template_file[0]) as f:
                    raise Exception("Can't parse property %s/%s !" % (pr, prop))
                 bucket, prefix, key = [m.group(1), m.group(2), m.group(3)]
 
+                prefix_and_key = "%s/%s" % (args.s3_prefix if not args.obfuscate else "YYYYYYYYYYYYYY", key)
+                properties[pr] = "s3://%s/%s" % (args.s3_bucket if not args.obfuscate else "XXXXXXXXXXXXXX", prefix_and_key)
+
                 if not args.obfuscate and r == "MainFunction":
-                    t = "Customization"
-                    parameters["%sRepositoryS3BucketName" % t]["Default"] = args.s3_bucket
-                    parameters["%sRepositoryS3Prefix"     % t]["Default"] = args.s3_prefix
-                    param_b = '%sRepositoryS3BucketName' % t if pr != "CodeUri" else '%sRepositoryS3BucketName' % t
-                    param_p = '%sRepositoryS3Prefix'     % t if pr != "CodeUri" else '%sRepositoryS3Prefix' % t
-                    properties[pr] = {}
-                    #properties[pr]["Fn::Sub"] = "s3://${%s}/${%s}/%s" % (param_b, param_p, key)
-                    properties[pr]["Bucket"] = {
-                            "Fn::Sub" : "${%s}" % param_b,
-                            }
-                    properties[pr]["Key"]    = {
-                            "Fn::Sub" : "${%s}/%s" % (param_p, key)
-                            }
-                else:
-                    properties[pr] = "s3://%s/%s/%s" % (
-                            args.s3_bucket if not args.obfuscate else "XXXXXXXXXXXXXX", 
-                            args.s3_prefix if not args.obfuscate else "YYYYYYYYYYYYYY", 
-                            key)
+                    properties[pr] = {
+                            "Bucket": select_customization_parameter(0, args.s3_bucket),
+                            "Key": select_customization_parameter(1, prefix_and_key)
+                        }
 
 print(yaml.dump(content))
