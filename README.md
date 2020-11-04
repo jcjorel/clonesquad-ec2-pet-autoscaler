@@ -46,13 +46,14 @@ Pre-requisites:
 #### Step 1) Extract and Upload the latest CloneSquad CloudFormation template and associated artifacts
 
 ```shell
-docker pull clonesquad/devkit:latest
+CLONESQUAD_VERSION=latest
 CLONESQUAD_S3_BUCKETNAME="<your_S3_bucket_name_where_to_publish_clonesquad_artifacts>"
 CLONESQUAD_S3_PREFIX="clonesquad-artifacts" # Note: Prefix MUST be non-empty
 CLONESQUAD_GROUPNAME="test"
+docker pull clonesquad/devkit:${CLONESQUAD_VERSION}
 export AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-$(curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone | sed 's/\(.*\)[a-z]/\1/')}
 # Upload template.yaml and CloneSquad Lambda functions to specified S3 bucket and prefix
-docker run --rm clonesquad/devkit:latest extract-version "${CLONESQUAD_S3_BUCKETNAME}" "${CLONESQUAD_S3_PREFIX}" latest s3
+docker run --rm clonesquad/devkit:${CLONESQUAD_VERSION} extract-version "${CLONESQUAD_S3_BUCKETNAME}" "${CLONESQUAD_S3_PREFIX}" latest s3
 # Deploy a CloneSquad setup to manage GroupName=test (see Documentation for Group name concept)
 aws cloudformation create-stack --template-url https://s3.amazonaws.com/${CLONESQUAD_S3_BUCKETNAME}/${CLONESQUAD_S3_PREFIX}/template.yaml \
     --stack-name MyFirstCloneSquad-${CLONESQUAD_GROUPNAME} \

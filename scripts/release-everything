@@ -28,5 +28,5 @@ git push
 git push --tags
 
 docker push ${CLONESQUAD_DEVKIT_IMAGE}:$VERSION 
-docker push ${CLONESQUAD_DEVKIT_IMAGE}:latest
+#docker push ${CLONESQUAD_DEVKIT_IMAGE}:latest
 
