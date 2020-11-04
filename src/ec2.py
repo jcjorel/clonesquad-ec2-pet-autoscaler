@@ -42,12 +42,32 @@ class EC2:
 
 Typical usage is to force a fleet to consider one or more AZs as unavailable (AZ eviction). The autoscaler will then refuse to schedule
 new instances on these AZs. Existing instances in those AZs are left unchanged but on scalein condition will be 
-shutdown in priority. This can be used during an AWS LSE (Large Scale Event) to manually define that an AZ is unavailable.
+shutdown in priority (see [`ec2.az.instance_faulty_when_az_faulty`](#ec2azinstance_faulty_when_az_faulty) to change this behavior). 
+
+This setting can be used during an AWS LSE (Large Scale Event) to manually define that an AZ is unavailable.
 
 > Note: CloneSquad also uses the EC2.describe_availability_zones() API to discover dynamically LSE events. So, setting directly this key
 should not be needed in most cases.
+
+Please notice that, once an AZ is enabled again (either manually or automatically), instance fleet WON'T be rebalanced automatically:
+* If Instance bouncing is enabled, the fleet will be progressively rebalanced (convergence time will depend on the instance bouncing setting)
+* If instance bouncing is not configured, user can force a rebalancing by switching temporarily the fleet to `100%` during few minutes 
+(with [`ec2.schedule.desired_instance_count`](#ec2scheduledesired_instance_count) sets temporarily to `100%`) and switch back to the 
+original value.
+
                      """
                  },
+                 "ec2.az.instance_faulty_when_az_faulty,Stable": {
+                     "DefaultValue": "0",
+                     "Format"      : "Bool",
+                     "Description" : """Defines if instances running in a AZ with issues must be considered 'unavailable'
+
+By Default, instances running in an AZ reported with issues are left untouched and these instances will only be evicted if
+their invidual healthchecks fail or on scalein events.
+
+Settting this parameter to 1 will force Clonesquad to consider all the instances running in faulty AZ as 'unavailable' and so
+forcing their immediate replacement in healthy AZs in the region. 
+                 """},
                  "ec2.state.default_ttl": "days=1",
                  "ec2.state.error_ttl" : "minutes=5",
                  "ec2.state.status_ttl" : "days=40",
@@ -155,7 +175,7 @@ should not be needed in most cases.
                 self.az_with_issues.append(az)
             az["State"] = zone_state
             if zone_state != "available":
-                log.warning("AZ %s(%s) is marked with status '%s'by configuration keys!" % (zone_name, zone_id, zone_state))
+                log.warning("AZ %s(%s) is marked with status '%s' by configuration keys!" % (zone_name, zone_id, zone_state))
 
         # We need to register dynamically static subfleet configuration keys to avoid a 'key unknown' warning 
         #   when the user is going to set it
@@ -178,6 +198,10 @@ should not be needed in most cases.
 
     def is_instance_state(self, instance_id, state):
         i = next(filter(lambda i: i["InstanceId"] == instance_id, self.instance_statuses), None)
+        if Cfg.get_int("ec2.az.instance_faulty_when_az_faulty") and "az_evicted" in state:
+            az = self.get_instance_by_id(instance_id)["Placement"]["AvailabilityZone"]
+            if az in self.get_azs_with_issues():
+                return True
         return i["InstanceStatus"]["Status"] in state if i is not None else False
 
     def get_azs_with_issues(self):
