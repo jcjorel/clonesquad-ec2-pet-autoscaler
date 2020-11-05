@@ -20,7 +20,7 @@ to never create or terminate [EC2](https://aws.amazon.com/ec2/) instances but on
 * Cost optimization
 	- Support for 'persistent' [Spot instances](https://aws.amazon.com/ec2/spot/) aside of On-Demand ones in the same fleet with configurable priorities,
 	- Spot interruption handling
-	- Smart management of tX.xxx burstable instances (aka '[CloneSquad CPU Crediting](docs/COST_OPTIMIZATION.md#clonesquad-cpu-crediting)' mode to avoid overcost linked to [unlimited bursting](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/burstable-performance-instances-unlimited-mode.html)),
+	- Smart management of tX.xxx burstable instances (aka '[CPU Crediting mode](docs/COST_OPTIMIZATION.md#clonesquad-cpu-crediting)' to avoid overcost linked to [unlimited bursting](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/burstable-performance-instances-unlimited-mode.html)),
 	- Dedicated Cloudwatch Alarm detecting burstable instances with CPU Credit exhausted,
 	- Optional ['LightHouse' mode](docs/SCALING.md#vertical-scaling) allowing to run automatically cheap instance types during low activity periods,
 * Resilience
