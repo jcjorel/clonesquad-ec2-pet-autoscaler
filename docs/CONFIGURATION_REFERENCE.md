@@ -9,10 +9,10 @@ CloneSquad uses a multi-layered configuration system using the YAML semantic and
 Each layer can override configuration defined in below layers.
 
 Layer overrides by order of precedence (highest priority to lowest one):
-1) DynamodDB configuration table Parameter set,
+1) DynamodDB configuration table [Parameter set](#parameter-sets),
 2) DynamodDB configuration table,
 3) Main Lambda 'ConfigurationURL' URLs,
-4) YAML URLs listed in configuration set `config.loaded_files`,
+4) YAML URLs listed in configuration key `[config.loaded_files](#configload_files)`,
 5) Built-in Defaults
 
 URLs can use the following protocols: ["s3", "http", "https", "internal"]. 
