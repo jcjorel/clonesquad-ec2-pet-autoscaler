@@ -12,7 +12,7 @@ Layer overrides by order of precedence (highest priority to lowest one):
 1) DynamodDB configuration table [Parameter set](#parameter-sets),
 2) DynamodDB configuration table,
 3) Main Lambda 'ConfigurationURL' URLs,
-4) YAML URLs listed in configuration key `[config.loaded_files](#configload_files)`,
+4) YAML URLs listed in configuration key [`config.loaded_files`](#configload_files),
 5) Built-in Defaults
 
 URLs can use the following protocols: ["s3", "http", "https", "internal"]. 
