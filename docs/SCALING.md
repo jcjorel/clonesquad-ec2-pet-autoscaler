@@ -8,7 +8,7 @@ CloneSquad manages Horizontal and (optionally) Vertical scaling.
 * The Horizontal scaling is the process of starting/stopping instances.
 * The Vertical scaling is the process to leverage EC2 instance types for better scaling decisions.
 
-**See the [demo-scheduled-events](../examples/environments/demo-scheduled-events) to see Cloudwatch screenshots of scaling in action.**
+**See the [demo-loadbalancers](../examples/environments/demo-loadbalancers) and [demo-scheduled-events](../examples/environments/demo-scheduled-events) to see Cloudwatch screenshots of scaling in action.**
 
 ## Horizontal scaling
 
