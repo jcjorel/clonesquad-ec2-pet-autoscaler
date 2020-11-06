@@ -72,7 +72,7 @@ You should see a `CloneSquad-test` dashboard in the CloudWatch console looking l
 
 #### Step 2) Give to your CloneSquad deployment some EC2 instances and Targetgroups to manage
 
-Next step is to create instances with this appropriate tag defined. For a quick demonstration using a fleet of 20 VMs mixing Spot and 
+Next step is to create instances with this appropriate 'clonesquad:group-name' tag defined. For a quick demonstration using a fleet of 20 instances mixing Spot and 
 On-Demand instances, go to [examples/environments/demo-instance-fleet](examples/environments/demo-instance-fleet). 
 > In order to deploy this 
 demonstration, you **MUST** configure the CloneSquad DevKit once and run the deploy script from within this container: See [instructions](docs/BUILD_RELEASE_DEBUG.md#configuring-the-devkit-to-start-demonstrations)!
