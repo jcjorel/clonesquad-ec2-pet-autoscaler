@@ -15,7 +15,6 @@ about 5$ per day.
 
 # Fleet generation
 
-	Launch demo deployment from the CloneSquad DevKit!
 
 The script file named 'deploy-test-instances.sh' generates a Cloudformation template and deploys it directly.
 
@@ -26,6 +25,8 @@ By default, it defines a fleet of 20 instances with *3 x t3.medium Spot instance
 FLEET_SPECIFICATION=${FLEET_SPECIFICATION:-"t3.medium,Spot=True,Count=3;c5.large,Spot=True,Count=4;m5.large,Count=13"}
 ```
 
+
+> Note: You must launch demo deployment from the CloneSquad DevKit!
 
 ```shell
 ./deploy-test-instances.sh
