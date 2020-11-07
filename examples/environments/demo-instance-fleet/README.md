@@ -16,6 +16,9 @@ The script file named 'deploy-test-instances.sh' generates a Cloudformation temp
 
 By default, it defines a fleet of 20 instances with *3 x t3.medium Spot instances, 4 x c5.large Spot instances and 13 x m5.large*.
 
+> **WARNING: When Running the whole fleet at full size, it can cost up to 50$ per day!** When running at minimum size, the fleet cost is 
+about 5$ per day.
+
 ```shell
 FLEET_SPECIFICATION=${FLEET_SPECIFICATION:-"t3.medium,Spot=True,Count=3;c5.large,Spot=True,Count=4;m5.large,Count=13"}
 ```
