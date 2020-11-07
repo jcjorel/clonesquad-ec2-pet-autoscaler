@@ -12,14 +12,30 @@ cat <<EOF
 
 Welcome to CloneSquad $(cat /clonesquad/VERSION.txt) development and debugging environment!
 
-- You need to configure first /clonesquad-deployment-parameters/deployment-parameters.txt to perform the following actions:
+Instructions: You need to configure first /clonesquad-deployment-parameters/deployment-parameters.txt to perform the following actions:
 	* Run 'scripts/deploy-debug' to deploy CloneSquad with SAM cli 
 	* Run 'scripts/run-main-lambda' to launch (and debug) the Main function lambda outside of SAM
 	* Run 'examples/environments/demo-instance-fleet' and 'examples/environments/demo-loadbalancers'
 
 Note: Run 'cs-deployment-configuration-wizard' command if you want to configure again your deployment environment.
-Info: 
-	Current 'GroupName' = $GroupName
 
+Current Deployment Info: 
+=======================
+	'GroupName'            = $GroupName
 EOF
+
+echo -n "        'UserNotificationArns' = "
+if [ -e /clonesquad-deployment-parameters/deployment-parameters.txt ] ; then
+	UserNotificationArns=$(grep UserNotificationArns= /clonesquad-deployment-parameters/deployment-parameters.txt | cut -d= -f2)
+fi
+if [ -z "$UserNotificationArns" ] ; then
+	echo '???/Empty /!\ Please deploy the demo in 'examples/sam-sample-lambda/' to intercept CloneSquad events /!\'
+else
+	echo "$UserNotificationArns"
+	echo "        == IMPORTANT ==" 
+	echo "        ** DO NOT FORGET TO FILLIN THIS VALUE IN THE 'UserNotificationArns' CF TEMPLATE PARAMETER **"
+	echo "        ** (or launch 'scripts/deploy-debug' to update it directly from the DevKit)               **"
+fi
+echo
+
 
