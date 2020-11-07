@@ -494,6 +494,9 @@ Resources:
             Properties:
               StageName: v1
               Name: !Sub "CloneSquad-${GroupName}"
+              EndpointConfiguration: REGIONAL
+              Auth:
+                DefaultAuthorizer: AWS_IAM
             Tags:
             - Key: "clonesquad:group-name"
               Value: !Ref GroupName
@@ -680,12 +683,18 @@ Resources:
                   Properties:
                     Queue: !GetAtt InteractQueue.Arn
                     BatchSize: 10
-                ApiEventCommand:
+                ApiEventCommandGET:
                   Type: Api
                   Properties:
                     RestApiId: !Ref InteractApi
-                    Path: "{proxy+}"
+                    Path: "/{proxy+}"
                     Method: get
+                ApiEventCommandPOST:
+                  Type: Api
+                  Properties:
+                    RestApiId: !Ref InteractApi
+                    Path: "/{proxy+}"
+                    Method: post
 
     InteractQueue:
       Type: AWS::SQS::Queue

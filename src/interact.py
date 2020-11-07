@@ -43,7 +43,8 @@ class Interact:
 
     def dump_configuration(self, context, event, response):
         response["statusCode"] = 200
-        response["body"]       = Dbg.pprint(config.dumps())
+        only_stable_keys       = "Unstable" not in event or event["Unstable"] != "True"
+        response["body"]       = Dbg.pprint(config.dumps(only_stable_keys=only_stable_keys))
 
     def handler(self, event, context, response):
         if "httpMethod" in event and "path" in event:
@@ -56,15 +57,30 @@ class Interact:
                   "body": ""
                   })
 
+            if "queryStringParameters" in event and event["queryStringParameters"] is not None:
+                event.update(event["queryStringParameters"])
+
+            if event["httpMethod"] == "POST":
+                try:
+                    b = json.loads(event["body"])
+                    event.update(b)
+                except Exception as e:
+                    log.exception("Failed to handle POST body! : %s" % event["body"])
+                    raise e
+
             log.log(log.NOTICE, "Received API Gateway message for path '%s'" % event["path"])
-            # API Gateway call
-            path        = event["path"].split("/")
+
+            # Normalize command format
+            arg         = event["OpType"] if "OpType" in event else event["path"]
+            path        = arg.split("/")
             path_list   = list(filter(lambda x: x != "", path))
             command     = "/".join(path_list)
             if command not in self.commands.keys():
                 response["statusCode"] = 404
                 response["body"]       = "Unknown command '%s'" % (command)
                 return True
+
+            event["OpType"] = command
             log.log(log.NOTICE, "Processing API Gateway command '%s'" % (command))
             self.commands[command](self.context, event, response)
             return True
@@ -87,7 +103,7 @@ class Interact:
         """
         event   = json.loads(event["body"])
         if "OpType" not in event:
-            log.warning("Can't understand SQS message!")
+            log.warning("Can't understand SQS message! (Missing 'OpType' required member of body dict)")
             return True
 
         command = event["OpType"]

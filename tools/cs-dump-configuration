@@ -9,5 +9,5 @@ tmpfile=/tmp/cs-config.$$
 aws lambda invoke --function-name CloneSquad-Discovery-${GroupName} --payload '' $tmpfile 1>/dev/stderr
 APIGW_URL=$(jq -r '.["InteractAPIGWUrl"]' <$tmpfile)
 rm -f $tmpfile
-awscurl ${APIGW_URL}/Configuration/Dump | jq .
+awscurl ${APIGW_URL}Configuration/Dump?Unstable=$1 | jq .
 
