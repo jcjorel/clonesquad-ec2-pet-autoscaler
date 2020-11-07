@@ -215,11 +215,8 @@ key in combination with the instance scheduler to force the fleet to be 'LightHo
 
 By default, the bouncing algorithm is disabled. When this key is defined with a duration greated than 0 second, the fleet instances
 are monitored for maximum age. Ex: 'days=2' means that, a instance running for more than 2 days will be bounced implying 
-a fresh one will be started before the too old one is going to be stoppped (See [`ec2.schedule.bounce_cooldown`](#ec2schedulebounce_cooldown) parameter for more information
-about time spent by instances in 'bounced' state). 
+a fresh one will be started before the too old one is going to be stoppped.
 
-Bouncing Tx burstable instances is interesting to better leverage CPU Credit mechanism. 
-As [CPU Credits are kept one week for stopped instances](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/burstable-credits-baseline-concepts.html) it is valuable to bounce running burstable instances to refresh stopped T3 instances CPU credits before they expire.
                          """
                  },
                  "ec2.schedule.bounce_instance_jitter" : 'minutes=10',
