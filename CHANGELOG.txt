@@ -1,6 +1,6 @@
 v0.0.58:
 - (NewFeature/Minor) Added configuration key 'ec2.instance.status.override_url' allowing override of EC2 instance status (for debug and/or external 'unhealthy' status) with an S3/HTTP server located YAML file.
-- (Bug/Minor) Fixed buggy set-ec2-alarm.sh scripts. (This script manually triggers a CloneSquad fleet EC2 instance to test autoscaler algorithm reaction.)
+- (Bug/Minor) Fixed buggy set-ec2-alarm.sh scripts. (This script manually triggers a CloneSquad fleet EC2 instance alarm to test autoscaler algorithm reaction.)
 - (Improvment/Minor) Add cost estimate for demo-instance-fleet.
 - (Bug/Major) Protect public API Gateway with IAM authorizer. Previously API was available without authentication.
 
