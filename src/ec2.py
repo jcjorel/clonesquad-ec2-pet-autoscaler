@@ -91,7 +91,7 @@ forcing their immediate replacement in healthy AZs in the region.
                     "Format"      : "String",
                     "Description" : """Url pointing to a YAML file overriding EC2.describe_instance_status() instance state.
 
-                    CloneSquad can optionally load a YAML file containing EC2 instance status override.
+CloneSquad can optionally load a YAML file containing EC2 instance status override.
 
 The format is a dict of 'InstanceId' containing another dict of metadata:
 
