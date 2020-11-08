@@ -1,7 +1,15 @@
+v0.0.58:
+- (NewFeature/Minor) Added configuration key 'ec2.instance.status.override_url' allowing override of EC2 instance status (for debug and/or external 'unhealthy' status) with an S3/HTTP server located YAML file.
+- (Bug/Minor) Fixed buggy set-ec2-alarm.sh scripts. (This script manually triggers a CloneSquad fleet EC2 instance to test autoscaler algorithm reaction.)
+- (Improvment/Minor) Add cost estimate for demo-instance-fleet.
+- (Bug/Major) Protect public API Gateway with IAM authorizer. Previously API was available without authentication.
+
 v0.0.57:
 - (Bug/Major) CloudFormation customization injection was incorrect and complex. Simplified the process with a single CloudFormation parameter 'CustomizationZipParameters'.
+
 v0.0.56:
 - (Improvment/Major) Added new setting `ec2.az.evict_instances_when_az_faulty` to force instance eviction from a faulty AZ. Prior to this patch, it was the duty of TargetGroup healthchecks to evict instances. When users use Clonesquad without TargetGroup, users had to scalein/scaleout manually the fleet to evict the instances from the faulty AZ.
+
 v0.0.55:
 - (Improvment/Major) Scalin-in algorithm is now smoother as it is taking into account the instance scale ratio relative to 0.0. Prior to this patch, the ScaleIn algorithm was reducing the fleet at full defined scalein rate as soon as it was below the scalein threshold.
 - (Improvment/Minor) Added new config flag 'ec2.describe_instance_types.enabled' (disabled by default) to push 4 new CPU and Memory efficiency metrics:
@@ -9,6 +17,7 @@ v0.0.55:
     FleetvCPUNeed: Number of CPU needed to sustain the load
     FleetMemCount: Amount of Memory serving in the fleet
     FleetMemNeed: Amount of Memory guessed as needed
+
 v0.0.54:
 - (Improvment/Minor) Renamed StaticFleet CloudWatch metrics related to EC2 instances to ease dashboard reading
 - (Improvment/Minor) Make RDS start/stop better protected against boto3 API exceptions
