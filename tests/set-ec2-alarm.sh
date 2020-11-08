@@ -1,6 +1,6 @@
 #!/bin/bash
 
-alarm_names=$(aws cloudwatch describe-alarms --alarm-name-prefix CloneSquad-${GroupNmae}-i- | grep AlarmName | tr '":, ' '   ' | awk '{print $2;}' | sort -R)
+alarm_names=$(aws cloudwatch describe-alarms --alarm-name-prefix CloneSquad-${GroupName}-i- | grep AlarmName | tr '":, ' '   ' | awk '{print $2;}' | sort -R)
 first_alarm_name=$(echo $alarm_names | awk '{print $1;}')
 echo $first_alarm_name
 set -x
