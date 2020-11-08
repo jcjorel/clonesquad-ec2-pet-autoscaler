@@ -79,7 +79,7 @@ Rerun the wizard once this demonstration is deployed to experience Event handlin
 (The demo is located in examples/sam-sample-lambda/ directory)
 """ % demo_name, width=80, height=12)
         else:
-            user_notifications_arns = file_content["UserNotificationArns"].split(",")
+            user_notifications_arns = [ arn for arn in file_content["UserNotificationArns"].split(",") if arn != "" ]
             if "Outputs" in demo_stack:
                 demo_function_arn = next(filter(lambda o: o["OutputKey"] == "FunctionArn", demo_stack["Outputs"]))["OutputValue"]
                 if demo_function_arn not in user_notifications_arns:
