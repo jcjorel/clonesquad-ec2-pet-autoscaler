@@ -3,6 +3,7 @@ import json
 import pdb
 import re
 import sys
+import yaml
 from datetime import datetime
 from datetime import timedelta
 from collections import defaultdict
@@ -23,13 +24,15 @@ log = cslog.logger(__name__)
 class EC2:
     @xray_recorder.capture(name="EC2.__init__")
     def __init__(self, context, o_state):
-        self.context         = context
-        self.instances       = None
-        self.instance_ids    = None
-        self.instance_statuses = None
-        self.prereqs_done    = False
-        self.o_state         = o_state
-        self.state_table     = None
+        self.context                 = context
+        self.instances               = None
+        self.instance_ids            = None
+        self.instance_statuses       = None
+        self.prereqs_done            = False
+        self.o_state                 = o_state
+        self.ec2_status_override_url = ""
+        self.ec2_status_override     = {}
+        self.state_table             = None
 
         Cfg.register({
                  "ec2.describe_instances.max_results" : "250",
@@ -83,6 +86,33 @@ forcing their immediate replacement in healthy AZs in the region.
                      """
                  },
                  "ec2.debug.availability_zones_impaired": "",
+                 "ec2.instance.status.override_url,Stable": {
+                    "DefaultValue": "",
+                    "Format"      : "String",
+                    "Description" : """Url pointing to a YAML file overriding EC2.describe_instance_status() instance state.
+
+                    CloneSquad can optionally load a YAML file containing EC2 instance status override.
+
+The format is a dict of 'InstanceId' containing another dict of metadata:
+
+```yaml
+---
+i-0ef23917a58368c89:
+    status: ok
+i-0ad73bbc09cb68f81:
+    status: unhealthy
+```
+
+The status item can contain any of valid values from EC2.describe_instance_status()["InstanceStatus"]["Status"].
+These valid values are ["ok", "impaired", "insufficient-data", "not-applicable", "initializing", "unhealthy"].    
+
+**Please notice the special 'unhealthy' value that is a cloneSquad extension:** This value can be injected to force 
+an instance to be considered as unhealthy by the scheduler. It can be useful to debug/simulate a failure of a 
+specific instance or to inject 'unhealthy' status coming from a non-TargetGroup source (ex: when CloneSquad is used
+without any TargetGroup but another external health instance source exists).
+
+                    """
+                 }
         })
 
         self.o_state.register_aggregates([
@@ -188,6 +218,15 @@ forcing their immediate replacement in healthy AZs in the region.
                     })
         log.log(log.NOTICE, "Detected following static subfleet names across EC2 resources: %s" % static_subfleet_names)
 
+        # Load EC2 status override URL content
+        self.ec2_status_override_url = Cfg.get("ec2.instance.status.override_url")
+        if self.ec2_status_override_url is not None and self.ec2_status_override_url != "":
+            try:
+                content = misc.get_url(self.ec2_status_override_url)
+                self.ec2_status_override = yaml.safe_load(str(content, "utf-8"))
+            except Exception as e:
+                log.warning("Failed to load 'ec2.instance.status.override_url' YAML file '%s' : %s" % (self.ec2_status_override_url, e))
+
         self.prereqs_done    = True
 
     def register_state_aggregates(self, aggregates):
@@ -198,10 +237,24 @@ forcing their immediate replacement in healthy AZs in the region.
 
     def is_instance_state(self, instance_id, state):
         i = next(filter(lambda i: i["InstanceId"] == instance_id, self.instance_statuses), None)
+
+        # Check for "az_evicted" synthetic status
         if Cfg.get_int("ec2.az.evict_instances_when_az_faulty") and "az_evicted" in state:
             az = self.get_instance_by_id(instance_id)["Placement"]["AvailabilityZone"]
             if az in self.get_azs_with_issues():
                 return True
+
+        # Check if the status of this instance Id is overriden with an external YAML file
+        if i is not None and i["InstanceState"]["Name"] in ["pending", "running"] and instance_id in self.ec2_status_override:
+            override = self.ec2_status_override[instance_id]
+            if "status" in override:
+                override_status = override["status"]
+                if override_status not in ["ok", "impaired", "insufficient-data", "not-applicable", "initializing", "unhealthy"]:
+                    log.warning("Status override for instance '%s' (defined in %s) has an unmanaged status (%s) !" % 
+                            (instance_id, self.ec2_status_override_url, override_status))
+                else:
+                    return override_status in state
+
         return i["InstanceStatus"]["Status"] in state if i is not None else False
 
     def get_azs_with_issues(self):

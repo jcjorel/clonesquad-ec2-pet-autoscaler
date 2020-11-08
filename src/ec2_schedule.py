@@ -472,7 +472,7 @@ parameter should NOT be modified by user.
         instances_with_issue_ids.extend(self.targetgroup.get_registered_instance_ids(state="unavail,unhealthy"))
 
         # EC2 related issues
-        impaired_instances      = [ i["InstanceId"] for i in active_instances if self.ec2.is_instance_state(i["InstanceId"], ["impaired", "az_evicted"]) ]
+        impaired_instances      = [ i["InstanceId"] for i in active_instances if self.ec2.is_instance_state(i["InstanceId"], ["impaired", "unhealthy", "az_evicted"]) ]
         [ instances_with_issue_ids.append(i) for i in impaired_instances if i not in instances_with_issue_ids]
 
         # CPU credit "issues"
