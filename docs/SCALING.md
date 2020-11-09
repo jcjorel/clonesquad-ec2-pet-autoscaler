@@ -93,3 +93,23 @@ Ex:
 Note: The static fleets resources have a dedicated widget in the CloneSquad dashboard. Notice that static resources are NOT part of graphed 
 resources of others widgets. For instance, if a static fleet instance is entering 'CPU Crediting state', it won't appear in the 'TargetGroup and other statuses'
 widget and you will only see 'draining' instances for a very long time in 'Static SubFleet statues' widget. For more details, look at logs!
+
+# About EC2 Spot instance support
+
+CloneSquad can manage only one kind of Spot instances: 'Persistent' one with 'stop' behavior. Especially, Spot fleets ARE NOT supported and
+will throw exceptions in the CloudWatch logs.
+
+Below, the CloudFormation snippet to use and declare a CloneSquad compatible 'EC2 Launch Template'.
+
+```yaml
+    MyCloneSquadCompatibleSpotLaunchTemplate:
+      Type: AWS::EC2::LaunchTemplate
+      Properties:
+        InstanceMarketOptions:
+          MarketType: spot
+          SpotOptions:
+            InstanceInterruptionBehavior: stop
+            SpotInstanceType: persistent
+```
+
+
