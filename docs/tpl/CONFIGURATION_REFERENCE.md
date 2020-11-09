@@ -72,6 +72,7 @@ In the Configuration DynamoDB table, a specific syntax is used to describe key m
 
 ![Example of configuration DynamoDB table with parametersets](ConfigurationDynamoDBTable.png)
 
+> Note: Every DynamoDB configuration keys starting by a character `#` are silently ignored (comment syntax).
 
 ## Configuration keys
 {% for c in config %}
