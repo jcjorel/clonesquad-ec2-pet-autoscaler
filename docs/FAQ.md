@@ -30,7 +30,7 @@ doing with it.
 
 CloneSquad never creates or terminates instances so the likely impact of a bug could be that too much or not enough instances are launched
 or target groups are not properly managed.
-We all know that under a stress situation, run books are essentials.
+We all know that under a stress situation, playbooks are essentials.
 
 * If you think that's something is going bad with the autoscaler, disable it by setting a fixed instance count using [`ec2.schedule.desired_instance_count`](CONFIGURATION_REFERENCE.md#ec2scheduledesired_instance_count). **Setting the value to '100%' will launch all fleet instances and disable as well smart instance issue management ensuring full stability of the fleet at its maximum.**
 * **If you suspect an important and critical issue with CloneSquad, immediate action would be to disable it with the configuration key [`app.disable`](CONFIGURATION_REFERENCE.md#appdisable) set to 1.**
