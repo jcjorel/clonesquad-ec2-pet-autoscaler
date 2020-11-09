@@ -1,5 +1,5 @@
 ec2.schedule.min_instance_count: 2
-cloudwatch.alarm00.configuration_url: "internal:ec2.scaleup.alarm-cpu-gt-75pc.yaml,Points=1001,BaselineThreshold=20.0"
+cloudwatch.alarm00.configuration_url: "internal:ec2.scaleup.alarm-cpu-gt-75pc.yaml,Points=1001,BaselineThreshold=0.0"
 
 min-desired-count-0-pcent:
   ec2.schedule.min_instance_count: 0%
