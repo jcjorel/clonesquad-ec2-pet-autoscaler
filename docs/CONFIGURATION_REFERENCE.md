@@ -199,9 +199,9 @@ forcing their immediate replacement in healthy AZs in the region.
 Default Value: ``   
 Format       :  [String](#String)
 
-Url pointing to a YAML file overriding EC2.describe_instance_status() instance state.
+Url pointing to a YAML file overriding EC2.describe_instance_status() instance states.
 
-                    CloneSquad can optionally load a YAML file containing EC2 instance status override.
+CloneSquad can optionaly load a YAML file containing EC2 instance status override.
 
 The format is a dict of 'InstanceId' containing another dict of metadata:
 
@@ -213,10 +213,10 @@ i-0ad73bbc09cb68f81:
     status: unhealthy
 ```
 
-The status item can contain any of valid values from EC2.describe_instance_status()["InstanceStatus"]["Status"].
-These valid values are ["ok", "impaired", "insufficient-data", "not-applicable", "initializing", "unhealthy"].    
+The status item can contain any of valid values returned by `EC2.describe_instance_status()["InstanceStatus"]["Status"]`.
+The valid values are ["ok", "impaired", "insufficient-data", "not-applicable", "initializing", "unhealthy"].    
 
-**Please notice the special 'unhealthy' value that is a cloneSquad extension:** This value can be injected to force 
+**Please notice the special 'unhealthy' value that is a CloneSquad extension:** This value can be injected to force 
 an instance to be considered as unhealthy by the scheduler. It can be useful to debug/simulate a failure of a 
 specific instance or to inject 'unhealthy' status coming from a non-TargetGroup source (ex: when CloneSquad is used
 without any TargetGroup but another external health instance source exists).
