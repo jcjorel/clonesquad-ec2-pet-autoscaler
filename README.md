@@ -18,12 +18,10 @@ to never create or terminate [EC2](https://aws.amazon.com/ec2/) instances but on
 	- Automatic replacement of unhealthy/unavail/impaired instances,
 	- (Optional) [Vertical scaling](docs/SCALING.md#vertical-scaling) (by leveraging instance type distribution in the fleet),
 * Cost optimization
-	- Support for 'persistent' [Spot instances](https://aws.amazon.com/ec2/spot/) aside of On-Demand ones in the same fleet with configurable priorities,
-	- Spot interruption handling
-	- Smart management of tX.xxx burstable instances (aka '[CPU Crediting mode](docs/COST_OPTIMIZATION.md#clonesquad-cpu-crediting)' to avoid overcost linked to [unlimited bursting](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/burstable-performance-instances-unlimited-mode.html)),
-	- Dedicated Cloudwatch Alarm detecting burstable instances with CPU Credit exhausted,
+	- Support for 'persistent' [Spot instances](https://aws.amazon.com/ec2/spot/) aside of On-Demand ones in the same fleet with configurable priorities and Spot interruption handling,
+	- Smart management of t[3|4].xxx burstable instances (aka '[CPU Crediting mode](docs/COST_OPTIMIZATION.md#clonesquad-cpu-crediting)' to avoid overcost linked to [unlimited bursting](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/burstable-performance-instances-unlimited-mode.html)),
 	- (Optional) ['LightHouse' mode](docs/SCALING.md#vertical-scaling) allowing to run automatically cheap instance types during low activity periods,
-	- (Optional) Extra cost optimization for non-autoscaled resources: [Static subfleet support](docs/SCALING.md#static-subfleet-support) both for EC2 Instances and RDS databases. Allows simple on/off use-cases (in combination with the scheduler. See [demonstration](examples/environments/demo-scheduled-events/)).
+	- (Optional) Extra cost optimization option for non-autoscaled resources: [Static subfleet support](docs/SCALING.md#static-subfleet-support) both for EC2 Instances and RDS databases. Allows simple on/off use-cases (in combination with the scheduler. See [demonstration](examples/environments/demo-scheduled-events/)).
 * Resilience
 	- Manual or automatic Availability Zone eviction (automatic mode based on [*describe_availability_zones()* AWS standard API](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ec2.html#EC2.Client.describe_availability_zones)),
 	- (Optional) Instance bouncing: Frictionless [AWS hypervisor maintenance](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/monitoring-instances-status-check_sched.html) by performing a permanent rolling state cycle (periodic start/stop of instances),
