@@ -22,11 +22,11 @@ to never create or terminate [EC2](https://aws.amazon.com/ec2/) instances but on
 	- Spot interruption handling
 	- Smart management of tX.xxx burstable instances (aka '[CPU Crediting mode](docs/COST_OPTIMIZATION.md#clonesquad-cpu-crediting)' to avoid overcost linked to [unlimited bursting](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/burstable-performance-instances-unlimited-mode.html)),
 	- Dedicated Cloudwatch Alarm detecting burstable instances with CPU Credit exhausted,
-	- Optional ['LightHouse' mode](docs/SCALING.md#vertical-scaling) allowing to run automatically cheap instance types during low activity periods,
+	- (Optional) ['LightHouse' mode](docs/SCALING.md#vertical-scaling) allowing to run automatically cheap instance types during low activity periods,
+	- (Optional) Extra cost optimization for non-autoscaled resources: [Static subfleet support](docs/SCALING.md#static-subfleet-support) both for EC2 Instances and RDS databases. Allows simple on/off use-cases (in combination with the scheduler. See [demonstration](examples/environments/demo-scheduled-events/)).
 * Resilience
 	- Manual or automatic Availability Zone eviction (automatic mode based on [*describe_availability_zones()* AWS standard API](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ec2.html#EC2.Client.describe_availability_zones)),
 	- (Optional) Instance bouncing: Frictionless [AWS hypervisor maintenance](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/monitoring-instances-status-check_sched.html) by performing a permanent rolling state cycle (periodic start/stop of instances),
-	- (Optional) Static subfleet support both for EC2 Instances and RDS databases. Allows simple on/off use-cases (in combination with the scheduler. See [demonstration](examples/environments/demo-scheduled-events/)).
 * Agility
 	- Support for mixed instance type fleet,
 	- Integrated [event scheduler](docs/SCHEDULER.md) ('cron' or 'rate' based) for complex scaling scenario,
