@@ -514,10 +514,12 @@ See [Alarm specification documentation](ALARMS_REFERENCE.md)  for more details.
             metrics.append(m)
 
         log.log(log.NOTICE, "Sending %d metrics to Cloudwatch..." % len(metrics))
-        response = client.put_metric_data(Namespace=namespace, MetricData=metrics)
-        if response["ResponseMetadata"]["HTTPStatusCode"] != 200:
-            log.error("Failed to send metrics to CloudWatch!")
-            log.debug(Dbg.pprint(response))
+        while len(metrics):
+            try:
+                response = client.put_metric_data(Namespace=namespace, MetricData=metrics[:20])
+            except:
+                log.Exception("Failed to send metrics to CloudWatch : %s" % metrics[:20])
+            metrics = metrics[20:]
 
 
 
