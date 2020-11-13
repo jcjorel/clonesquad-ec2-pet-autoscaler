@@ -27,17 +27,19 @@ The Alarm specification file uses a YAML format and will be passed directly to t
 
 This example specifies also 2 meta information:
 * **Points=1001**            : Override default points associated to an alarm (by default, 1000),
-* **BaselineThreshold=30.0** : Specify a baseline threshold to allow CloneSquad works in analogous mode instead of relying only on Alarm triggering. In this example, it defines a baseline threshold of 30.0 (float). The alarm specification [ec2.scaleup.alarm-cpu-gt-75pc.yaml](../src/resources/ec2.scaleup.alarm-cpu-gt-75pc.yaml) defines a main Threshold of 75.0 (meaning 75 percent). CloneSquad will poll Cloudwatch underlying metric (i.e. CPU utilization) and generate points using the below formula:
+* **BaselineThreshold=10.0** : Specify a baseline threshold to allow CloneSquad works in analogous mode instead of relying only on Alarm triggering. In this example, it defines a baseline threshold of 10.0 (float). The alarm specification [ec2.scaleup.alarm-cpu-gt-75pc.yaml](../src/resources/ec2.scaleup.alarm-cpu-gt-75pc.yaml) defines a main Threshold of 75.0 (meaning 75 percent). CloneSquad will poll Cloudwatch underlying metric (i.e. CPU utilization) and generate points using the below formula:
 > Tip: Even optional, it is strongly advised to always define a `BaselineThreshold` to avoid a jerky behavior of the autoscaler. 
-
-> Tip: The `BaselineThreshold` parameter should be set to a value that ensures a scaling criteria that is very close to zero (but ideally not zero) when the squad has no activity. It maximizes the autoscaling smoothness.
 
 Baselined point calculation:
 
-	if Cloudwatch.GetMetricData >= BaselineThreshold:
+	if AlarmTriggered:
+	    GeneratedPoints = AlarmPoints
+	elif BaselineThreshold defined and Cloudwatch.GetMetricData >= BaselineThreshold:
 	    GeneratedPoints = AlarmPoints * (Cloudwatch.GetMetricData - BaselineThreshold) / (MainThreshold - BaselineThreshold) 
 	else:
 	    GeneratedPoints = 0.0
+
+> Tip: The `BaselineThreshold` parameter should be set to a value that ensures a scaling criteria that is very close to zero (but ideally not zero) when the squad has no activity. It maximizes the autoscaling smoothness.
 
 
 Note: Generated points can exceed AlarmPoints if the metric real data is above the main Threshold. CloneSquad algorithm will leverage this

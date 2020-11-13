@@ -152,7 +152,7 @@ class RDS:
         cw = self.cloudwatch
         if len(arns):
             cw.set_metric("StaticFleet.RDS.Size", len(arns))
-            cw.set_metric("StaticFleet.RDS.AvailableDBs", states["available"])
+            cw.set_metric("StaticFleet.RDS.AvailableDBs", states["available"] + states["backing-up"])
             cw.set_metric("StaticFleet.RDS.StoppingDBs", states["stopping"])
             cw.set_metric("StaticFleet.RDS.StartingDBs", states["starting"])
         else:

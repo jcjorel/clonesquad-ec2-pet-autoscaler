@@ -1,3 +1,8 @@
+pre-v0.0.59:
+- (Improvment/Major) After a set of experiments, it is proven that ensuring the wider scale between AlarmThreshold and 
+  AlarmBaselineThreshold induces the best smoothness of the scalein/scaleout algorithm. Prior to this path, the CPU Baseline 
+  Threshold in src/resources/predefined.config.yaml, was set to 20%: Setting it to 0% make the scaleout operation significantly smoother.
+
 v0.0.58:
 - (NewFeature/Minor) Added configuration key 'ec2.instance.status.override_url' allowing override of EC2 instance status (for debug and/or external 'unhealthy' status) with an S3/HTTP server located YAML file.
 - (Bug/Minor) Fixed buggy set-ec2-alarm.sh scripts. (This script manually triggers a CloneSquad fleet EC2 instance alarm to test autoscaler algorithm reaction.)
