@@ -96,6 +96,13 @@ widget and you will only see 'draining' instances for a very long time in 'Stati
 
 # About EC2 Spot instance support
 
+CloneSquad monitors Spot instance interruption and rebalance recommandation messages. 
+* On 'rebalance recommendation', all Spot instances sharing the instance typer signaled are considered as unhealthy. There are part of any TaregtGroup
+asscoaited with but new instances will be launched to replace them. These new instances are selected by the autoscaler avoiding to start instance
+with same characteritics (especially, it won't launch Spot instances sharing the signaled instance type.)
+* On 'interruption', all signaled Spot instances are set to 'draining' state, removed from participating TargetGroups and replacement instances (not
+sharing the same characterictics) are started immediatly. 
+
 CloneSquad can manage only one kind of Spot instances: 'Persistent' one with 'stop' behavior. Especially, Spot fleets ARE NOT supported and
 will throw exceptions in the CloudWatch logs.
 

@@ -74,6 +74,8 @@ forcing their immediate replacement in healthy AZs in the region.
                  "ec2.state.default_ttl": "days=1",
                  "ec2.state.error_ttl" : "minutes=5",
                  "ec2.state.status_ttl" : "days=40",
+                 "ec2.instance.spot.event.interrupted_at_ttl" : "minutes=10",
+                 "ec2.instance.spot.event.rebalance_recommended_at_ttl" : "minutes=15",
                  "ec2.state.error_instance_ids": "",
                  "ec2.state.excluded_instance_ids": {
                      "DefaultValue": "",
@@ -120,7 +122,7 @@ without any TargetGroup but another external health instance source exists).
                 "Prefix": "ec2.instance.",
                 "Compress": True,
                 "DefaultTTL": Cfg.get_duration_secs("ec2.state.default_ttl"),
-                "Exclude" : ["ec2.instance.scaling.state."]
+                "Exclude" : ["ec2.instance.scaling.state.", "ec2.instance.spot.event."]
             }
             ])
 
@@ -237,6 +239,8 @@ without any TargetGroup but another external health instance source exists).
 
     def is_instance_state(self, instance_id, state):
         i = next(filter(lambda i: i["InstanceId"] == instance_id, self.instance_statuses), None)
+        if i is None:
+            return False
 
         # Check for "az_evicted" synthetic status
         if Cfg.get_int("ec2.az.evict_instances_when_az_faulty") and "az_evicted" in state:
@@ -245,7 +249,7 @@ without any TargetGroup but another external health instance source exists).
                 return True
 
         # Check if the status of this instance Id is overriden with an external YAML file
-        if i is not None and i["InstanceState"]["Name"] in ["pending", "running"] and instance_id in self.ec2_status_override:
+        if i["InstanceState"]["Name"] in ["pending", "running"] and instance_id in self.ec2_status_override:
             override = self.ec2_status_override[instance_id]
             if "status" in override:
                 override_status = override["status"]
@@ -254,8 +258,8 @@ without any TargetGroup but another external health instance source exists).
                             (instance_id, self.ec2_status_override_url, override_status))
                 else:
                     return override_status in state
-
-        return i["InstanceStatus"]["Status"] in state if i is not None else False
+        
+        return i["InstanceStatus"]["Status"] in state 
 
     def get_azs_with_issues(self):
         return [ az["ZoneName"] for az in self.az_with_issues ]
@@ -502,6 +506,48 @@ without any TargetGroup but another external health instance source exists).
             return t["Value"] if t["Value"] in value else None 
         return None
 
+    def filter_spot_instances(self, instances, EventType="+rebalance_recommended,interrupted,other_states", 
+            filter_out_instance_types=None, filter_in_instance_types=None, match_only_spot=False, merge_matching_spot_first=False):
+        now     = self.context["now"]
+        res     = []
+        exclude = EventType.startswith("-")
+        types   = EventType[1:].split(",")
+        for i in instances:
+            instance_id    = i["InstanceId"]
+            instance_type  = i["InstanceType"]
+            instance_az    = i["Placement"]["AvailabilityZone"]
+            is_spot        = "SpotInstanceRequestId" in i
+            if match_only_spot and not is_spot:
+                continue
+            if is_spot:
+                if filter_in_instance_types is not None:
+                    m_in  = next(filter(lambda t: t["AvailabilityZone"] == instance_az and t["InstanceType"] == instance_type, filter_in_instance_types), None)
+                    if m_in is None: continue
+                if filter_out_instance_types is not None:
+                    m_out = next(filter(lambda t: t["AvailabilityZone"] == instance_az and t["InstanceType"] == instance_type, filter_out_instance_types), None)
+                    if m_out is not None: continue
+
+            for t in ["rebalance_recommended", "interrupted"]:
+              if t not in types:
+                  continue
+              event_at = self.get_state("ec2.instance.spot.event.%s.%s_at" % (instance_id, t))
+              if event_at is not None:
+                    if exclude: continue
+                    if i not in res: res.append(i)
+                    continue
+            if "other_states" in types:
+                if exclude: continue
+                if i not in res: res.append(i)
+                continue
+
+        if merge_matching_spot_first:
+            merged       = res
+            instance_ids = [ i["InstanceId"] for i in res ]
+            [ merged.append(i) for i in instances if i["InstanceId"] not in instance_ids ]
+            return merged
+
+        return res
+
     def filter_instance_recently_stopped(self, instances, min_age, filter_only_spot=True):
         now = self.context["now"]
         res = []
@@ -605,7 +651,6 @@ without any TargetGroup but another external health instance source exists).
     def set_scaling_state(self, instance_id, value, ttl=None, meta=None, default_date=None):
         if ttl is None: ttl = Cfg.get_duration_secs("ec2.state.default_ttl") 
         if default_date is None: default_date = self.context["now"]
-        #if value in ["draining"] and instance_id in ["i-0ed9bddf74dd2a2f5", "i-0904bbd267f736227"]: pdb.set_trace()
 
         meta           = {} if meta is None else meta
         previous_value = self.get_scaling_state(instance_id, meta=meta, do_not_return_excluded=True)
@@ -717,3 +762,48 @@ without any TargetGroup but another external health instance source exists).
             except:
                 pass
         return recs
+
+
+###############################################
+#### SPOT INSTANCE MANAGEMENT #################
+###############################################
+
+def manage_spot_notification(sqs_record, ctx):
+    try:
+        body = json.loads(sqs_record["body"])
+    except:
+        return False
+    if not "detail-type" in body:
+        return False
+
+    if body["detail-type"] == "EC2 Spot Instance Interruption Warning":
+        reason = "interrupted"
+        func   = spot_interruption_request
+    elif body["detail-type"] == "EC2 Instance Rebalance Recommendation":
+        reason = "rebalance_recommended"
+        func   = spot_rebalance_recommandation_request
+    else:
+        return False
+    log.log(log.NOTICE, Dbg.pprint(sqs_record))
+
+    now         = ctx["now"]
+    instance_id = body["detail"]["instance-id"]
+    ctx["o_state"].get_prerequisites()
+    ctx["o_notify"].get_prerequisites()
+    ctx["o_ec2"].get_prerequisites(only_if_not_already_done=True)
+
+    log.info("EC2 Spot instance '%s' received event '%s'! " % (instance_id, reason))
+    ctx["o_ec2"].set_state("ec2.instance.spot.event.%s.%s_at" % (instance_id, reason), now,
+        TTL=Cfg.get_duration_secs("ec2.instance.spot.event.%s_at_ttl" % reason))
+
+    # Notify interested entities about the event
+    R(None, func, InstanceId=instance_id, Event=body)
+
+    return True
+
+def spot_interruption_request(InstanceId=None, Event=None):
+    return {}
+
+def spot_rebalance_recommandation_request(InstanceId=None, Event=None):
+    return {}
+

@@ -37,6 +37,10 @@ class EC2_Schedule:
         self.integrated_raw_instance_scale_score = 0.0
         self.would_like_to_scalein    = False
         self.would_like_to_scaleout   = False
+        self.spot_rebalance_recommanded   = []
+        self.spot_interrupted         = []
+        self.excluded_spot_instance_types = []
+        self.spot_excluded_instance_ids = []
         Cfg.register({
                  "ec2.schedule.min_instance_count,Stable" : {
                      "DefaultValue" : 0,
@@ -217,6 +221,11 @@ By default, the bouncing algorithm is disabled. When this key is defined with a 
 are monitored for maximum age. Ex: 'days=2' means that, a instance running for more than 2 days will be bounced implying 
 a fresh one will be started before the too old one is going to be stoppped.
 
+Activating bouncing algorithm is a good way to keep the fleet correctly balanced from an AZ spread PoV and, if vertical scaling
+is enabled, from an instance type distribution PoV.
+
+> If your application supports it, activate instance bouncing.
+
                          """
                  },
                  "ec2.schedule.bounce_instance_jitter" : 'minutes=10',
@@ -373,6 +382,7 @@ parameter should NOT be modified by user.
         self.pending_running_instances_wo_excluded_draining_error = self.ec2.get_instances(instances=self.instances_wo_excluded, State="pending,running", ScalingState="-draining,error")
 
         # Useable and serving instances
+        self.compute_spot_exclusion_lists()
         self.initializing_instances                 = self.get_initial_instances()
         self.cpu_exhausted_instances                = self.get_cpu_exhausted_instances()
         self.instances_with_issues                  = self.get_instances_with_issues()
@@ -475,6 +485,12 @@ parameter should NOT be modified by user.
         impaired_instances      = [ i["InstanceId"] for i in active_instances if self.ec2.is_instance_state(i["InstanceId"], ["impaired", "unhealthy", "az_evicted"]) ]
         [ instances_with_issue_ids.append(i) for i in impaired_instances if i not in instances_with_issue_ids]
 
+        # Interrupted spot instances are 'unhealthy' too
+        for i in self.spot_excluded_instance_ids:
+            instance = self.ec2.get_instance_by_id(i)
+            if instance["State"]["Name"] == "running":
+                instances_with_issue_ids.append(i)
+
         # CPU credit "issues"
         exhausted_cpu_instances = sorted([ i["InstanceId"] for i in self.cpu_exhausted_instances])
         all_instances          = self.instances_wo_excluded_error # ec2.get_instances(ScalingState="-excluded,error")
@@ -495,16 +511,14 @@ parameter should NOT be modified by user.
         
         instances_ids_with_issues   = self.instances_with_issues # get_instances_with_issues()
 
-        initializing_instances      = self.initializing_instances # get_initial_instances()
-        
-        if exclude_initializing_instances:
+        if exclude_problematic_instances:
             active_instances = list(filter(lambda i: i["InstanceId"] not in instances_ids_with_issues, active_instances))
 
         if initializing_only:
-            active_instances = list(filter(lambda i: i["InstanceId"] in initializing_instances, active_instances))
+            active_instances = list(filter(lambda i: i["InstanceId"] in self.initializing_instances, active_instances))
 
         if exclude_initializing_instances:
-            active_instances = list(filter(lambda i: i["InstanceId"] not in initializing_instances, active_instances))
+            active_instances = list(filter(lambda i: i["InstanceId"] not in self.initializing_instances, active_instances))
 
         return active_instances
 
@@ -558,7 +572,7 @@ parameter should NOT be modified by user.
         This is the function that manage all decisions related to scaling
         """
         self.generate_instance_transition_events()
-        self.scale_handle_spot_interruption()
+        self.manage_spot_events()
         self.compute_instance_type_plan()
         self.shelve_extra_lighthouse_instances()
         self.scale_desired()
@@ -635,7 +649,7 @@ parameter should NOT be modified by user.
         if len(error_instances):
             log.info("These instances are in 'ERROR' state: %s" % [i["InstanceId"] for i in error_instances])
         if len(instances_with_issues): 
-            log.info("These instances are 'unuseable' (unavail/unhealthy/impaired/lackofcpucredit...) : %s" % instances_with_issues)
+            log.info("These instances are 'unuseable' (unavail/unhealthy/impaired/spotinterrupted/lackofcpucredit...) : %s" % instances_with_issues)
 
 
     ###############################################
@@ -648,6 +662,18 @@ parameter should NOT be modified by user.
         # Get all stopped instances
         stopped_instances = self.ec2.get_instances(State="stopped", azs_filtered_out=disabled_azs)
 
+        # Filter out Spot instance types that we know under interruption or close to interruption
+        candidate_instances = self.ec2.filter_spot_instances(stopped_instances, filter_out_instance_types=self.excluded_spot_instance_types)
+        if len(candidate_instances) != len(stopped_instances):
+            if len(candidate_instances):
+                # We allow Spot filtering only if other kinds of instance are eligible. If not, we try anyway our chance 
+                #   with Spot marked as at risk of interruption...
+                log.info("Filtered %d Spot instance(s) with type(s) '%s'!" % (len(stopped_instances) - len(candidate_instances), self.excluded_spot_instance_types))
+                stopped_instances = candidate_instances
+            elif len(stopped_instances):
+                log.warning("All stopped instances are using Spot instance types (%s) marked for interruption!!"
+                        "Please consider increase fleet instance type diversity!!" % self.excluded_spot_instance_types)
+
         # Filter out Spot instances recently stopped as we can't technically restart them before some time
         stopped_instances = self.ec2.filter_instance_recently_stopped(stopped_instances, 
                 Cfg.get_duration_secs("ec2.schedule.spot.min_stop_period"), filter_only_spot=True)
@@ -656,7 +682,7 @@ parameter should NOT be modified by user.
         stopped_instances = self.ec2.sort_by_balanced_az(stopped_instances, active_instances, 
                 smallest_to_biggest_az=True, excluded_instance_ids=self.instances_with_issues)
 
-        # Let the cale up algorithm influence the instance selection
+        # Let the scaleout algorithm influence the instance selection
         stopped_instances = self.scaleup_sort_instances(stopped_instances, 
                 target_for_dispatch if target_for_dispatch is not None else expected_instance_count, 
                 caller)
@@ -686,7 +712,7 @@ parameter should NOT be modified by user.
             c = min(delta_instance_count, Cfg.get_int("ec2.schedule.max_instance_start_at_a_time"))
 
             stopped_instances = self.filter_stopped_instance_candidates(caller, expected_instance_count, target_for_dispatch=target_for_dispatch)
-
+            
             instance_ids_to_start = self.ec2.get_instance_ids(stopped_instances)
 
             # Start selected instances
@@ -709,8 +735,9 @@ parameter should NOT be modified by user.
             c = min(-delta_instance_count, Cfg.get_int("ec2.schedule.max_instance_stop_at_a_time"))
             log.info("Draining up to %s (shapped to %d) instances..." % (-delta_instance_count, c))
 
+            active_instances = self.pending_running_instances_wo_excluded_draining_error 
+
             # Ensure we picked instances in a way that we keep AZs balanced
-            active_instances = self.pending_running_instances_wo_excluded_draining_error # ec2.get_instances(State="pending,running", ScalingState="-excluded,draining,error")
             active_instances = self.ec2.sort_by_balanced_az(active_instances, active_instances, smallest_to_biggest_az=False)
 
             # If we have disabled AZs, we placed them in front to remove associated instances first
@@ -718,6 +745,12 @@ parameter should NOT be modified by user.
 
             # We place instance with unuseable status in front of the list
             active_instances = self.ec2.sort_by_prefered_instance_ids(active_instances, prefered_ids=self.instances_with_issues) 
+
+            # Put interruped Spot instances as first candidates to stop
+            active_instances = self.ec2.filter_spot_instances(active_instances, EventType="+rebalance_recommended",
+                    filter_in_instance_types=self.excluded_spot_instance_types, merge_matching_spot_first=True)
+            active_instances = self.ec2.filter_spot_instances(active_instances, EventType="+interrupted",
+                    filter_in_instance_types=self.excluded_spot_instance_types, merge_matching_spot_first=True)
 
             # Take into account scaledown algorithm
             active_instances = self.scaledown_sort_instances(active_instances, 
@@ -928,17 +961,6 @@ parameter should NOT be modified by user.
     ###############################################
 
     @xray_recorder.capture()
-    def scale_handle_spot_interruption(self):
-        if "SpotInterruptionCount" not in self.context or self.desired_instance_count() != -1:
-            # desired_instance_count != -1: When the auto-scaler is disabled by desired_instance_count,
-            #   scale_desired() will automatically replace the drained Spot instances.
-            return
-        # We immediatly provision new instances to replace the Spot interrupted ones
-        log.info("Starting %s new instances to replace 'Spot interrupted' one(s)..." % self.context["SpotInterruptionCount"])
-        self.instance_action(self.get_useable_instance_count() + self.context["SpotInterruptionCount"], 
-                "scale_handle_spot_interruption")
-
-    @xray_recorder.capture()
     def scale_desired(self):
         """
         Take scale decisions based on Min/Desired criteria
@@ -954,7 +976,7 @@ parameter should NOT be modified by user.
 
         # If you specify a precise number of instances, we assume that he is requesting
         #   useable instances and so we have to take into account problematic instances
-        active_instance_count   = self.get_useable_instance_count()
+        active_instance_count   = len(self.useable_instances)
         expected_instance_count = max(minimal_instance_count, active_instance_count) if desired_instance_count == -1 else minimal_instance_count
 
         # Step 1) Ask for the desired instance count
@@ -1103,9 +1125,9 @@ parameter should NOT be modified by user.
                   self.get_min_instance_count() > len(all_lh_ids))
 
     def are_all_non_lh_instances_started(self):
-        all_instances              = self.instances_wo_excluded #ec2.get_instances(ScalingState="-excluded")
-        lh_ids                     = self.lighthouse_instances_wo_excluded_ids # get_lighthouse_instances(all_instances)
-        useable_instances          = self.get_useable_instances()
+        all_instances              = self.instances_wo_excluded_error_spotexcluded
+        lh_ids                     = self.lighthouse_instances_wo_excluded_ids
+        useable_instances          = self.useable_instances
         non_lighthouse_instances   = list(filter(lambda i: i["InstanceId"] not in lh_ids, useable_instances))
         all_non_lighthouse_instances       = list(filter(lambda i: i["InstanceId"] not in lh_ids, all_instances))
         all_non_lighthouse_instances_count = len(all_non_lighthouse_instances)
@@ -1115,14 +1137,12 @@ parameter should NOT be modified by user.
         desired_instance_count= self.desired_instance_count()
         min_instance_count    = self.get_min_instance_count()
         useable_instance_count= self.get_useable_instance_count()
-        all_instances         = self.instances_wo_excluded # ec2.get_instances(ScalingState="-excluded")
-        useable_instances     = self.useable_instances
-        serving_instances     = self.serving_instances # get_useable_instances(exclude_initializing_instances=True)
-        all_lh_ids            = self.lighthouse_instances_wo_excluded_ids # get_lighthouse_instances(all_instances)
-        serving_lh_ids        = self.serving_lighthouse_instances_ids # get_lighthouse_instances(serving_instances)
-        running_lh_ids        = self.useable_lighthouse_instance_ids # get_lighthouse_instances(useable_instances)
-        non_lighthouse_instances              = self.serving_non_lighthouse_instance_ids # list(filter(lambda i: i["InstanceId"] not in running_lh_ids, serving_instances))
-        non_lighthouse_instances_initializing = self.serving_non_lighthouse_instance_ids_initializing # list(filter(lambda i: i["InstanceId"] not in running_lh_ids, self.get_useable_instances(initializing_only=True)))
+        all_instances         = self.instances_wo_excluded_error_spotexcluded
+        all_lh_ids            = self.lighthouse_instances_wo_excluded_ids
+        serving_lh_ids        = self.serving_lighthouse_instances_ids
+        running_lh_ids        = self.useable_lighthouse_instance_ids 
+        non_lighthouse_instances              = self.serving_non_lighthouse_instance_ids 
+        non_lighthouse_instances_initializing = self.serving_non_lighthouse_instance_ids_initializing 
         serving_non_lighthouse_instance_count = len(non_lighthouse_instances) - len(non_lighthouse_instances_initializing)
 
 
@@ -1133,8 +1153,8 @@ parameter should NOT be modified by user.
             recommended_amount_of_lh = 0
 
         if desired_instance_count != -1:
-            # Special case for desired_instance_count != -1 were it is authorized to launch LightHouse instances
-            #    when non-lighthouse amoutn if exhausted
+            # Special case for desired_instance_count != -1 where it is authorized to launch LightHouse instances
+            #    when non-lighthouse amount is exhausted
             delta_lh = len(all_instances) - desired_instance_count
             if delta_lh < len(all_lh_ids):
                 recommended_amount_of_lh = len(all_lh_ids) -  delta_lh
@@ -1158,7 +1178,7 @@ parameter should NOT be modified by user.
         lh_ids = self.get_lighthouse_instance_ids(candidates)
 
         instances                  = []
-        useable_instances          = self.get_useable_instances()
+        useable_instances          = self.useable_instances
         non_lighthouse_instances   = list(filter(lambda i: i["InstanceId"] not in lh_ids, useable_instances))
         min_instance_count         = self.get_min_instance_count()
         running_lh_ids             = self.get_lighthouse_instance_ids(useable_instances)
@@ -1290,10 +1310,13 @@ parameter should NOT be modified by user.
         instances_with_issues_ids = self.instances_with_issues  # get_instances_with_issues()
         instances_with_issues     = [ i for i in self.instances_wo_excluded if i["InstanceId"] in instances_with_issues_ids] # self.ec2.get_instances(ScalingState="-excluded")
         lh_instances_with_issues  = self.get_lighthouse_instance_ids(instances_with_issues) 
-        lh_instances_to_exclude   = instances_with_issues_ids.copy()
+        lh_instances_to_exclude   = lh_instances_with_issues.copy()
         lh_draining_instances     = self.get_lighthouse_instance_ids(
                 self.ec2.get_instances(State="pending,running", ScalingState="draining,error"))
         [lh_instances_to_exclude.append(i) for i in lh_draining_instances if i not in lh_instances_to_exclude]
+        # Exclude also LH Spot instances if marked for interrruption
+        [lh_instances_to_exclude.append(i) for i in self.spot_excluded_instance_ids if i in lh_ids and i not in lh_instances_to_exclude]
+
         amount_of_lh     = min(max_lh_instances - len(lh_instances_to_exclude), amount_of_lh)
 
         # Compute the number of LH instances to finally add
@@ -1786,29 +1809,46 @@ parameter should NOT be modified by user.
         self.instance_action(desired_instance_count, "scalein")
         self.set_state("ec2.schedule.scalein.last_action_date", now)
 
-###############################################
-#### SPOT INSTANCE MANAGEMENT #################
-###############################################
+    ###############################################
+    #### SPOT MANAGEMENT ##########################
+    ###############################################
 
-def manage_spot_notification(sqs_record, ctx):
-    try:
-        body = json.loads(sqs_record["body"])
-    except:
-        return False
-    if not "detail-type" in body or body["detail-type"] != "EC2 Spot Instance Interruption Warning":
-        return False
-    instance_id = body["detail"]["instance-id"]
-    ctx["o_state"].get_prerequisites()
-    ctx["o_notify"].get_prerequisites()
-    ctx["o_ec2"].get_prerequisites(only_if_not_already_done=True)
+    def compute_spot_exclusion_lists(self):
+        # Collect all Spot instances events
+        self.spot_rebalance_recommanded = self.ec2.filter_spot_instances(self.instances_wo_excluded, EventType="+rebalance_recommended")
+        self.spot_rebalance_recommanded_ids = [ i["InstanceId"] for i in self.spot_rebalance_recommanded ]
+        self.spot_interrupted           = self.ec2.filter_spot_instances(self.instances_wo_excluded, EventType="+interrupted")
+        self.spot_interrupted_ids       = [ i["InstanceId"] for i in self.spot_interrupted ]
 
-    log.info("EC2 Spot instance interruption received. Mark '%s' as 'draining'! " % instance_id)
-    ctx["o_ec2"].set_scaling_state(instance_id, "draining")
-    R(None, spot_interruption_request, InstanceId=instance_id, Event=body)
+        for event_type in [self.spot_rebalance_recommanded, self.spot_interrupted]:
+            for i in event_type:
+                instance_type  = i["InstanceType"]
+                instance_az    = i["Placement"]["AvailabilityZone"]
+                if instance_type not in self.excluded_spot_instance_types:
+                    self.excluded_spot_instance_types.append({
+                        "AvailabilityZone" : instance_az,
+                        "InstanceType"     : instance_type
+                        })
 
-    if "SpotInterruptionCount" not in ctx: ctx["SpotInterruptionCount"] = 0
-    ctx["SpotInterruptionCount"] += 1
-    return True
+        if len(self.excluded_spot_instance_types):
+            log.warning("Some instance types (%s) are temporarily blacklisted for Spot use as marked as interrupted or close to interruption!" %
+                    self.excluded_spot_instance_types)
 
-def spot_interruption_request(InstanceId=None, Event=None):
-    return {}
+        self.instances_wo_excluded_error_spotexcluded = self.ec2.filter_spot_instances(self.instances_wo_excluded_error, 
+                filter_out_instance_types=self.excluded_spot_instance_types)
+        # Gather all instance ids of interrupted Spot instances
+        for i in self.ec2.filter_spot_instances(self.instances_wo_excluded, filter_in_instance_types=self.excluded_spot_instance_types, match_only_spot=True):
+            self.spot_excluded_instance_ids.append(i["InstanceId"])
+
+    def manage_spot_events(self):
+        if len(self.spot_rebalance_recommanded):
+            log.log(log.NOTICE, "EC2 Spot instances with 'rebalance_recommended' status: %s" % self.spot_rebalance_recommanded)
+        if len(self.spot_interrupted):
+            log.log(log.NOTICE, "EC2 Spot instances with 'interrupted' status: %s" % self.spot_interrupted)
+
+        for i in self.spot_interrupted:
+            instance_id    = i["InstanceId"]
+            if i["State"]["Name"] == "running":
+                self.ec2.set_scaling_state(instance_id, "draining")
+                log.info("Set 'draining' state for Spot interrupted instance '%s'." % instance_id)
+

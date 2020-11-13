@@ -24,7 +24,7 @@ to never create or terminate [EC2](https://aws.amazon.com/ec2/) instances but on
 	- (Optional) Extra cost optimization option for non-autoscaled resources: [Static subfleet support](docs/SCALING.md#static-subfleet-support) both for EC2 Instances and RDS databases. Allows simple on/off use-cases (in combination with the scheduler. See [demonstration](examples/environments/demo-scheduled-events/)).
 * Resilience
 	- Manual or automatic Availability Zone eviction (automatic mode based on [*describe_availability_zones()* AWS standard API](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ec2.html#EC2.Client.describe_availability_zones)),
-	- (Optional) Instance bouncing: Frictionless [AWS hypervisor maintenance](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/monitoring-instances-status-check_sched.html) by performing a permanent rolling state cycle (periodic start/stop of instances),
+	- (Optional) Instance bouncing: Frictionless fleet rebalancing and [AWS hypervisor maintenance](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/monitoring-instances-status-check_sched.html) by performing a permanent rolling state cycle (periodic start/stop of instances),
 * Agility
 	- Support for mixed instance type fleet,
 	- Integrated [event scheduler](docs/SCHEDULER.md) ('cron' or 'rate' based) for complex scaling scenario,
