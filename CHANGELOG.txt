@@ -1,7 +1,7 @@
 v0.0.59:
 - (Bug/Major) Make sure that we do not send more than 20 metrics per CloudWatch.PutMetricData API call.
 - (Improvment/Major) After a set of experiments, it is proven that ensuring the wider scale between AlarmThreshold and 
-  AlarmBaselineThreshold induces the best smoothness of the scalein/scaleout algorithm. Prior to this path, the CPU Baseline 
+  AlarmBaselineThreshold induces the best smoothness of the scalein/scaleout algorithm. Prior to this patch, the CPU Baseline 
   Threshold in src/resources/predefined.config.yaml, was set to 20%: Setting it to 0% make the scaleout operation significantly smoother.
 
 v0.0.58:
