@@ -1304,6 +1304,7 @@ parameter should NOT be modified by user.
 
         max_lh_instances = len(lh_ids)
         expected_count   = desired_instance_count if desired_instance_count != -1 else useable_instance_count
+        expected_count   = max(expected_count, min_instance_count)
         amount_of_lh, amount_of_non_lh = self.shelve_instance_dispatch(expected_count)
 
         # Take into account unhealthy/unavailable LH instances
