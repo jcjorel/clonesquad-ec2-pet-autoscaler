@@ -19,6 +19,10 @@ fi
 
 if [ "$ACTION" = "build" ] ; then
 	VERSION=${1:-latest}
+	if ! [ -d .venv ]; then
+		echo "Updating dependencies..."
+		scripts/update-python-requirements
+	fi
 	tools/cs-format-documentation docs/tpl/CONFIGURATION_REFERENCE.md >docs/CONFIGURATION_REFERENCE.md
 	docker build -t ${CLONESQUAD_DEVKIT_IMAGE}:$VERSION -t clonesquad/devkit:latest -f build/Dockerfile.devkit .
 fi
