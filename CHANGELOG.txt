@@ -1,3 +1,6 @@
+v0.0.60:
+- (Improvment/Major) Added 'Spot Rebalance recommendation' support and reworked 'Spot interruption handling'.
+
 v0.0.59:
 - (Bug/Major) Make sure that we do not send more than 20 metrics per CloudWatch.PutMetricData API call.
 - (Improvment/Major) After a set of experiments, it is proven that ensuring the wider scale between AlarmThreshold and 
