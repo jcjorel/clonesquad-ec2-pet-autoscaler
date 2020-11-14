@@ -273,6 +273,7 @@ Resources:
         EventPattern:
           detail-type:
           - EC2 Spot Instance Interruption Warning
+          - EC2 Instance Rebalance Recommendation
           source:
           - aws.ec2
         State: ENABLED

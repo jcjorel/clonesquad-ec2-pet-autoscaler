@@ -552,6 +552,11 @@ By default, the bouncing algorithm is disabled. When this key is defined with a 
 are monitored for maximum age. Ex: 'days=2' means that, a instance running for more than 2 days will be bounced implying 
 a fresh one will be started before the too old one is going to be stoppped.
 
+Activating bouncing algorithm is a good way to keep the fleet correctly balanced from an AZ spread PoV and, if vertical scaling
+is enabled, from an instance type distribution PoV.
+
+> If your application supports it, activate instance bouncing.
+
                          
 
 
