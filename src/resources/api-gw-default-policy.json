@@ -1,0 +1,12 @@
+[
+        {
+            "Effect": "Allow",
+            "Principal": {
+		 "AWS": "*"
+	    },
+            "Action": "execute-api:Invoke",
+            "Resource": [
+                "execute-api:/*"
+            ]
+        }
+]

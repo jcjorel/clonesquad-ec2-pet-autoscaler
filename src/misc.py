@@ -127,6 +127,7 @@ def get_url(url):
             paths.insert(0, os.environ["LAMBDA_TASK_ROOT"])
         if "CLONESQUAD_DIR" in os.environ: 
             paths.append(os.environ["CLONESQUAD_DIR"])
+            paths.append("%s/src/resources/" % os.environ["CLONESQUAD_DIR"])
         for path in paths:
             for sub_path in [".", "custo", "resources" ]:
                 try:
@@ -168,7 +169,7 @@ def get_url(url):
         return url_cache[url]
     return None
 
-def parse_line_as_list_of_dict(string, leading_keyname="_", default=None):
+def parse_line_as_list_of_dict(string, with_leading_string=True, leading_keyname="_", default=None):
     if string is None:
         return default
     def _remove_escapes(s):
@@ -177,12 +178,15 @@ def parse_line_as_list_of_dict(string, leading_keyname="_", default=None):
     for d in re.split("(?<!\\\\);", string):
         if d == "": continue
 
-        el = re.split("(?<!\\\\),", d)
-        key = el[0]
-        if key == "": continue
-        dct      = defaultdict(str)
-        dct[leading_keyname] = _remove_escapes(key) #.replace("\\,", ",")
-        for item in el[1:]:
+        dct       = defaultdict(str)
+        el        = re.split("(?<!\\\\),", d)
+        idx_start = 0
+        if with_leading_string:
+            key = el[0]
+            if key == "": continue
+            dct[leading_keyname] = _remove_escapes(key) #.replace("\\,", ",")
+            idx_start = 1
+        for item in el[idx_start:]:
             i_el = re.split("(?<!\\\\)=", item, maxsplit=1)
             dct[i_el[0]] = _remove_escapes(i_el[1]) if len(i_el) > 1 else True
         l.append(dct)
