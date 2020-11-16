@@ -33,7 +33,12 @@ def get_policy_content(url, account_id):
     content = misc.get_url(url)
     if content is None:
         raise ValueError("Failed to load specified GWPolicyUrl '%s'!" % url)
-    return str(content, "utf-8").replace("%(AccountId)", account_id)
+    try:
+        content = str(content, "utf-8").replace("%(AccountId)", account_id)
+        return json.loads(content)
+    except:
+        log.exception("Failed to parse the API Gateway policy located at '%s'!" % url)
+    return None
 
 def ApiGWParameters_CreateOrUpdate(data, AccountId=None, Region=None, 
         ApiGWConfiguration=None, ApiGWEndpointConfiguration=None, DefaultGWPolicyURL=None):
@@ -58,10 +63,6 @@ def ApiGWParameters_CreateOrUpdate(data, AccountId=None, Region=None,
             if kw == "GWPolicy" and len(a[kw]):
                 data["GWPolicy"] = get_policy_content(a[kw], AccountId)
 
-    try:
-        data["GWPolicy"] = json.loads(data["GWPolicy"])
-    except:
-        log.exception("Failed to parse the API Gateway policy!")
     log.info(Dbg.pprint(data["GWPolicy"]))
     data["EndpointConfiguration.Type"] = data["GWType"]
 
