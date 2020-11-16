@@ -1,0 +1,14 @@
+{
+    "Statement": [
+        {
+            "Principal": "*",
+            "Action": [
+                "execute-api:Invoke"
+            ],
+            "Effect": "Allow",
+            "Resource": [
+                "arn:aws:execute-api:%(Region):%(AccountId):%(ApiGWId)/*"
+            ]
+        }
+    ]
+}
