@@ -29,9 +29,16 @@ try:
 except Exception as e:
     helper.init_failure(e)
 
-def ApiGWParameters_CreateOrUpdate(data, Region=None, ApiGWConfiguration=None, ApiGWEndpointConfiguration=None, DefaultGWPolicyURL=None):
+def get_policy_content(url, account_id):
+    content = misc.get_url(url)
+    if content is None:
+        raise ValueError("Failed to load specified GWPolicyUrl '%s'!" % url)
+    return str(content, "utf-8").replace("%(AccountId)", account_id)
+
+def ApiGWParameters_CreateOrUpdate(data, AccountId=None, Region=None, 
+        ApiGWConfiguration=None, ApiGWEndpointConfiguration=None, DefaultGWPolicyURL=None):
     data["GWType"]   = "REGIONAL"
-    data["GWPolicy"] = json.loads(str(misc.get_url(DefaultGWPolicyURL), "utf-8"))
+    data["GWPolicy"] = get_policy_content(DefaultGWPolicyURL, AccountId)
     config           = misc.parse_line_as_list_of_dict(ApiGWConfiguration, leading_keyname="GWType")
     if len(config): data.update(config[0])
 
@@ -48,11 +55,14 @@ def ApiGWParameters_CreateOrUpdate(data, Region=None, ApiGWConfiguration=None, A
                 valid_endpoint_configurations = ["REGIONAL", "PRIVATE"]
                 if a[kw] not in valid_endpoint_configurations:
                     raise ValueError("Can't set API GW Endpoint to value '%s'! (valid values are %s)" % (a[kw], valid_endpoint_configurations))
-            if kw == "GWPolicy":
-                policy_content = misc.get_url(a[kw])
-                if policy_content is None:
-                    raise ValueError("Failed to load specified GWPolicyUrl '%s'!" % a[kw])
-                data["GWPolicy"] = json.loads(str(policy_content, "utf-8"))
+            if kw == "GWPolicy" and len(a[kw]):
+                data["GWPolicy"] = get_policy_content(a[kw], AccountId)
+
+    try:
+        data["GWPolicy"] = json.loads(data["GWPolicy"])
+    except:
+        log.exception("Failed to parse the API Gateway policy!")
+    log.info(Dbg.pprint(data["GWPolicy"]))
     data["EndpointConfiguration.Type"] = data["GWType"]
 
 def call(event, context):
@@ -117,9 +127,10 @@ if __name__ == '__main__':
             "ResourceProperties" : {
                 "ServiceToken": "DummyToken",
                 "Helper": "ApiGWParameters",
-                "ApiGWConfiguration": "PRIVATE,GWPolicy=https://www.w3schools.com/",
+                "ApiGWConfiguration": "PRIVATE", #,GWPolicy=https://www.w3schools.com/",
                 "ApiGWEndpointConfiguration": "VpcId=vpc-1235",
-                "DefaultGWPolicyURL": "internal:api-gw-default-policy.yaml"
+                "DefaultGWPolicyURL": "internal:api-gw-default-policy.json",
+                "AccountId": "111111111111"
             }
     }
     handler(event, context)
