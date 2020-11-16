@@ -76,6 +76,7 @@ Parameters:
 
 Conditions:
     HasCustomizationZipParameters: !Not [ !Equals [ !Ref CustomizationZipParameters, ""]]
+    HasApiGWEndpointConfiguration: !Not [ !Equals [ !Ref ApiGWEndpointConfiguration, ""]]
 
 
 Resources:
@@ -545,6 +546,49 @@ Resources:
             - Key: "clonesquad:group-name"
               Value: !Ref GroupName
 
+    ApiGWVpcEndpointParameters:
+            Type: "Custom::CustomResourceFunction"
+            Condition: HasApiGWEndpointConfiguration
+            Properties:
+              ServiceToken: !GetAtt CustomResourceFunction.Arn
+              Helper: ApiGWVpcEndpointParameters
+              AccountId: !Ref AWS::AccountId
+              Region: !Ref AWS::Region
+              ApiGWConfiguration: !Ref ApiGWConfiguration
+              ApiGWEndpointConfiguration: !Ref ApiGWEndpointConfiguration
+              ApiGWId: !Ref InteractApi
+              DefaultGWVpcEndpointPolicyURL: "internal:api-gw-default-endpoint-policy.json"
+
+    ApiGWVpcEndpoints:
+        Type: AWS::EC2::VPCEndpoint
+        Condition: HasApiGWEndpointConfiguration
+        Properties: 
+          PolicyDocument: !GetAtt ApiGWVpcEndpointParameters.PolicyDocument
+          PrivateDnsEnabled: !GetAtt ApiGWVpcEndpointParameters.PrivateDnsEnabled
+          SecurityGroupIds: 
+            - !Ref ApiGWEndpointSecurityGroup
+          ServiceName: !Sub "com.amazonaws.${AWS::Region}.execute-api"
+          SubnetIds: !GetAtt ApiGWVpcEndpointParameters.SubnetIds
+          VpcEndpointType: Interface
+          VpcId: !GetAtt ApiGWVpcEndpointParameters.VpcId
+
+    ApiGWEndpointSecurityGroup:
+        Type: AWS::EC2::SecurityGroup
+        Condition: HasApiGWEndpointConfiguration
+        Properties:
+          GroupDescription: !Sub "${AWS::StackName} - Security Group for CloneSquad API GW"
+          SecurityGroupEgress:
+          - IpProtocol: -1
+            FromPort: -1
+            ToPort: -1
+            CidrIp: 0.0.0.0/0
+          SecurityGroupIngress: !GetAtt ApiGWVpcEndpointParameters.SecurityGroupIngressRule
+          VpcId: !GetAtt ApiGWVpcEndpointParameters.VpcId
+          Tags:
+          - Key: Name
+            Value: !Join ['', [!Ref "AWS::StackName", "-APIGWEndpointSecurityGroup" ]]
+          
+
     MainFunction:
             Type: AWS::Serverless::Function 
             Properties:
@@ -687,6 +731,11 @@ Resources:
                   InteractQueue:      !Ref InteractQueue
                   InteractAPIGWUrl:   !Sub "https://${InteractApi}.execute-api.${AWS::Region}.amazonaws.com/v1/"
                   MainFunctionArn:    !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:CloneSquad-Main-${GroupName}"
+                  InteractApi:        !Ref InteractApi
+                  ApiGwVpcEndpointDNSEntries: !If 
+                        - HasApiGWEndpointConfiguration 
+                        - !Select [ 1, !Split [ ":", !Select [ 0, !GetAtt ApiGWVpcEndpoints.DnsEntries]]]
+                        - ""
 
     InteractFunction:
             Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
