@@ -79,7 +79,7 @@
         "Unstable": ""
     },
     "requestContext": {
-        "accountId": "875736396844",
+        "accountId": "111122223333",
         "apiId": "pqf2dyt539",
         "domainName": "pqf2dyt539.execute-api.eu-west-1.amazonaws.com",
         "domainPrefix": "pqf2dyt539",
@@ -87,7 +87,7 @@
         "httpMethod": "GET",
         "identity": {
             "accessKey": "ASIA4XZPU6QWKEDZFEMM",
-            "accountId": "875736396844",
+            "accountId": "111122223333",
             "caller": "AROA4XZPU6QWEHI3GL3RW:i-0ed23b77058b68c89",
             "cognitoAuthenticationProvider": null,
             "cognitoAuthenticationType": null,
@@ -97,7 +97,7 @@
             "sourceIp": "172.31.15.215",
             "user": "AROA4XZPU6QWEHI3GL3RW:i-0ed23b77058b68c89",
             "userAgent": "python-requests/2.25.0",
-            "userArn": "arn:aws:sts::875736396844:assumed-role/EC2_Admin/i-0ed23b77058b68c89",
+            "userArn": "arn:aws:sts::111122223333:assumed-role/EC2_Admin/i-0ed23b77058b68c89",
             "vpcId": "vpc-e119f098",
             "vpceId": "vpce-0f48e4568deac1c33"
         },
