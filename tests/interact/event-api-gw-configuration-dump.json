@@ -1,0 +1,115 @@
+{
+    "body": null,
+    "headers": {
+        "Accept": "application/xml",
+        "Accept-Encoding": "gzip, deflate",
+        "Content-Type": "application/json",
+        "Host": "pqf2dyt539.execute-api.eu-west-1.amazonaws.com",
+        "User-Agent": "python-requests/2.25.0",
+        "X-Forwarded-For": "172.31.15.215",
+        "x-amz-content-sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "x-amz-date": "20201117T134610Z",
+        "x-amz-security-token": "IQoJb3JpZ2luX2VjELb//////////wEaCWV1LXdlc3QtMSJHMEUCIA3vZrsBhV0BYJa6n1bGGPahmD/uVk5tP8S45WZh44FGAiEAtNLCGs+nTi0cMxtffZH1zi/odyOojd9nKFMENDqrNHcqtAMILxAAGgw4NzU3MzYzOTY4NDQiDMQdoRUxeJtDUVWJdCqRA6mMK2ZegSpscjiZZdY6skPTgsoIEInN/0EimmmDRpXERIOwOITrD26bu2hJF2cnr4sGSTGawAQvDHIF96sTS6mrwyQEz7wltgRi1sik1Y3FVETrtLD5BnKXaMC6iPemgAndziXPQasLa0pQ2V2ze4n1xK0/5NB+WEiKnOO2j8M7Qj4q0JpsqqG6ytls+6nsExFN6I5cboJ1WH1jhAaINwr0qcX+JLlhBSVPsOhk2a8a3DPNPFcOiVK4T8tWSwWxQzrNvydwNofrRMVMaGanLugEpTpZGjOqibo37SE2EemQX/uECCLprKufEBP4HZWDMpM+Vyd1mRTEnA4fI7JOzMw6lSROacUi1m1nsKdn9uKA55Gj1QGmi/xyEyKEcX/ytrRqT9MNFuxJg5CyNkh1oJP1w4T9qJ5SXwh4QXwd9EpuOaFTst/63PsBVXA0d+A8KYEH6tua9X+yU/bJxBR8Lrhf871ASFKW2+L1JgmeUe9RTIturD9wXWrXr755GRKzpS2UVMxD8HsUFofoD3QyqfiuMLuhz/0FOusBE3pBUqL2D0g40W244of+Dqp+dLHkLOZ6KgFKUtaiZqD0O8iJs4NUYG+6oKk7Q3VIVozo3pxNF6sCAv6Oz70bBpwztnn4g8muVEVx80HeVUQSQbq9ta5PaKZSb/nglpZk73J/uAbJVJLAa8wJqVSrMFX8wbRyUXUiEEHtbJA5h6wOAxHdfSJYRugu4tBgLqeVZQVxPgRUAKPI/7ClWvFJB6t04dAQkIZah6bz/TljjVRRxEf6LbhvhTWUoXcsja3zMfWB0oZ3Cjjj57m/ZN9cHzPFkivun+JqWYYR+kjoMEtXbAYML1bPLb3yAQ==",
+        "x-amzn-cipher-suite": "ECDHE-RSA-AES128-GCM-SHA256",
+        "x-amzn-tls-version": "TLSv1.2",
+        "x-amzn-vpc-id": "vpc-e119f098",
+        "x-amzn-vpce-config": "0",
+        "x-amzn-vpce-id": "vpce-0f48e4568deac1c33",
+        "x-amzn-vpce-policy-url": "MQ=="
+    },
+    "httpMethod": "GET",
+    "isBase64Encoded": false,
+    "multiValueHeaders": {
+        "Accept": [
+            "application/xml"
+        ],
+        "Accept-Encoding": [
+            "gzip, deflate"
+        ],
+        "Content-Type": [
+            "application/json"
+        ],
+        "Host": [
+            "pqf2dyt539.execute-api.eu-west-1.amazonaws.com"
+        ],
+        "User-Agent": [
+            "python-requests/2.25.0"
+        ],
+        "X-Forwarded-For": [
+            "172.31.15.215"
+        ],
+        "x-amz-content-sha256": [
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        ],
+        "x-amz-date": [
+            "20201117T134610Z"
+        ],
+        "x-amz-security-token": [
+            "IQoJb3JpZ2luX2VjELb//////////wEaCWV1LXdlc3QtMSJHMEUCIA3vZrsBhV0BYJa6n1bGGPahmD/uVk5tP8S45WZh44FGAiEAtNLCGs+nTi0cMxtffZH1zi/odyOojd9nKFMENDqrNHcqtAMILxAAGgw4NzU3MzYzOTY4NDQiDMQdoRUxeJtDUVWJdCqRA6mMK2ZegSpscjiZZdY6skPTgsoIEInN/0EimmmDRpXERIOwOITrD26bu2hJF2cnr4sGSTGawAQvDHIF96sTS6mrwyQEz7wltgRi1sik1Y3FVETrtLD5BnKXaMC6iPemgAndziXPQasLa0pQ2V2ze4n1xK0/5NB+WEiKnOO2j8M7Qj4q0JpsqqG6ytls+6nsExFN6I5cboJ1WH1jhAaINwr0qcX+JLlhBSVPsOhk2a8a3DPNPFcOiVK4T8tWSwWxQzrNvydwNofrRMVMaGanLugEpTpZGjOqibo37SE2EemQX/uECCLprKufEBP4HZWDMpM+Vyd1mRTEnA4fI7JOzMw6lSROacUi1m1nsKdn9uKA55Gj1QGmi/xyEyKEcX/ytrRqT9MNFuxJg5CyNkh1oJP1w4T9qJ5SXwh4QXwd9EpuOaFTst/63PsBVXA0d+A8KYEH6tua9X+yU/bJxBR8Lrhf871ASFKW2+L1JgmeUe9RTIturD9wXWrXr755GRKzpS2UVMxD8HsUFofoD3QyqfiuMLuhz/0FOusBE3pBUqL2D0g40W244of+Dqp+dLHkLOZ6KgFKUtaiZqD0O8iJs4NUYG+6oKk7Q3VIVozo3pxNF6sCAv6Oz70bBpwztnn4g8muVEVx80HeVUQSQbq9ta5PaKZSb/nglpZk73J/uAbJVJLAa8wJqVSrMFX8wbRyUXUiEEHtbJA5h6wOAxHdfSJYRugu4tBgLqeVZQVxPgRUAKPI/7ClWvFJB6t04dAQkIZah6bz/TljjVRRxEf6LbhvhTWUoXcsja3zMfWB0oZ3Cjjj57m/ZN9cHzPFkivun+JqWYYR+kjoMEtXbAYML1bPLb3yAQ=="
+        ],
+        "x-amzn-cipher-suite": [
+            "ECDHE-RSA-AES128-GCM-SHA256"
+        ],
+        "x-amzn-tls-version": [
+            "TLSv1.2"
+        ],
+        "x-amzn-vpc-id": [
+            "vpc-e119f098"
+        ],
+        "x-amzn-vpce-config": [
+            "0"
+        ],
+        "x-amzn-vpce-id": [
+            "vpce-0f48e4568deac1c33"
+        ],
+        "x-amzn-vpce-policy-url": [
+            "MQ=="
+        ]
+    },
+    "multiValueQueryStringParameters": {
+        "Unstable": [
+            ""
+        ]
+    },
+    "path": "/Configuration/Dump",
+    "pathParameters": {
+        "proxy": "Configuration/Dump"
+    },
+    "queryStringParameters": {
+        "Unstable": ""
+    },
+    "requestContext": {
+        "accountId": "875736396844",
+        "apiId": "pqf2dyt539",
+        "domainName": "pqf2dyt539.execute-api.eu-west-1.amazonaws.com",
+        "domainPrefix": "pqf2dyt539",
+        "extendedRequestId": "WJ4VaGZBDoEFXjA=",
+        "httpMethod": "GET",
+        "identity": {
+            "accessKey": "ASIA4XZPU6QWKEDZFEMM",
+            "accountId": "875736396844",
+            "caller": "AROA4XZPU6QWEHI3GL3RW:i-0ed23b77058b68c89",
+            "cognitoAuthenticationProvider": null,
+            "cognitoAuthenticationType": null,
+            "cognitoIdentityId": null,
+            "cognitoIdentityPoolId": null,
+            "principalOrgId": "o-jdztrf90vw",
+            "sourceIp": "172.31.15.215",
+            "user": "AROA4XZPU6QWEHI3GL3RW:i-0ed23b77058b68c89",
+            "userAgent": "python-requests/2.25.0",
+            "userArn": "arn:aws:sts::875736396844:assumed-role/EC2_Admin/i-0ed23b77058b68c89",
+            "vpcId": "vpc-e119f098",
+            "vpceId": "vpce-0f48e4568deac1c33"
+        },
+        "path": "/v1/Configuration/Dump",
+        "protocol": "HTTP/1.1",
+        "requestId": "0e42e6c4-283d-4901-bb97-ceb3a0e18c6a",
+        "requestTime": "17/Nov/2020:13:46:10 +0000",
+        "requestTimeEpoch": 1605620770587,
+        "resourceId": "q0g7y6",
+        "resourcePath": "/{proxy+}",
+        "stage": "v1"
+    },
+    "resource": "/{proxy+}",
+    "stageVariables": null
+}
