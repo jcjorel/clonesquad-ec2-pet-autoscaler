@@ -76,20 +76,21 @@ def read_all_sqs_messages():
     return messages
 
 @xray_recorder.capture()
-def process_sqs_records(event, function=None, function_arg=None):
+def process_sqs_records(ctx, event, function=None, function_arg=None):
     if event is None:
         return False
     if "Records" not in event:
         return False
 
     processed = 0
-    sqs_client = ctx["sqs.client"]
     for r in event["Records"]:
         if r["eventSource"] == "aws:sqs":
+            misc.initialize_clients(["sqs"], ctx)
             if function is None or function(r, function_arg):
                 log.debug("Deleting SQS record...")
                 processed += 1
                 try:
+                    sqs_client = ctx["sqs.client"]
                     queue_arn  = r["eventSourceARN"]
                     queue_name = queue_arn.split(':')[-1]
                     account_id = queue_arn.split(':')[-2]

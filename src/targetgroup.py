@@ -21,8 +21,6 @@ class ManagedTargetGroup:
     def __init__(self, context, ec2):
         self.context       = context
         self.ec2           = ec2
-        self.client_ec2    = context["ec2.client"]
-        self.client_elbv2  = context["elbv2.client"]
         self.state_changed = False
         self.prereqs_done  = False
         Cfg.register({
@@ -42,6 +40,8 @@ class ManagedTargetGroup:
     def get_prerequisites(self, only_if_not_already_done=False):
         if only_if_not_already_done and self.prereqs_done:
             return
+        self.client_ec2    = self.context["ec2.client"]
+        self.client_elbv2  = self.context["elbv2.client"]
 
         response = self.client_elbv2.describe_target_groups()
         targetgroups = response["TargetGroups"]

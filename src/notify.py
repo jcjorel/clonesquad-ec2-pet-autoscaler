@@ -1,13 +1,14 @@
+import sys
 import boto3
 import json
 import pdb
 import re
 import gzip
 import base64
-import traceback
 import kvtable
 from kvtable import KVTable
 from datetime import datetime
+import traceback
 
 import misc
 import config as Cfg
@@ -21,8 +22,9 @@ patch_all()
 import cslog
 log = cslog.logger(__name__)
 
-notify_mgr = None
-do_not_notify = False
+this = sys.modules[__name__]
+this.notify_mgr    = None
+this.do_not_notify = False
 
 def record_call(is_success_func, f, *args, **kwargs):
     return _record_call(True, is_success_func, f, *args, **kwargs)
@@ -32,8 +34,7 @@ def record_call_lt(is_success_func, f, *args, **kwargs):
 
 @xray_recorder.capture()
 def _record_call(need_shortterm_record, is_success_func, f, *args, **kwargs):
-    global records
-    global notify_mgr
+    global this
     record = {}
     record["EventType"] = f.__name__ 
     record["Input"] = { 
@@ -64,13 +65,13 @@ def _record_call(need_shortterm_record, is_success_func, f, *args, **kwargs):
             log.exception("Failed to persist aggregated date!")
         xray_recorder.end_subsegment()
 
-    if notify_mgr is None or do_not_notify:
-        log.debug("Do not write Event in event table: notify_mgr=%s, do_not_notify=%s" % (notify_mgr, do_not_notify))
+    if this.notify_mgr is None or this.do_not_notify:
+        log.debug("Do not write Event in event table: notify_mgr=%s, do_not_notify=%s" % (this.notify_mgr, do_not_notify))
         if managed_exception is not None:
             raise managed_exception
         return r
 
-    ctx    = notify_mgr.context
+    ctx    = this.notify_mgr.context
 
     try:
         need_longterm_record = managed_exception is not None or not is_success_func(args, kwargs, r) if is_success_func is not None else False
@@ -83,23 +84,24 @@ def _record_call(need_shortterm_record, is_success_func, f, *args, **kwargs):
     record["Metadata"] = {}
     xray_recorder.begin_subsegment("notifycall-build_metadata:%s" % f.__name__)
     try:
-        notify_mgr.ec2.get_prerequisites(only_if_not_already_done=True)
+        this.notify_mgr.ec2.get_prerequisites(only_if_not_already_done=True)
         record["Metadata"]["EC2"] = {
-                "AllInstanceDetails": notify_mgr.ec2.get_instances(),
-                "AllInstanceStatuses" : notify_mgr.ec2.get_instance_statuses(),
-                "DrainingInstances" : [i["InstanceId"] for i in notify_mgr.ec2.get_instances(ScalingState="draining")],
-                "BouncedInstances"  : [i["InstanceId"] for i in notify_mgr.ec2.get_instances(ScalingState="bounced")],
-                "ExcludedInstances" : [i["InstanceId"] for i in notify_mgr.ec2.get_instances(ScalingState="excluded")],
-                "ErrorInstances"    : [i["InstanceId"] for i in notify_mgr.ec2.get_instances(ScalingState="error")],
-                "ScalingStates"     : notify_mgr.ec2.get_all_scaling_states()
+                "AllInstanceDetails": this.notify_mgr.ec2.get_instances(),
+                "AllInstanceStatuses" : this.notify_mgr.ec2.get_instance_statuses(),
+                "DrainingInstances" : [i["InstanceId"] for i in this.notify_mgr.ec2.get_instances(ScalingState="draining")],
+                "BouncedInstances"  : [i["InstanceId"] for i in this.notify_mgr.ec2.get_instances(ScalingState="bounced")],
+                "ExcludedInstances" : [i["InstanceId"] for i in this.notify_mgr.ec2.get_instances(ScalingState="excluded")],
+                "ErrorInstances"    : [i["InstanceId"] for i in this.notify_mgr.ec2.get_instances(ScalingState="error")],
+                "ScalingStates"     : this.notify_mgr.ec2.get_all_scaling_states()
                 }
     except Exception as e: 
         log.exception('Failed to create record["Metadata"]["EC2"] : %s' % e)
     xray_recorder.end_subsegment()
+
     xray_recorder.begin_subsegment("notifycall-build_metadata_targetgroup:%s" % f.__name__)
     try:
-        notify_mgr.targetgroup.get_prerequisites(only_if_not_already_done=True)
-        record["Metadata"]["TargetGroups"] = notify_mgr.targetgroup.get_targetgroups_info()
+        this.notify_mgr.targetgroup.get_prerequisites(only_if_not_already_done=True)
+        record["Metadata"]["TargetGroups"] = this.notify_mgr.targetgroup.get_targetgroups_info()
     except Exception as e: 
         log.exception('Failed to create record["Metadata"]["TargetGroups"] : %s' % e)
     xray_recorder.end_subsegment()
@@ -149,7 +151,7 @@ def _record_call(need_shortterm_record, is_success_func, f, *args, **kwargs):
             # Insert snapshots of the CloudWatch dashboard
             try:
                 log.log(log.NOTICE, "Generating snapshots for Dashboard graphs...")
-                images = notify_mgr.cloudwatch.get_dashboard_images()
+                images = this.notify_mgr.cloudwatch.get_dashboard_images()
                 for i in images:
                     compressed_name   = i.replace(" ", "")
                     UpdateExpression += ", Graph_%s_PNG=:graph%s" % (compressed_name, compressed_name)
@@ -176,7 +178,7 @@ def _record_call(need_shortterm_record, is_success_func, f, *args, **kwargs):
 
         # Keep under control the number of LongTerm items stored in DynamoDB table
         if need_longterm_record:
-            longterm_item_eventdates = [ m["_"] for m in notify_mgr.state.get_metastring_list("notify.longterm.itemlist", default=[])]
+            longterm_item_eventdates = [ m["_"] for m in this.notify_mgr.state.get_metastring_list("notify.longterm.itemlist", default=[])]
             log.log(log.NOTICE, "Guessed number of records in LongTerm Event table : %d", len(longterm_item_eventdates))
             longterm_item_eventdates.append(str(now))
             nb_records_to_delete     = max(len(longterm_item_eventdates) - max_longterm_records, 0)
@@ -194,7 +196,7 @@ def _record_call(need_shortterm_record, is_success_func, f, *args, **kwargs):
                                 (eventdate, max_longterm_records))
                 except Exception as e:
                     log.exception("Got exception while deleting LongTerm record '%s' : %e" % (eventdate, e))
-            notify_mgr.state.set_state("notify.longterm.itemlist", ";".join(longterm_item_eventdates[nb_records_to_delete:]), 
+            this.notify_mgr.state.set_state("notify.longterm.itemlist", ";".join(longterm_item_eventdates[nb_records_to_delete:]), 
                 TTL=Cfg.get_duration_secs("notify.event.longterm.ttl"))
             try:
                 KVTable.persist_aggregates()
@@ -232,8 +234,9 @@ def _record_call(need_shortterm_record, is_success_func, f, *args, **kwargs):
 class NotifyMgr:
     @xray_recorder.capture(name="NotifyMgr.__init__")
     def __init__(self, context, state, ec2, targetgroup, cloudwatch):
-        global do_not_notify
-        do_not_notify   = False
+        global this
+        this.do_not_notify   = False
+        this.notify_mgr = self
         self.context    = context
         self.ec2        = ec2
         self.targetgroup= targetgroup
@@ -271,8 +274,6 @@ improve CloneSquad over time by allowing easy sharing of essential data for remo
                 "Exclude" : []
             }
             ])
-        global notify_mgr
-        notify_mgr = self
 
 
     def get_prerequisites(self):
@@ -391,6 +392,7 @@ improve CloneSquad over time by allowing easy sharing of essential data for remo
 
     @xray_recorder.capture()
     def call_lambda(self, arn, region, account_id, service_path, content, e):
+        misc.initialize_clients(["lambda"], self.context)
         client = self.context["lambda.client"]
         log.info("Notifying asynchronously UserLambda '%s' for event '%s'..." % (arn, e))
         response = client.invoke(
@@ -403,6 +405,7 @@ improve CloneSquad over time by allowing easy sharing of essential data for remo
 
     @xray_recorder.capture()
     def call_sqs(self, arn, region, account_id, service_path, content, e):
+        misc.initialize_clients(["sqs"], self.context)
         client = self.context["sqs.client"]
         response = client.get_queue_url(
             QueueName=service_path,
@@ -416,6 +419,7 @@ improve CloneSquad over time by allowing easy sharing of essential data for remo
 
     @xray_recorder.capture()
     def call_sns(self, arn, region, account_id, service_path, content, e):
+        misc.initialize_clients(["sns"], self.context)
         client = self.context["sns.client"]
         log.info("Notifying to SNS Topic '%s' for event '%s'..." % (arn, e))
         response = client.publish(

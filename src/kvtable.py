@@ -51,6 +51,7 @@ class KVTable():
             return
 
         now    = self.context["now"]
+        misc.initialize_clients(["dynamodb"], self.context)
         client = self.context["dynamodb.client"]
 
         self.table_last_read_date = now

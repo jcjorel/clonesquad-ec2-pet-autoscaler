@@ -249,29 +249,29 @@ Resources:
           - Key: "clonesquad:group-name"
             Value: !Ref GroupName
 
-    EC2EventRule:
-      Type: 'AWS::Events::Rule'
-      Properties:
-        Name: !Sub "CloneSquad-EC2-Notif-${GroupName}"
-        Description: >-
-          CloudWatch Event Rule that detects changes to EC2 Instances and
-          publishes change events to the SQS queue for notification.
-        State: ENABLED
-        Targets:
-          - Arn: !GetAtt MainQueue.Arn
-            Id: !GetAtt MainQueue.QueueName
-        EventPattern:
-          detail-type:
-            - AWS API Call via CloudTrail
-          detail:
-            eventSource:
-              - ec2.amazonaws.com
-            eventName:
-              - RunInstances
-              - RebootInstances
-              - StartInstances
-              - StopInstances
-              - TerminateInstances
+#    EC2EventRule:
+#      Type: 'AWS::Events::Rule'
+#      Properties:
+#        Name: !Sub "CloneSquad-EC2-Notif-${GroupName}"
+#        Description: >-
+#          CloudWatch Event Rule that detects changes to EC2 Instances and
+#          publishes change events to the SQS queue for notification.
+#        State: ENABLED
+#        Targets:
+#          - Arn: !GetAtt MainQueue.Arn
+#            Id: !GetAtt MainQueue.QueueName
+#        EventPattern:
+#          detail-type:
+#            - AWS API Call via CloudTrail
+#          detail:
+#            eventSource:
+#              - ec2.amazonaws.com
+#            eventName:
+#              - RunInstances
+#              - RebootInstances
+#              - StartInstances
+#              - StopInstances
+#              - TerminateInstances
 
     EC2SpotEventRule:
       Type: AWS::Events::Rule

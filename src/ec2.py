@@ -130,6 +130,7 @@ without any TargetGroup but another external health instance source exists).
     def get_prerequisites(self, only_if_not_already_done=False):
         if only_if_not_already_done and self.prereqs_done:
             return
+        misc.initialize_clients(["ec2"], self.context)
 
         self.state_table = self.o_state.get_state_table()
         client           = self.context["ec2.client"]
