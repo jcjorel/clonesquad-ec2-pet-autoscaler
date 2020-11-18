@@ -6,13 +6,9 @@ if [ -z "$CLONESQUAD_DIR" ]; then
 fi
 source ${CLONESQUAD_DIR}/scripts/_source-me.sh
 
-if ! [ -z "$1" ]; then 
-	export GroupName=$1
-fi
-
-cd src/
+export PYTHONPATH=$PWD/src/
 export AWS_SAM_LOCAL=true
 export LAMBDA_TASK_ROOT=.
 export CLONESQUAD_LOGLEVELS="kvtable=INFO,notify=INFO,targetgroup=INFO"
-../.venv/bin/python3 app.py
+.venv/bin/python3 src/app.py $*
 
