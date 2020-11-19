@@ -48,7 +48,7 @@ class Scheduler:
         # Read all existing event rules
         client = self.context["events.client"]
         params = {
-           "NamePrefix": "CS-Cron-%s%s-" % (self.context["GroupName"], self.context["VariantNumber"]),
+           "NamePrefix": "CS-Cron-%s-" % (self.context["GroupName"]),
            "Limit":      10
         }
         rules  = []
@@ -116,7 +116,7 @@ class Scheduler:
             if not isinstance(self.events[e], str): continue
 
             digest     = misc.sha256("%s:%s" % (e, self.events[e]))
-            event_name = "CS-Cron-%s%s-%s" % (self.context["GroupName"], self.context["VariantNumber"], digest[:10])
+            event_name = "CS-Cron-%s-%s" % (self.context["GroupName"], digest[:10])
             try:
                 self.event_names.append({
                     "Name": event_name,

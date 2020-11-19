@@ -4,7 +4,7 @@ Description: CloneSquad deployment
 
 Globals:
   Function:
-    Timeout: !Ref OperationTimeout
+    Timeout: 300
 
 Parameters: 
   GroupName: 
@@ -56,18 +56,6 @@ Parameters:
     Default: ""
     Description: "(Optional) API Gateway endpoint configuration"
 
-  OperationTimeout: 
-    Type: String
-    ConstraintDescription: "[0-9]+"
-    Default: 300
-    Description: "(Optional) General timeout for operations"
-
-  VariantNumber:
-    Type: String
-    ConstraintDescription: "[0-9]*"
-    Default: ""
-    Description: "(Debug) Used to avoid CloudFormation clashes when updating some resources (ex: DynamoDB Tables)"
-
   XRayDiagnosis:
     Type: String
     Default: 1
@@ -86,7 +74,7 @@ Resources:
         MessageRetentionPeriod: 120
         QueueName: !Sub "CloneSquad-Main-${GroupName}"
         ReceiveMessageWaitTimeSeconds: 10
-        VisibilityTimeout: !Ref OperationTimeout
+        VisibilityTimeout: 300
         Tags: 
           - Key: "clonesquad:group-name"
             Value: !Ref GroupName
@@ -130,7 +118,7 @@ Resources:
     ConfigTable: 
       Type: AWS::DynamoDB::Table
       Properties: 
-        TableName: !Sub "CloneSquad-${GroupName}${VariantNumber}-Configuration"
+        TableName: !Sub "CloneSquad-${GroupName}-Configuration"
         AttributeDefinitions: 
           - 
             AttributeName: "Key"
@@ -152,7 +140,7 @@ Resources:
     AlarmStateEC2Table: 
       Type: AWS::DynamoDB::Table
       Properties: 
-        TableName: !Sub "CloneSquad-${GroupName}${VariantNumber}-AlarmState-EC2"
+        TableName: !Sub "CloneSquad-${GroupName}-AlarmState-EC2"
         AttributeDefinitions: 
           - 
             AttributeName: "AlarmName"
@@ -172,7 +160,7 @@ Resources:
     StateTable: 
       Type: AWS::DynamoDB::Table
       Properties: 
-        TableName: !Sub "CloneSquad-${GroupName}${VariantNumber}-State"
+        TableName: !Sub "CloneSquad-${GroupName}-State"
         AttributeDefinitions: 
           - 
             AttributeName: "Key"
@@ -192,7 +180,7 @@ Resources:
     EventTable: 
       Type: AWS::DynamoDB::Table
       Properties: 
-        TableName: !Sub "CloneSquad-${GroupName}${VariantNumber}-EventLog"
+        TableName: !Sub "CloneSquad-${GroupName}-EventLog"
         AttributeDefinitions: 
           - 
             AttributeName: "EventDate"
@@ -212,7 +200,7 @@ Resources:
     LongTermEventTable: 
       Type: AWS::DynamoDB::Table
       Properties: 
-        TableName: !Sub "CloneSquad-${GroupName}${VariantNumber}-EventLog-LongTerm"
+        TableName: !Sub "CloneSquad-${GroupName}-EventLog-LongTerm"
         AttributeDefinitions: 
           - 
             AttributeName: "EventDate"
@@ -232,7 +220,7 @@ Resources:
     SchedulerTable: 
       Type: AWS::DynamoDB::Table
       Properties: 
-        TableName: !Sub "CloneSquad-${GroupName}${VariantNumber}-Scheduler"
+        TableName: !Sub "CloneSquad-${GroupName}-Scheduler"
         AttributeDefinitions: 
           - 
             AttributeName: "Key"
@@ -600,7 +588,7 @@ Resources:
                   - !Ref CloneSquadDependencyLayer
               FunctionName: !Sub "CloneSquad-Main-${GroupName}"
               MemorySize: !Ref LambdaMemorySize
-              Timeout: !Ref OperationTimeout
+              Timeout: 300
               ReservedConcurrentExecutions: 1
               Tracing: Active
               Policies:
@@ -624,7 +612,6 @@ Resources:
                   EventTable:                                 !Ref EventTable
                   SchedulerTable:                             !Ref SchedulerTable
                   LongTermEventTable:                         !Ref LongTermEventTable
-                  VariantNumber:                              !Ref VariantNumber
                   ConfigurationURL:                           !Ref ConfigurationURL
                   LoggingS3Path:                              !Ref LoggingS3Path
                   AWS_XRAY_SDK_ENABLED:                       !Ref XRayDiagnosis
@@ -678,7 +665,6 @@ Resources:
                   AlarmStateEC2Table:                         !Ref AlarmStateEC2Table
                   StateTable:                                 !Ref StateTable
                   EventTable:                                 !Ref EventTable
-                  VariantNumber:                              !Ref VariantNumber
                   ConfigurationURL:                           !Ref ConfigurationURL
               Events:
                 ScaleUpTopic:
@@ -725,7 +711,6 @@ Resources:
                   EventTable:         !Ref EventTable
                   LongTermEventTable: !Ref LongTermEventTable
                   SchedulerTable:     !Ref SchedulerTable
-                  VariantNumber:      !Ref VariantNumber
                   ConfigurationURL:   !Ref ConfigurationURL
                   LoggingS3Path:      !Ref LoggingS3Path
                   InteractQueue:      !Ref InteractQueue
@@ -765,7 +750,6 @@ Resources:
                   EventTable:         !Ref EventTable
                   LongTermEventTable: !Ref LongTermEventTable
                   SchedulerTable:     !Ref SchedulerTable
-                  VariantNumber:      !Ref VariantNumber
                   ConfigurationURL:   !Ref ConfigurationURL
                   LoggingS3Path:      !Ref LoggingS3Path
                   InteractQueue:      !Ref InteractQueue

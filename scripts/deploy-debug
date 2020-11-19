@@ -32,7 +32,6 @@ Configuring SAM deploy
         Parameter UserNotificationArns []:
         Parameter LoggingS3Path []:
         Parameter OperationTimeout [300]:
-        Parameter VariantNumber []:
         Parameter XRayDiagnosis [1]:
         #Shows you resources changes to be deployed and require a 'Y' to initiate deploy
         Confirm changes before deploy [y/N]: y

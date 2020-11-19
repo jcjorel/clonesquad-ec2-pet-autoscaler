@@ -49,12 +49,12 @@ for env in os.environ:
 def fix_sam_bugs():
         account_id = os.getenv("ACCOUNT_ID")
         # 2020/07/28: SAM local bug: DynamoDB tables and SNS Topics are not correctly propagated. Patch them manually
-        ctx["ConfigurationTable"] = "CloneSquad-%s%s-Configuration" % (ctx["GroupName"], ctx["VariantNumber"])
-        ctx["AlarmStateEC2Table"] = "CloneSquad-%s%s-AlarmState-EC2" % (ctx["GroupName"], ctx["VariantNumber"])
-        ctx["StateTable"]      = "CloneSquad-%s%s-State" % (ctx["GroupName"], ctx["VariantNumber"])
-        ctx["EventTable"]         = "CloneSquad-%s%s-EventLog" % (ctx["GroupName"], ctx["VariantNumber"])
-        ctx["LongTermEventTable"] = "CloneSquad-%s%s-EventLog-LongTerm" % (ctx["GroupName"], ctx["VariantNumber"])
-        ctx["SchedulerTable"]     = "CloneSquad-%s%s-Scheduler" % (ctx["GroupName"], ctx["VariantNumber"])
+        ctx["ConfigurationTable"] = "CloneSquad-%s-Configuration" % (ctx["GroupName"])
+        ctx["AlarmStateEC2Table"] = "CloneSquad-%s-AlarmState-EC2" % (ctx["GroupName"])
+        ctx["StateTable"]      = "CloneSquad-%s-State" % (ctx["GroupName"])
+        ctx["EventTable"]         = "CloneSquad-%s-EventLog" % (ctx["GroupName"])
+        ctx["LongTermEventTable"] = "CloneSquad-%s-EventLog-LongTerm" % (ctx["GroupName"])
+        ctx["SchedulerTable"]     = "CloneSquad-%s-Scheduler" % (ctx["GroupName"])
         ctx["MainSQSQueue"]       = "https://sqs.%s.amazonaws.com/%s/CloneSquad-Main-%s" % (ctx["AWS_DEFAULT_REGION"], account_id, ctx["GroupName"])
         ctx["InteractSQSUrl"]     = "https://sqs.%s.amazonaws.com/%s/CloneSquad-Interact-%s" % (ctx["AWS_DEFAULT_REGION"], account_id, ctx["GroupName"])
         ctx["CloudWatchEventRoleArn"] = "arn:aws:iam::%s:role/CloneSquad-%s-CWRole" % (account_id, ctx["GroupName"])
