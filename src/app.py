@@ -206,6 +206,7 @@ def main_handler_entrypoint(event, context):
 
     ctx["o_cloudwatch"].send_metrics()
     ctx["o_cloudwatch"].configure_dashboard()
+    ctx["o_interact"].pregenerate_interact_data()
 
     # If we got woke up by SNS, acknowledge the message(s) now
     sqs.process_sqs_records(ctx, event)

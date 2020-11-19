@@ -45,3 +45,9 @@ class StateManager:
 
     def set_state(self, key, value, TTL=0):
         self.table.set_kv(key, value, TTL=TTL)
+
+    def get_state(self, key, direct=False):
+        if direct:
+            return kvtable.KVTable.get_kv_direct(key, self.context["StateTable"])
+        else:
+            return self.table.get_kv(key)

@@ -238,6 +238,7 @@ without any TargetGroup but another external health instance source exists).
     def get_instance_statuses(self):
         return self.instance_statuses
 
+    INSTANCE_STATES = ["ok", "impaired", "insufficient-data", "not-applicable", "initializing", "unhealthy", "az_evicted"]
     def is_instance_state(self, instance_id, state):
         i = next(filter(lambda i: i["InstanceId"] == instance_id, self.instance_statuses), None)
         if i is None:
@@ -254,7 +255,7 @@ without any TargetGroup but another external health instance source exists).
             override = self.ec2_status_override[instance_id]
             if "status" in override:
                 override_status = override["status"]
-                if override_status not in ["ok", "impaired", "insufficient-data", "not-applicable", "initializing", "unhealthy"]:
+                if override_status not in INSTANCE_STATES:
                     log.warning("Status override for instance '%s' (defined in %s) has an unmanaged status (%s) !" % 
                             (instance_id, self.ec2_status_override_url, override_status))
                 else:
