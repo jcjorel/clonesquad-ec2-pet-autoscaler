@@ -78,12 +78,12 @@ class Interact:
                     "prepare": self.metadata_prepare,
                     "func": self.metadata,
                 },
-                "metadatas"           : {
+                "allmetadatas"           : {
                     "interface": ["apigw"],
                     "cache": "global",
                     "clients": [],
                     "prerequisites": [],
-                    "func": self.metadatas,
+                    "func": self.allmetadatas,
                 },
                 "discovery"           : {
                     "interface": ["apigw"],
@@ -141,10 +141,13 @@ class Interact:
         az_with_issues = ec2.get_azs_with_issues()
         for i in self.context["o_ec2"].get_instances(State="pending,running"):
             instance_id    = i["InstanceId"]
+            az             = i["Placement"]["AvailabilityZone"]
+            located_in_az_with_issues = az in az_with_issues
             instance_state = ec2.get_scaling_state(instance_id)
             data[instance_id] = {
-                "AZWithIssues" : az_with_issues,
+                "LocatedInAZWithIssues" : located_in_az_with_issues,
                 "Instance": {
+                    "AvailabilityZone": az,
                     "Tags"     : i["Tags"],
                     "Status"   : [state for state in ec2.INSTANCE_STATES if ec2.is_instance_state(instance_id, [state])][0],
                     "State"    : instance_state if instance_state is not None else i["State"]["Name"]
@@ -182,7 +185,7 @@ class Interact:
         response["body"]       = Dbg.pprint(data[instance_id])
         return True
 
-    def metadatas(self, context, event, response):
+    def allmetadatas(self, context, event, response):
         response["statusCode"] = 200
         query_cache.load_cached_data()
         response["body"]       = Dbg.pprint(query_cache.interact_precomputed_data["data"]["metadata"])
@@ -328,6 +331,7 @@ class Interact:
             log.info("Processed command '%s' through an SQS message." % command)
         return True
 
+    @xray_recorder.capture()
     def pregenerate_interact_data(self):
         """ In order to keep the API Gateway fast, we pre-compute some data during the
             the processing of the Main Lambda function.
