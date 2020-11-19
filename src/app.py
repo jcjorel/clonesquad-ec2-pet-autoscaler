@@ -311,7 +311,7 @@ def interact_handler_entrypoint(event, context):
     init()
     notify.do_not_notify = True # We do not want notification and event management in the Interact function
 
-    print(Dbg.pprint(event))
+    log.info(json.dumps(event))
     if ctx["LoggingS3Path"] != "" and Cfg.get_int("app.archive_interact_events"):
         s3path = "%s/InteractEvents/%s.json" % (ctx["LoggingS3Path"], ctx["now"])
         log.warning("Pushing Interact event in '%s'!" % s3path)
