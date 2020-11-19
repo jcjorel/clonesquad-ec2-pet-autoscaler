@@ -201,7 +201,9 @@ class Interact:
             return True
 
         response["statusCode"] = 200
-        response["body"]       = Dbg.pprint(data[instance_id])
+        d                      = data[instance_id].copy()
+        d["InstanceId"]        = instance_id
+        response["body"]       = Dbg.pprint(d)
         return True
 
     def allmetadatas(self, context, event, response):
