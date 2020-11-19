@@ -678,7 +678,7 @@ without any TargetGroup but another external health instance source exists).
 
     def get_state(self, key, default=None, direct=False):
         if self.state_table is None or direct: 
-            return kvtable.KVTable.get_kv_direct(key, self.context["StateTable"], default=default)
+            return kvtable.KVTable.get_kv_direct(key, self.context["StateTable"], context=self.context, default=default)
         return self.state_table.get_kv(key, default=default, direct=direct)
 
     def get_state_int(self, key, default=0, direct=False):

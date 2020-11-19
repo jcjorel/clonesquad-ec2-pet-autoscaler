@@ -59,7 +59,7 @@ for inc in range(0,steps):
             h += args.period
 
         cron_spec  = "cron(%s %s * * ? *)" % (minutes, "\\\\,".join(h_l))
-        alarm_name = "%s-%s-%s-%d%%" % (args.demoname, hours, minutes, v)
+        alarm_name = "%s-%s-%s-%d" % (args.demoname, hours, minutes, v)
 
         for test_case in c.keys():
             t_c = c[test_case]

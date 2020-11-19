@@ -8,6 +8,9 @@ import sqs
 import misc
 import config as Cfg
 import pdb
+import re
+import kvtable
+import urllib.parse
 
 from aws_xray_sdk.core import xray_recorder
 from aws_xray_sdk.core import patch_all
@@ -99,26 +102,42 @@ class Interact:
                     "prerequisites": [], 
                     "func": self.process_ack_event_dates,
                 },
-                "configuration/json"       : {
+                "configuration"       : {
                     "cache": "none",
                     "interface": ["apigw"],
                     "clients": ["dynamodb"],
                     "cache": "none",
                     "prerequisites": [],
-                    "func": self.configuration_json,
+                    "func": self.configuration_dump,
                 },
-                "configuration/yaml"       : {
+                "configuration/(.*)"       : {
                     "cache": "none",
                     "interface": ["apigw"],
                     "clients": ["dynamodb"],
                     "cache": "none",
                     "prerequisites": [],
-                    "func": self.configuration_yaml,
+                    "func": self.configuration,
+                },
+                "scheduler"       : {
+                    "cache": "none",
+                    "interface": ["apigw"],
+                    "clients": ["dynamodb"],
+                    "cache": "none",
+                    "prerequisites": [],
+                    "func": self.scheduler_dump,
+                },
+                "scheduler/(.*)"       : {
+                    "cache": "none",
+                    "interface": ["apigw"],
+                    "clients": ["dynamodb"],
+                    "cache": "none",
+                    "prerequisites": [],
+                    "func": self.scheduler,
                 },
                 "debug/publishreportnow"   : {
                     "interface": ["sqs"],
                     "cache": "none",
-                    "clients": ["ec2"],
+                    "clients": ["ec2", "cloudwatch", "events", "sqs", "sns", "dynamodb", "elbv2", "rds", "resourcegroupstaggingapi"],
                     "prerequisites": ["o_state", "o_ec2", "o_notify", "o_targetgroup", "o_scheduler"],
                     "func": debug.manage_publish_report,
                 },
@@ -198,7 +217,6 @@ class Interact:
                 "discovery": misc.discovery(self.context)
             }
         response["body"]         = Dbg.pprint(discovery)
-        #response["Content-Type"] = "application/json"
         return True
 
     def cloudwatch_get_metric_cache(self, context, event, response):
@@ -213,26 +231,101 @@ class Interact:
             })
         return False
 
-    def configuration_json(self, context, event, response):
+    def configuration_dump(self, context, event, response):
         response["statusCode"] = 200
-        only_stable_keys       = "Unstable" not in event or event["Unstable"] != "True"
-        response["body"]       = Dbg.pprint(config.dumps(only_stable_keys=only_stable_keys))
+        is_yaml = "format" in event and event["format"] == "yaml"
+        if "httpMethod" in event and event["httpMethod"] == "POST":
+            try:
+                c = yaml.safe_load(event["body"]) if is_yaml else json.loads(event["body"])
+                Cfg.import_dict(c)
+                response["body"] = "Ok (%d key processed)" % len(c.keys())
+            except Exception as e:
+                response["statusCode"] = 500
+                response["body"] = "Can't parse YAML/JSON document : %s " % e
+        else:
+            only_stable_keys = "Unstable" not in event or event["Unstable"] != "True"
+            dump             = config.dumps(only_stable_keys=only_stable_keys) 
+            response["body"] = yaml.dump(dump) if is_yaml else Dbg.pprint(dump)
         return True
 
-    def configuration_yaml(self, context, event, response):
+    def configuration(self, context, event, response):
+        m = re.search("configuration/(.*)$", event["OpType"])
+        if m is None:
+            response["statusCode"] = 400
+            response["body"]       = "Missing config key path."
+            return True
+        config_key = m.group(1)
+        if "httpMethod" in event and event["httpMethod"] == "POST":
+            value = event["body"].partition('\n')[0]
+            log.info("Configuration write for key '%s' = '%s'." % (config_key, value))
+            Cfg.set(config_key, value)
+            response["statusCode"] = 200
+            response["body"] = value
+        else:
+            value = Cfg.get(config_key, none_on_failure=True)
+            if value is None:
+                response["statusCode"] = 400
+                response["body"] = "Unknown configuration key '%s'!" % config_key
+            else:
+                response["statusCode"] = 200
+                response["body"] = value
+        return True
+
+    def scheduler_json(self, context, event, response):
+        scheduler_table = kvtable.KVTable(self.context, self.context["SchedulerTable"])
+        scheduler_table.reread_table()
+        response["statusCode"] = 200
+        response["body"]       = Dbg.pprint(scheduler_table.get_dict())
+        return True
+
+    def scheduler_dump(self, context, event, response):
+        scheduler_table = kvtable.KVTable(self.context, self.context["SchedulerTable"])
+        scheduler_table.reread_table()
+        is_yaml = "format" in event and event["format"] == "yaml"
         response["statusCode"] = 200
         if "httpMethod" in event and event["httpMethod"] == "POST":
             try:
-                c = yaml.safe_load(event["body"])
-                Cfg.import_dict(c)
-                response["body"] = "Ok"
+                c = yaml.safe_load(event["body"]) if is_yaml else json.loads(event["body"])
+                scheduler_table.set_dict(c)
+                response["body"] = "Ok (%d key processed)" % len(c.keys())
             except Exception as e:
                 response["statusCode"] = 500
-                response["body"] = "Can't parse YAML document : %s " % e
+                response["body"] = "Can't parse YAML/JSON document : %s " % e
         else:
-            only_stable_keys       = "Unstable" not in event or event["Unstable"] != "True"
-            response["body"]       = yaml.dump(config.dumps(only_stable_keys=only_stable_keys))
+            c = scheduler_table.get_dict()
+            response["body"]     = yaml.dump(c) if is_yaml else Dbg.pprint(c)
         return True
+
+    def scheduler(self, context, event, response):
+        m = re.search("scheduler/(.*)$", event["OpType"])
+        if m is None:
+            response["statusCode"] = 400
+            response["body"]       = "Missing config key path."
+            return True
+        config_key = m.group(1)
+        if "httpMethod" in event and event["httpMethod"] == "POST":
+            value = event["body"].partition('\n')[0]
+            log.info("Scheduler configuration write for key '%s' = '%s'." % (config_key, value))
+            kvtable.KVTable.set_kv_direct(config_key, value, self.context["SchedulerTable"], context=self.context)
+            response["statusCode"] = 200
+            response["body"] = value
+        else:
+            value = kvtable.KVTable.get_kv_direct(config_key, self.context["SchedulerTable"], context=self.context)
+            if value is None:
+                response["statusCode"] = 400
+                response["body"] = "Unknown configuration key!"
+            else:
+                response["statusCode"] = 200
+                response["body"] = value
+        return True
+
+    def find_command(self, path):
+        # Perfect match is prioritary
+        if path in self.commands.keys():
+            return self.commands[path]
+        # Look up for regex command match.
+        candidates = [ c for c in self.commands.keys() if "*" in c and re.match(c, path) ]
+        return self.commands[candidates[0]] if len(candidates) else None
 
     def handler(self, event, context, response):
         global query_cache
@@ -261,14 +354,15 @@ class Interact:
             path        = arg.lower().split("/")
             path_list   = list(filter(lambda x: x != "", path))
             command     = "/".join(path_list)
-            if command not in self.commands.keys():
+            command     = urllib.parse.unquote(command)
+            cmd         = self.find_command(command)
+            if cmd is None:
                 response["statusCode"] = 404
                 response["body"]       = "Unknown command '%s'" % (command)
                 return True
 
             event["OpType"] = command
             log.log(log.NOTICE, "Processing API Gateway command '%s'" % (command))
-            cmd = self.commands[command]
             if "apigw" not in cmd["interface"]:
                 response["statusCode"] = 404
                 response["body"]       = "Command not available through API Gateway"
@@ -313,7 +407,9 @@ class Interact:
             return True
 
         command = event["OpType"].lower()
-        if command not in self.commands.keys():
+        command = urllib.parse.unquote(command)
+        cmd     = self.find_command(command)
+        if cmd is None:
             log.warning("Received unknown command '%s' through SQS message!" % command)
         else:
             cmd = self.commands[command]

@@ -71,9 +71,9 @@
             ""
         ]
     },
-    "path": "/Configuration/ec2.schedule.min_instance_count",
+    "path": "/scheduler/yaml",
     "pathParameters": {
-        "proxy": "Configuration/ec2.schedule.min_instance_count"
+        "proxy": "scheduler/yaml"
     },
     "queryStringParameters": {
         "Unstable": ""
@@ -101,7 +101,7 @@
             "vpcId": "vpc-e119f098",
             "vpceId": "vpce-0f48e4568deac1c33"
         },
-        "path": "/v1/Configuration/ec2.schedule.min_instance_count",
+        "path": "/v1/scheduler/yaml",
         "protocol": "HTTP/1.1",
         "requestId": "0e42e6c4-283d-4901-bb97-ceb3a0e18c6a",
         "requestTime": "17/Nov/2020:13:46:10 +0000",

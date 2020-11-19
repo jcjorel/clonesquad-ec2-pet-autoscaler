@@ -43,7 +43,7 @@ if args.ttl is not None and args.ttl != "":
             print("Failed to parse specified TTL value '%s'!" % args.ttl)
             sys.exit(1)
 
-app.initialize_clients(["dynamodb"], app.ctx)
+misc.initialize_clients(["dynamodb"], app.ctx)
 
 if args.operation[0] == "export":
     table   = kvtable.KVTable(app.ctx, args.tablename[0])

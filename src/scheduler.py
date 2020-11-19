@@ -139,6 +139,8 @@ class Scheduler:
         if "source" in event and event["source"] == "aws.events" and event["detail-type"] == "Scheduled Event":
             # Triggered by an AWS CloudWatch Scheduled event. We look for a ParameterSet 
             #   request based on the ARN
+            misc.initialize_clients(["events"], self.context)
+            misc.load_prerequisites(self.context, ["o_scheduler"])
             for r in event["resources"]:
                 log.debug("Processing Scheduled event '%s'..." % r)
                 m = re.search("^arn:aws:events:[a-z-0-9]+:[0-9]+:rule/CS-Cron-%s-(.*)" % self.context["GroupName"], r)

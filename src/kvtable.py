@@ -299,8 +299,12 @@ class KVTable():
                 return None
         return None
 
-    def get_kv_direct(key, table_name, default=None):
-        client = boto3.client("dynamodb")
+    def get_kv_direct(key, table_name, default=None, context=None):
+        if context is None:
+            client = boto3.client("dynamodb")
+        else:
+            client = context["dynamodb.client"]
+
         query  = {
                  'Key': {
                      'S': key
@@ -317,6 +321,41 @@ class KVTable():
             return default
         item = response["Item"]
         return item["Value"][list(item["Value"].keys())[0]]
+
+    def set_kv_direct(key, value, table_name, partition=None, TTL=None, context=None):
+        if context is None:
+            client = boto3.client("dynamodb")
+            now    = None
+        else:
+            client = context["dynamodb.client"]
+            now    = context["now"]
+        log.debug("KVTable: dynamodb.put_item(TableName=%s, Key=%s, Value='%s'" % (table_name, key, value))
+        if value is None or str(value) == "":
+            client.delete_item(
+                Key = {"Key": {"S": key}},
+                TableName=table_name
+                )
+        else:
+            query = {
+                 'Key': {
+                     'S': key
+                 },
+                'Value': {
+                    'S': str(value)
+                }
+            }
+            if TTL != 0:
+                expiration_time = misc.seconds_from_epoch_utc(now=now) + TTL
+                query.update({
+                'ExpirationTime' : {
+                    'N': str(expiration_time)
+                }})
+
+            response = client.put_item(
+                TableName=table_name,
+                ReturnConsumedCapacity='TOTAL',
+                Item=query
+                )
 
     def get_kv(self, key, partition=None, default=None, direct=False):
         if direct:
@@ -335,7 +374,6 @@ class KVTable():
             ttl = 0
         else:
             ttl = int(TTL)
-        expiration_time = misc.seconds_from_epoch_utc(now=now) + ttl
 
         k = key if partition is None else "[%s]%s" % (partition, key)
 
@@ -352,36 +390,12 @@ class KVTable():
                 return
 
         if not self.is_aggregated_key(k):
-            log.debug("KVTable: dynamodb.put_item(TableName=%s, Key=%s, Value='%s'" % (self.table_name, key, value))
-            if value is None or str(value) == "":
-                client.delete_item(
-                    Key = {"Key": {"S": k}},
-                    TableName=self.table_name
-                    )
-            else:
-                query = {
-                     'Key': {
-                         'S': k
-                     },
-                    'Value': {
-                        'S': str(value)
-                    }
-                }
-                if ttl != 0:
-                    query.update({
-                    'ExpirationTime' : {
-                        'N': str(expiration_time)
-                    }})
-
-                response = client.put_item(
-                    TableName=self.table_name,
-                    ReturnConsumedCapacity='TOTAL',
-                    Item=query
-                    )
+            KVTable.set_kv_direct(k, value, self.table_name, TTL=ttl, context=self.context)
 
         # Update cache
         if self.table_cache is None: # KV_Table not yet initialized
             return
+        expiration_time = misc.seconds_from_epoch_utc(now=now) + ttl
         new_item = {
                 "Key": k,
                 "Value": str(value),
