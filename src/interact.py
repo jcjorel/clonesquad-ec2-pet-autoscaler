@@ -137,7 +137,7 @@ class Interact:
                 "debug/publishreportnow"   : {
                     "interface": ["sqs"],
                     "cache": "none",
-                    "clients": ["ec2", "cloudwatch", "events", "sqs", "sns", "dynamodb", "elbv2", "rds", "resourcegroupstaggingapi"],
+                    "clients": ["ec2", "cloudwatch", "events", "sqs", "sns", "dynamodb", "elbv2", "rds", "resourcegroupstaggingapi", "s3"],
                     "prerequisites": ["o_state", "o_ec2", "o_notify", "o_targetgroup", "o_scheduler"],
                     "func": debug.manage_publish_report,
                 },
