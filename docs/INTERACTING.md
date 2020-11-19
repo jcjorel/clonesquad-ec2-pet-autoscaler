@@ -41,7 +41,8 @@ Url format: https://<api_gateway_hostname>/v1/*<Interact_API_operation>*
 If an operation takes parameters, they have to be sent with the same format than the SQS payload in a POST request.
 
 The API gateway requires SiGV4 authentication by default so you must present valid STS credentials to get access.
-Using a tool like 'awscurl' can simplify this process or other AWS SDK managing as well this kind of authentication.
+Using a tool like '[awscurl](https://github.com/okigan/awscurl)' (version 0.17 is known to work) can simplify 
+this process or other AWS SDK managing as well with this kind of authentication.
 
 
 # Interaction API operations
