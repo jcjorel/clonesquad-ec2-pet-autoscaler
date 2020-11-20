@@ -1,7 +1,7 @@
 
 # Deployment guidelines
 
-This document describe configuration reference for CloudFormation [template.yaml](../template.yaml).
+This document describes configuration reference for CloudFormation [template.yaml](../template.yaml).
 
 The template is designed to require a single mandatory parameter to deploy a working CloneSquad: `GroupName`.
 All other parameters can be left with their defaults.
