@@ -72,3 +72,4 @@ build_and_deploy()
 		--capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM
 }
 time build_and_deploy
+
