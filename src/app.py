@@ -274,6 +274,7 @@ def discovery_handler(event, context):
     """
 
     global ctx
+    ctx["now"]          = misc.utc_now()
     ctx["FunctionName"] = "Discovery"
     discovery = misc.discovery(ctx)
     log.debug(discovery)

@@ -1,7 +1,7 @@
 
 # Interacting with CloneSquad
 
-CloneSquad comes with a minimalistic Interaction API that is going to evolve overtime.
+CloneSquad comes with an Interaction API to perform both mutable and nonmutable actions.
 
 There are 2 ways to interact with a CloneSquad deployment:
 * A public API Gateway,
@@ -10,10 +10,11 @@ There are 2 ways to interact with a CloneSquad deployment:
 Only the API Gateway is able to reply back an answer. The SQS queue can only be used to send command in an asynchronous manner
 without reply channel.
 
-These 2 resources can identified from the CloudFormation outputs or dynamically with a dedicated Lambda discovery function.
+These 2 resource URLs can identified from the CloudFormation outputs or dynamically with a dedicated Lambda discovery function.
 
 Ex: 
 ```shell
+# Discover the API Gateway URL
 tmpfile=/tmp/cs-config.$$
 aws lambda invoke --function-name CloneSquad-Discovery-${GroupName} --payload '' $tmpfile 1>/dev/stderr
 APIGW_URL=$(jq -r '.["InteractAPIGWUrl"]' <$tmpfile)
@@ -30,23 +31,207 @@ Note: This parameter can contain wildcards ("*" and "?")
 		"OpType": "<Interact_API_operation>",
 		...
 			<<Other operation specific parameters>>
+		"Param1: "Value1",
+		"Param2: "Value2",
 		...
 	}
 ```
 
 ## API Gateway usage
 
-Url format: https://<api_gateway_hostname>/v1/*<Interact_API_operation>*
+Url format: https://<api_gateway_hostname>/v1/*<Interact_API_operation>[?<Param1:Value1>&<Param2:Value2>]*
 
-If an operation takes parameters, they have to be sent with the same format than the SQS payload in a POST request.
+If an operation takes parameters, they have to be passed as URL Query string.
 
-The API gateway requires SiGV4 authentication by default so you must present valid STS credentials to get access.
+The API gateway requires SiGV4 authentication ('AWS_IAM' authorizer) so you must present valid STS credentials to get access.
 Using a tool like '[awscurl](https://github.com/okigan/awscurl)' (version 0.17 is known to work) can simplify 
 this process or other AWS SDK managing as well with this kind of authentication.
+
+> This API is mainly designed with the assumption that it will be called from authenticated entities (ex: EC2 instances, Lambda function) 
+that use service roles.
+
+### Controlling acces to the API Gateway with IAM roles
+
+When using `AWS_IAM` authenticated API calls, the API Gateway can control access to its resources while checking IAM roles used by the callers.
+
+A [complete description of API gateway access crontrol possibilities](https://docs.aws.amazon.com/apigateway/latest/developerguide/api-gateway-control-access-using-iam-policies-to-invoke-api.html) is available on the AWS site.
+
+	{
+	  "Version": "2012-10-17",
+	  "Statement": [
+	    {
+	      "Effect": "Allow",
+	      "Action": [
+		"execute-api:Invoke"           
+	      ],
+	      "Resource": [
+		"arn:aws:execute-api:region:<account-id>:pq264fab39/v1/GET/configuration/ec2.schedule.min_instance_count"
+	      ]
+	    }
+	  ]
+	}
+
+Thanks to IAM policies, users can implement fined-grained access control to the CloneSquad API gateway resources (ex: Read-Only and Read-Write on a subset for instance).
 
 
 # Interaction API operations
 
-## Notify/AckEvent
+## API `metadata`
+
+* Callable from : API Gateway
+
+> Note: Only calleable from autoscaled EC2 instances.
+
+This API returned status related to the calling EC2 instances.
+
+**Synopsis:**
+
+	# awscurl https://pq264fab39.execute-api.eu-west-3.amazonaws.com/v1/metadata
+	{
+	    "Instance": {
+		"AvailabilityZone": "eu-west-3a",
+		"State": "running",
+		"Status": "ok",
+		"Tags": [
+		    {
+			"Key": "Name",
+			"Value": "MyInstanceName"
+		    },
+		    {
+			"Key": "aws:ec2launchtemplate:version",
+			"Value": "1"
+		    },
+		    {
+			"Key": "aws:ec2launchtemplate:id",
+			"Value": "lt-0995b3e0a9eda5b61"
+		    },
+		    {
+			"Key": "clonesquad:group-name",
+			"Value": "test"
+		    }
+		]
+	    },
+	    "InstanceId": "i-0cf5683a31b52e9c1",
+	    "LocatedInAZWithIssues": false
+	}
+
+**Return value:**
+* `InstanceId`: Instance Id of the calling EC2 instance.
+* `LocatedInAZWithIssues`: Boolean indicating if this EC2 instance is located in an AZ signaled with issues (either manually or via the describe_availability_zones() EC2 API).
+* "Instance":
+	* `AvailabilityZone`: Calling instance AvailabilityZone name 
+	* `State`: Can be any of ["`pending`", "`running`", "`error`", "`bounced`", "`draining`"]
+		* `pending`, `running` value comes from describe_instance EC2 API call and response field `["State"]["Name"]`
+		* `error`is a CloneSquad specific value indicating that this instance failed to perform a critical operation requested by CloneSquad
+(ex: a failed start_instance or other EC2 API call). This status indicates that this instance will be unmanaged during a period of time (5 minutes by default). For a running instance, this status doesn't prelude the fact the instance is removed from any TargetGroup; it only means that CloneSquad won't attempt start/stop for a while
+with the assumption the issue was transient.
+		* `bounced` value means that this instance has been selected to be bounced as considered too aged by the bouncing algorithm. This instance is a synonym of `running`and is an advance advisory that the instance will be put in `draining` soon. The instance remains part of any participating TargetGroup so serving normally until formaly drained.
+	* `Status`: Can be any of ["`ok`", "`impaired`", "`insufficient-data`", "`not-applicable`", "`initializing`", "`unhealthy`", "`az_evicted`"]
+		These field comes from describe_instance_status() EC2 API and retirn the `["InstanceState"]["Name"]` response field for the instance.
+		A special value `az_evicted` is added by CloneSquad to indicate that this instance is going to be evicted very soon as it is 
+		running in an AZ with issues.
+	* `Tags`: The describe_instance() EC2 API reponse field named `["Tags"]` for this instance.
+
+## API `allmetadatas`
+
+* Callable from : API Gateway
+
+This API returns a dict of the `metadata` structures for all managed EC2 instances.
+
+**Synopsis:**
+
+	# awscurl https://pq264fab39.execute-api.eu-west-3.amazonaws.com/v1/allmetadatas
+
+This API can called by any IAM authenticated and authorized entities.
+
+## API `discovery`
+
+* Callable from : API Gateway
+
+**Synopsis:**
+
+	# awscurl https://pq264fab39.execute-api.eu-west-3.amazonaws.com/v1/allmetadatas
+	{
+	    "discovery": {
+		"AlarmStateEC2Table": "CloneSquad-test-AlarmState-EC2",
+		"ApplicationName": "CloneSquad",
+		"ConfigurationTable": "CloneSquad-test-Configuration",
+		"ConfigurationURL": "",
+		"EventTable": "CloneSquad-test-EventLog",
+		"FunctionName": "Interact",
+		"GenericInsufficientDataActions_SNSTopicArn": "arn:aws:sns:eu-west-1:111111111111:CloneSquad-CloudWatchAlarm-InsufficientData-test",
+		"GenericOkActions_SNSTopicArn": "arn:aws:sns:eu-west-1:111111111111:CloneSquad-CloudWatchAlarm-Ok-test",
+		"GroupName": "test",
+		"InteractQueue": "https://sqs.eu-west-1.amazonaws.com/111111111111/CloneSquad-Interact-test",
+		"LoggingS3Path": "s3://my-clonesquad-logging-bucketname/reports/",
+		"LongTermEventTable": "CloneSquad-test-EventLog-LongTerm",
+		"MainFunctionArn": "arn:aws:lambda:eu-west-1:111111111111:function:CloneSquad-Main-test",
+		"ScaleUp_SNSTopicArn": "arn:aws:sns:eu-west-1:111111111111:CloneSquad-CloudWatchAlarm-ScaleUp-test",
+		"SchedulerTable": "CloneSquad-test-Scheduler",
+		"StateTable": "CloneSquad-test-State"
+	    },
+	    "identity": {
+		"accessKey": "AS------------------",
+		"accountId": "111111111111",
+		"caller": "AR-------------------:i-0adc6dab31524a8d1",
+		"cognitoAuthenticationProvider": null,
+		"cognitoAuthenticationType": null,
+		"cognitoIdentityId": null,
+		"cognitoIdentityPoolId": null,
+		"principalOrgId": "o-oooooooooo",
+		"sourceIp": "172.31.42.2",
+		"user": "AROA4XZPU6QWAN5QP4NGD:i-0adc6dab31524a8d1",
+		"userAgent": "python-requests/2.25.0",
+		"userArn": "arn:aws:sts::111111111111:assumed-role/EC2AdminRole/i-0adc6dab31524a8d1",
+		"vpcId": "vpc-11111111",
+		"vpceId": "vpce-11111111111111111"
+	    }
+	}
+
+**Return value:**
+* `discovery`: A dict of Environment variables passed to the Interact Lambda function (seel [template.yaml](../template.yaml)). This can used to locate various technical resources used by CloneSquad.
+* `identity`: The `event["requestContext"]["identity"]` structure the API Gateway Lambda context.
+
+## API `notify/ackevent`
+
+* Callable from : API Gateway and SQS Queue
+
+This API is used to acknowledge a CloneSquad event.
+
+## API `configuration`
+
+* Callable from : API Gateway
+
+## API `configuration/(.*)`
+
+* Callable from : API Gateway
+
+## API `scheduler`
+
+* Callable from : API Gateway
+
+## API `scheduler/(.*)`
+
+* Callable from : API Gateway
+
+## API `cloudwatch/sentmetrics`
+
+* Callable from : API Gateway
+
+
+* Callable from : API Gateway
+
+## API `cloudwatch/metriccache`
+
+* Callable from : API Gateway
+
+## API `fleet/status`
+
+* Callable from : API Gateway
+
+## API `debug/publishreportnow`
+
+* Callable from : SQS Queue
+
 
 

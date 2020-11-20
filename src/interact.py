@@ -135,7 +135,7 @@ class Interact:
                     "cache": "none",
                     "clients": ["ec2", "cloudwatch", "events", "sqs", "sns", "dynamodb", "elbv2", "rds", "resourcegroupstaggingapi", "s3"],
                     "prerequisites": ["o_state", "o_ec2", "o_notify", "o_targetgroup", "o_scheduler"],
-                    "func": debug.manage_publish_report,
+                    "func": self.manage_publish_report,
                 },
                 "cloudwatch/metriccache": {
                     "interface": ["apigw"],
@@ -167,6 +167,9 @@ class Interact:
 
     def fleet_status_prepare(self):
         return self.context["o_ec2_schedule"].get_synthetic_metrics()
+
+    def manage_publish_report(self, context, event, response, cacheddata):
+        return debug.manage_publish_report(self, context, event, response)
 
     def fleet_status(self, context, event, response, cacheddata):
         response["statusCode"] = 200
