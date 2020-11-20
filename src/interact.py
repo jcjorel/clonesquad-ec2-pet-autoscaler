@@ -73,6 +73,13 @@ class Interact:
             query_cache = QueryCache(context)
 
         self.commands       = {
+                "" : {
+                    "interface": ["apigw"],
+                    "cache": "none",
+                    "clients": [],
+                    "prerequisites": [],
+                    "func": self.usage
+                },
                 "metadata"           : {
                     "interface": ["apigw"],
                     "cache": "client",
@@ -164,6 +171,11 @@ class Interact:
 
     def get_prerequisites(self):
         return
+
+    def usage(self, context, event, response, cacheddata):
+        response["statusCode"] = 200
+        response["body"] =  "\n".join([ c for c in sorted(self.commands.keys()) if c != "" ])
+        return True
 
     def fleet_status_prepare(self):
         return self.context["o_ec2_schedule"].get_synthetic_metrics()
@@ -260,7 +272,7 @@ class Interact:
 
     def configuration_dump(self, context, event, response, cacheddata):
         response["statusCode"] = 200
-        is_yaml = "format" in event and event["format"] == "yaml"
+        is_yaml = "format" in event and event["format"].lower() == "yaml"
         if "httpMethod" in event and event["httpMethod"] == "POST":
             try:
                 c = yaml.safe_load(event["body"]) if is_yaml else json.loads(event["body"])
@@ -270,7 +282,7 @@ class Interact:
                 response["statusCode"] = 500
                 response["body"] = "Can't parse YAML/JSON document : %s " % e
         else:
-            only_stable_keys = "Unstable" not in event or event["Unstable"] != "True"
+            only_stable_keys = "unstable" not in event or event["unstable"].lower() != "true"
             dump             = config.dumps(only_stable_keys=only_stable_keys) 
             response["body"] = yaml.dump(dump) if is_yaml else Dbg.pprint(dump)
         return True

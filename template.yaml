@@ -760,6 +760,14 @@ Resources:
                   Properties:
                     Queue: !GetAtt InteractQueue.Arn
                     BatchSize: 10
+                ApiEventCommandGETRoot:
+                  Type: Api
+                  Properties:
+                    RestApiId: !Ref InteractApi
+                    Path: "/"
+                    Method: get
+                    Auth: 
+                        InvokeRole: NONE
                 ApiEventCommandGET:
                   Type: Api
                   Properties:
