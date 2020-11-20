@@ -26,7 +26,6 @@ rm -f $tmpfile
 The SQS queue is protected by a security policy requiring that all allowed senders be listed in the `UserNotificationArns` Cloudformation template parameter.   
 Note: This parameter can contain wildcards ("*" and "?")
 
-```json
 	{
 		"OpType": "<Interact_API_operation>",
 		...
@@ -35,7 +34,6 @@ Note: This parameter can contain wildcards ("*" and "?")
 		"Param2: "Value2",
 		...
 	}
-```
 
 ## API Gateway usage
 
@@ -200,12 +198,10 @@ This API is used to acknowledge a CloneSquad event and avoid their periodic repe
 
 **SQS Payload synopsis:**
 
-```json
-        {
-                "OpType": "notify/ackevent",
-                "EventData: ["<event['EventDate'] field taken form CloneSquad SQS event payload>"]
-        }
-```
+	{
+		"OpType": "notify/ackevent",
+		"EventData: ["<event['EventDate'] field taken form CloneSquad SQS event payload>"]
+	}
 
 A working example of use of this API is demonstrated [in this example](../examples/sam-sample-lambda/src/sample-clonesquad-notification/app.py#L36).
 
