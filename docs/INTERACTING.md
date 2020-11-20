@@ -237,7 +237,7 @@ This API dumps (or upload) the whole CloneSquad configuration in JSON format by 
             ...
 	}
 
-	# Upload modification to the active configuration (written in DynamoDB table).
+	# Upload modifications to the active configuration (written in DynamoDB table).
 	#    Note: The existing configuration is not replaced but patched
 	# awscurl -X POST -d @configfile.yaml https://pq264fab39.execute-api.eu-west-3.amazonaws.com/v1/configuration?format=json
 	Ok (12 key(s) processed)
@@ -247,13 +247,31 @@ This API dumps (or upload) the whole CloneSquad configuration in JSON format by 
 
 * Callable from : API Gateway
 
+This API dumps and updates configuration on a pey key basis.
+
+**API Gateway synopsis:**
+
+	# Dump the current value of configuration key 'ec2.schedule.min_instance_count'.
+	# awscurl https://pq264fab39.execute-api.eu-west-3.amazonaws.com/v1/configuration/ec2.schedule.min_instance_count
+	2
+
+	# Overwrite the configuration key 'ec2.schedule.min_instance_count' with value '3' (written in DynamoDB table).
+	# awscurl -X POST -d 3 https://pq264fab39.execute-api.eu-west-3.amazonaws.com/v1/configuration/ec2.schedule.min_instance_count
+	3
+
+
+
 ## API `scheduler`
 
 * Callable from : API Gateway
 
+This API acts on the DynamoDB Scheduler table and follows the same semantic than API `configuration` (see `configuration` documentation).
+
 ## API `scheduler/(.*)`
 
 * Callable from : API Gateway
+
+This API acts on the DynamoDB Scheduler table and follows the same semantic than API `configuration/(.*)` (see `configuration/(.*)` documentation).
 
 ## API `cloudwatch/sentmetrics`
 
