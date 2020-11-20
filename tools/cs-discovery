@@ -9,3 +9,4 @@ tmpfile=/tmp/cs-config.$$
 aws lambda invoke --function-name CloneSquad-Discovery-${GroupName} --payload '' $tmpfile 1>/dev/stderr
 jq . <$tmpfile
 rm -f $tmpfile
+

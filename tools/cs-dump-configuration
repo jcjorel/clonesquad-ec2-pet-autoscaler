@@ -14,7 +14,6 @@ rm -f $tmpfile
 #if ! [ -z "$APIGW_VPCENDPOINT_URL" ] ; then
 # We use the endpoint VPC URL if available
 #	awscurl -H "x-apigw-api-id: $APIGW_ID" https://${APIGW_VPCENDPOINT_URL}/Configuration/Dump?Unstable=$1 | jq .
-#	awscurl -H "Host: r4u2oxae01.execute-api.eu-west-1.amazonaws.com" https://${APIGW_VPCENDPOINT_URL}/Configuration/Dump?Unstable=$1 | jq .
 #else
 	awscurl ${APIGW_URL}Configuration/Json?Unstable=$1 | jq .
 #fi
