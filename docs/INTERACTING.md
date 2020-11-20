@@ -391,7 +391,7 @@ This API can be polled to know when the whole fleet is started (`RunningFleetSiz
 
 **Return value:**
 * "AutoscaledFleet"
-	* `FaultyFleetSize`: Number of instances (in the autoscaled fleet) that are reporting a unhealthy status.
+	* `FaultyFleetSize`: Number of instances that are reporting an unhealthy status. Note: Only instances in the autoscaled fleet are counted ; especially, static subfleet instances are not part of this indicator.
 	* `ManagedFleetSize`: Number of instances with the matching 'clonesquad:group-name' tag.
 	* `MaximumFleetSize`: Maximum number of instances that can be running at this moment (This number excludes instances that CloneSquad
 knows that it can't start now. Ex: Instance in `error`or `spot interrupted`).
