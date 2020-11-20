@@ -187,7 +187,7 @@ This API can called by any IAM authenticated and authorized entities.
 	}
 
 **Return value:**
-* `discovery`: A dict of Environment variables passed to the Interact Lambda function (seel [template.yaml](../template.yaml)). This can used to locate various technical resources used by CloneSquad.
+* `discovery`: A dict of Environment variables passed to the Interact Lambda function (see [template.yaml](../template.yaml)). This can used to locate various technical resources used by CloneSquad.
 * `identity`: The `event["requestContext"]["identity"]` structure the API Gateway Lambda context.
 
 ## API `notify/ackevent`
@@ -368,7 +368,7 @@ This API dumps some synthetic status indicators. It contains indicators that can
 in the CloneSquad fleets (autoscaled only currently).
 
 Example use-case: Track the fleet reaching 100% serving status.   
-To perform an immutable update, user may set 'ec2.schedule.desired_instance_count' to `100%` value to have all instances started.
+To perform an immutable update, user may set '`ec2.schedule.desired_instance_count`' to `100%` value to have all instances started.
 This API can be polled to know when the whole fleet is started (`RunningFleetSize`) and ready (`ServingFleet_vs_MaximumFleetSizePourcentage`).
 
 **API Gateway synopsis:**
