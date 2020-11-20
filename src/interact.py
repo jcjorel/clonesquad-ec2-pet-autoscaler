@@ -265,7 +265,7 @@ class Interact:
             try:
                 c = yaml.safe_load(event["body"]) if is_yaml else json.loads(event["body"])
                 Cfg.import_dict(c)
-                response["body"] = "Ok (%d key processed)" % len(c.keys())
+                response["body"] = "Ok (%d key(s) processed)" % len(c.keys())
             except Exception as e:
                 response["statusCode"] = 500
                 response["body"] = "Can't parse YAML/JSON document : %s " % e

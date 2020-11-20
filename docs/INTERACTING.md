@@ -194,13 +194,54 @@ This API can called by any IAM authenticated and authorized entities.
 
 ## API `notify/ackevent`
 
-* Callable from : API Gateway and SQS Queue
+* Callable from : SQS Queue
 
-This API is used to acknowledge a CloneSquad event.
+This API is used to acknowledge a CloneSquad event and avoid their periodic repetition.
+
+**SQS Payload synopsis:**
+
+```json
+        {
+                "OpType": "notify/ackevent",
+                "EventData: ["<event["EventDate"] field taken form CloneSquad SQS event payload>"]
+        }
+```
+
+A working example of use of this API is demonstrated [in this example](../examples/sam-sample-lambda/src/sample-clonesquad-notification/app.py#L36).
 
 ## API `configuration`
 
 * Callable from : API Gateway
+
+This API dumps (or upload) the whole CloneSquad configuration in JSON format by default (YAML format available on request).
+
+**Argument:**
+	`format`: (Optional) `json` or `yaml`
+
+**API Gateway synopsis:**
+
+	# Dump the current active configuration.
+	# awscurl https://pq264fab39.execute-api.eu-west-3.amazonaws.com/v1/configuration?format=json
+	{
+	    "app.disable": {
+		"ConfigurationOrigin": "DynamoDB configuration table 'CloneSquad-test-Configuration'",
+		"DefaultValue": 0,
+		"Description": "Flag to disable Main Lambda function responsible to start/stop EC2 instances. \n\nIt disables completly CloneSquad. While disabled, the Lambda will continue to be started every minute to test\nif this flag changed its status and allow normal operation again.",
+		"Format": "Bool",
+		"Key": "app.disable",
+		"Stable": true,
+		"Status": "Key found in 'DynamoDB configuration table 'CloneSquad-test-Configuration''",
+		"Value": "0"
+	    },
+	    ...
+            ...
+	}
+
+	# Upload modification to the active configuration (written in DynamoDB table).
+	#    Note: The existing configuration is not replaced but patched
+	# awscurl -X POST -d @configfile.yaml https://pq264fab39.execute-api.eu-west-3.amazonaws.com/v1/configuration?format=json
+	Ok (12 key(s) processed)
+
 
 ## API `configuration/(.*)`
 
