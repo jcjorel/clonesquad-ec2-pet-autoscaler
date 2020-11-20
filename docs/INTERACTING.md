@@ -182,7 +182,7 @@ This API can called by any IAM authenticated and authorized entities.
 		"sourceIp": "172.31.42.2",
 		"user": "AROA4XZPU6QWAN5QP4NGD:i-0adc6dab31524a8d1",
 		"userAgent": "python-requests/2.25.0",
-		"userArn": "arn:aws:sts::111111111111:assumed-role/EC2AdminRole/i-0adc6dab31524a8d1",
+		"userArn": "arn:aws:sts::111111111111:assumed-role/EC2AdminRole/i-0ab1af6b52934bea1",
 		"vpcId": "vpc-11111111",
 		"vpceId": "vpce-11111111111111111"
 	    }
