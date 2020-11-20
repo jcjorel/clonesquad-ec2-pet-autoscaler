@@ -203,7 +203,7 @@ This API is used to acknowledge a CloneSquad event and avoid their periodic repe
 ```json
         {
                 "OpType": "notify/ackevent",
-                "EventData: ["<event["EventDate"] field taken form CloneSquad SQS event payload>"]
+                "EventData: ["<event['EventDate'] field taken form CloneSquad SQS event payload>"]
         }
 ```
 
