@@ -174,7 +174,7 @@ class Interact:
 
     def usage(self, context, event, response, cacheddata):
         response["statusCode"] = 200
-        response["body"] =  "\n".join([ c for c in sorted(self.commands.keys()) if c != "" ])
+        response["body"] =  "\n".join([ c for c in sorted(self.commands.keys()) if c != "" and "apigw" in self.commands[c]["interface"]])
         return True
 
     def fleet_status_prepare(self):

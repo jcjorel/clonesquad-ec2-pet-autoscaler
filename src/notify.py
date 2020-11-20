@@ -283,6 +283,8 @@ improve CloneSquad over time by allowing easy sharing of essential data for remo
     def ack_event_dates(self, event_dates):
         client     = self.context["dynamodb.client"]
         table_name = self.context["EventTable"]
+        if isinstance(event_dates, str):
+            event_dates = [str]
         for date in event_dates:
             if Cfg.get_int("notify.event.keep_acked_records"):
                 response = client.update_item(
