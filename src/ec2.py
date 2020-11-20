@@ -809,3 +809,4 @@ def spot_interruption_request(InstanceId=None, Event=None):
 def spot_rebalance_recommandation_request(InstanceId=None, Event=None):
     return {}
 
+

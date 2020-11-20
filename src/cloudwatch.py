@@ -596,3 +596,4 @@ See [Alarm specification documentation](ALARMS_REFERENCE.md)  for more details.
                 )
         self.ec2.set_state("cloudwatch.dashboard.last_action", now, TTL=Cfg.get_duration_secs("cloudwatch.default_ttl"))
 
+

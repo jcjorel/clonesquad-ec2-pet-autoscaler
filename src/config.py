@@ -353,3 +353,4 @@ def get_abs_or_percent(value_name, default, max_value):
     value = get(value_name)
     return misc.abs_or_percent(value, default, max_value)
 
+

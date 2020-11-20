@@ -491,3 +491,4 @@ class Interact:
             if "prepare" in cmd:
                 interact_precomputed_data["data"][api] = cmd["prepare"]()
         query_cache.save_cached_data(interact_precomputed_data)
+

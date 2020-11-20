@@ -1875,3 +1875,4 @@ parameter should NOT be modified by user.
                 self.ec2.set_scaling_state(instance_id, "draining")
                 log.info("Set 'draining' state for Spot interrupted instance '%s'." % instance_id)
 
+
