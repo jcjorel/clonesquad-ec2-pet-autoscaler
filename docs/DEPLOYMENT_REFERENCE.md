@@ -23,8 +23,8 @@ CloneSquad uses this tag/value to know which resources (EC2, RDS...) belongs to 
 
 * [REGIONAL|PRIVATE]: (Optional) By default, the API Gateway is a REGIONAL one. This switch allows to define explictily if the API Gateway is private or public regional.
 * GWPolicy: (Optional) Url to a customized API Gateway resource policy file. By default, the policy
-[api-gw-default-policy.json](../src/resources/api-gw-default-policy.json) is automatically loaded. This default policy allows access only `AWS_IAM`authenticated 
-requests coming from the AWS account where CloneSquad is deployed.
+[api-gw-default-policy.json](../src/resources/api-gw-default-policy.json) is automatically loaded. This default policy allows access only to `AWS_IAM`authenticated 
+requests coming from the resource located in the AWS account where CloneSquad is deployed.
 
 > Note: The Private API Gateway can't be accessed until some VPC Endpoints allows access to it.
 
@@ -35,6 +35,12 @@ requests coming from the AWS account where CloneSquad is deployed.
 **Format: MetaString**
 
 	ApiGWEndpointConfiguration=VpcId=vpc-12345678,
+
+This parameter controls the creation of VPC Endpoint to access the API Gateway from a specified VpcId.   
+
+> By default, no VPC Endpoints are created: This is intended to allow CloneSquad deployment in an account
+that uses VPC Sharing mechanism. When the API Gateway needs to be accessed from a VPC Shared, leave this field
+empty and create manually the required VPC Endpoints from the AWS Account owning the shared VPC. 
 
 * VpcId: (**Required**) VPC Id where to deploy VPC Endpoints to access the CloneSquad API Gateway.
 * VpcEndpointPolicyURL: (Optional) Url to a VPC Endpoint policy file. By default, the policy 
