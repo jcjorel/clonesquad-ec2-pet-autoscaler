@@ -137,12 +137,12 @@ class Interact:
                     "prerequisites": ["o_state", "o_ec2", "o_notify", "o_targetgroup", "o_scheduler"],
                     "func": debug.manage_publish_report,
                 },
-                "cloudwatch/getmetriccache": {
+                "cloudwatch/metriccache": {
                     "interface": ["apigw"],
                     "clients": ["ec2", "cloudwatch"],
                     "cache": "global",
                     "prerequisites": ["o_state", "o_ec2", "o_notify", "o_cloudwatch"],
-                    "func": self.cloudwatch_get_metric_cache
+                    "func": self.cloudwatch_metric_cache
                 },
                 "cloudwatch/sentmetrics": {
                     "interface": ["apigw"],
@@ -243,7 +243,7 @@ class Interact:
         response["body"]         = Dbg.pprint(discovery)
         return True
 
-    def cloudwatch_get_metric_cache(self, context, event, response, cacheddata):
+    def cloudwatch_metric_cache(self, context, event, response, cacheddata):
         response["statusCode"] = 200
         response["body"] = Dbg.pprint(context["o_cloudwatch"].get_metric_cache())
         return True
