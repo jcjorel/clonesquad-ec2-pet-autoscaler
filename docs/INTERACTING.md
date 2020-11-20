@@ -76,7 +76,7 @@ Thanks to IAM policies, users can implement fined-grained access control to the 
 
 ## API `metadata`
 
-* Callable from : API Gateway
+* Callable from : `API Gateway`
 
 > Note: Only calleable from autoscaled EC2 instances.
 
@@ -132,7 +132,7 @@ with the assumption the issue was transient.
 
 ## API `allmetadatas`
 
-* Callable from : API Gateway
+* Callable from : `API Gateway`
 
 This API returns a dict of the `metadata` structures for all managed EC2 instances.
 
@@ -144,7 +144,7 @@ This API can called by any IAM authenticated and authorized entities.
 
 ## API `discovery`
 
-* Callable from : API Gateway
+* Callable from : `API Gateway`
 
 **Synopsis:**
 
@@ -207,7 +207,7 @@ A working example of use of this API is demonstrated [in this example](../exampl
 
 ## API `configuration`
 
-* Callable from : API Gateway
+* Callable from : `API Gateway`
 
 This API dumps (or upload) the whole CloneSquad configuration in JSON format by default (YAML format available on request).
 
@@ -242,7 +242,7 @@ This API dumps (or upload) the whole CloneSquad configuration in JSON format by 
 
 ## API `configuration/(.*)`
 
-* Callable from : API Gateway
+* Callable from : `API Gateway`
 
 This API dumps and updates configuration on a pey key basis.
 
@@ -260,19 +260,19 @@ This API dumps and updates configuration on a pey key basis.
 
 ## API `scheduler`
 
-* Callable from : API Gateway
+* Callable from : `API Gateway`
 
 This API acts on the DynamoDB Scheduler table and follows the same semantic than API `configuration` (see `configuration` documentation).
 
 ## API `scheduler/(.*)`
 
-* Callable from : API Gateway
+* Callable from : `API Gateway`
 
 This API acts on the DynamoDB Scheduler table and follows the same semantic than API `configuration/(.*)` (see `configuration/(.*)` documentation).
 
 ## API `cloudwatch/sentmetrics`
 
-* Callable from : API Gateway
+* Callable from : `API Gateway`
 
 This API dumps the latest CloneSquad metrics sent to CloudWatch (These metrics are the one graphed by the CloneSquad supplied dashboard).
 
@@ -314,7 +314,7 @@ This API dumps the latest CloneSquad metrics sent to CloudWatch (These metrics a
 
 ## API `cloudwatch/metriccache`
 
-* Callable from : API Gateway
+* Callable from : `API Gateway`
 
 This API dumps the CloneSquad metric cache. This cache holds the metrics queried by CloneSquad mainly for autoscaling purpose but also
 to monitor the 'CPU Credit' of managed burstable instances.
@@ -362,7 +362,7 @@ to monitor the 'CPU Credit' of managed burstable instances.
 
 ## API `fleet/status`
 
-* Callable from : API Gateway
+* Callable from : `API Gateway`
 
 This API dumps some synthetic status indicators. It contains indicators that can be used to follow the dynamic of status change 
 in the CloneSquad fleets (autoscaled only currently).
@@ -414,4 +414,5 @@ This API triggers the generation of a Debug report to S3.
 
 An example of this API call can be seen in the command [cs-debug-report-dump](../tools/cs-debug-report-dump) that is used to manually
 trigger the generation of a Debug report in S3.
+
 
