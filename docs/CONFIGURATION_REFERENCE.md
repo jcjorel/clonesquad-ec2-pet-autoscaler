@@ -2,6 +2,9 @@
 
 # CloneSquad Configuration reference
 
+> This document is focused on runtime configuration of CloneSquad. See the specific documentation about the 
+[CloneSquad deployment configuration](DEPLOYMENT_REFERENCE.md)
+
 ## Concepts
 
 CloneSquad uses a multi-layered configuration system using the YAML semantic and format.
