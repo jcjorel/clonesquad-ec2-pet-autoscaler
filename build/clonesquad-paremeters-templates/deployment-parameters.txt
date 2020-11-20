@@ -1,7 +1,6 @@
 StackName=
 GroupName=
 OperationTimeout=
-VariantNumber=
 UserNotificationArns=
 ConfigurationURL=
 

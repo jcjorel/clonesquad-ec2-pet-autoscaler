@@ -474,6 +474,9 @@ See [Alarm specification documentation](ALARMS_REFERENCE.md)  for more details.
     def register_metric(self, spec):
         self.metrics.extend(spec)
 
+    def sent_metrics(self):
+        return self.metrics
+
     def set_metric(self, name, value, dimensions=None):
         for m in self.metrics:
             if m["MetricName"] == name:

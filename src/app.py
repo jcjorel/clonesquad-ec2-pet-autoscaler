@@ -8,7 +8,6 @@ import pdb
 from datetime import datetime
 from datetime import timedelta
 import boto3
-from botocore.config import Config
 
 import config
 import misc
@@ -50,12 +49,12 @@ for env in os.environ:
 def fix_sam_bugs():
         account_id = os.getenv("ACCOUNT_ID")
         # 2020/07/28: SAM local bug: DynamoDB tables and SNS Topics are not correctly propagated. Patch them manually
-        ctx["ConfigurationTable"] = "CloneSquad-%s%s-Configuration" % (ctx["GroupName"], ctx["VariantNumber"])
-        ctx["AlarmStateEC2Table"] = "CloneSquad-%s%s-AlarmState-EC2" % (ctx["GroupName"], ctx["VariantNumber"])
-        ctx["StateTable"]      = "CloneSquad-%s%s-State" % (ctx["GroupName"], ctx["VariantNumber"])
-        ctx["EventTable"]         = "CloneSquad-%s%s-EventLog" % (ctx["GroupName"], ctx["VariantNumber"])
-        ctx["LongTermEventTable"] = "CloneSquad-%s%s-EventLog-LongTerm" % (ctx["GroupName"], ctx["VariantNumber"])
-        ctx["SchedulerTable"]     = "CloneSquad-%s%s-Scheduler" % (ctx["GroupName"], ctx["VariantNumber"])
+        ctx["ConfigurationTable"] = "CloneSquad-%s-Configuration" % (ctx["GroupName"])
+        ctx["AlarmStateEC2Table"] = "CloneSquad-%s-AlarmState-EC2" % (ctx["GroupName"])
+        ctx["StateTable"]      = "CloneSquad-%s-State" % (ctx["GroupName"])
+        ctx["EventTable"]         = "CloneSquad-%s-EventLog" % (ctx["GroupName"])
+        ctx["LongTermEventTable"] = "CloneSquad-%s-EventLog-LongTerm" % (ctx["GroupName"])
+        ctx["SchedulerTable"]     = "CloneSquad-%s-Scheduler" % (ctx["GroupName"])
         ctx["MainSQSQueue"]       = "https://sqs.%s.amazonaws.com/%s/CloneSquad-Main-%s" % (ctx["AWS_DEFAULT_REGION"], account_id, ctx["GroupName"])
         ctx["InteractSQSUrl"]     = "https://sqs.%s.amazonaws.com/%s/CloneSquad-Interact-%s" % (ctx["AWS_DEFAULT_REGION"], account_id, ctx["GroupName"])
         ctx["CloudWatchEventRoleArn"] = "arn:aws:iam::%s:role/CloneSquad-%s-CWRole" % (account_id, ctx["GroupName"])
@@ -72,22 +71,6 @@ if misc.is_sam_local() or __name__ == '__main__':
     print("SAM Local Environment:")
     for env in os.environ:
         print("%s=%s" % (env, os.environ[env]))
-
-def initialize_clients(clients, context):
-    global ctx
-    log.debug("Initialize clients.")
-    ctx["cwd"]     = os.getcwd()
-    config = Config(
-       retries = {
-       'max_attempts': 5,
-       'mode': 'standard'
-       })
-    for c in clients:
-        k = "%s.client" % c
-        if k not in context:
-            context[k] = boto3.client(c, config=config)
-initialize_clients(["ec2", "cloudwatch", "events", "sqs", "sns", "dynamodb", 
-    "elbv2", "lambda", "s3", "rds", "resourcegroupstaggingapi"], ctx)
 
 log.debug("End of preambule.")
 
@@ -113,7 +96,8 @@ Cloudwatch GetMetricData, DynamoDB queries...)
 
 It disables completly CloneSquad. While disabled, the Lambda will continue to be started every minute to test
 if this flag changed its status and allow normal operation again."""
-               }
+               },
+           "app.archive_interact_events": "0"
         })
 
     log.debug("Setup management objects.")
@@ -137,14 +121,6 @@ if this flag changed its status and allow normal operation again."""
         "o_interact"     : o_interact,
         "o_rds"          : o_rds
         })
-
-
-@xray_recorder.capture()
-def load_prerequisites(object_list):
-    for o in object_list:
-        xray_recorder.begin_subsegment("prereq:%s" % o)
-        ctx[o].get_prerequisites()
-        xray_recorder.end_subsegment()
 
 
 @xray_recorder.capture()
@@ -181,6 +157,8 @@ def main_handler_entrypoint(event, context):
     ctx["now"] = misc.utc_now()
     ctx["FunctionName"] = "Main"
 
+    misc.initialize_clients(["ec2", "cloudwatch", "events", "sqs", "sns", "dynamodb", 
+        "elbv2", "rds", "resourcegroupstaggingapi"], ctx)
     init()
 
     if Cfg.get_int("app.disable") != 0 and not misc.is_sam_local():
@@ -189,7 +167,7 @@ def main_handler_entrypoint(event, context):
 
     no_is_called_too_early = False
     # Manage Spot interruption as fast as we can
-    if sqs.process_sqs_records(event, function=ec2.manage_spot_notification, function_arg=ctx):
+    if sqs.process_sqs_records(ctx, event, function=ec2.manage_spot_notification, function_arg=ctx):
         log.info("Managed Spot Interruption SQS record!")
         # Force to run now disregarding `app.run_period` as we have at least one Spot instance to 
         #   remove from target groups immediatly
@@ -205,12 +183,12 @@ def main_handler_entrypoint(event, context):
     if not no_is_called_too_early and is_called_too_early():
         log.log(log.NOTICE, "Called too early by: %s" % event)
         notify.do_not_notify = True
-        sqs.process_sqs_records(event)
+        sqs.process_sqs_records(ctx, event)
         sqs.call_me_back_send()
         return
 
     log.debug("Load prerequisites.")
-    load_prerequisites(["o_state", "o_notify", "o_ec2", "o_cloudwatch", "o_targetgroup", "o_ec2_schedule", "o_scheduler", "o_rds"])
+    misc.load_prerequisites(ctx, ["o_state", "o_ec2", "o_notify", "o_cloudwatch", "o_targetgroup", "o_ec2_schedule", "o_scheduler", "o_rds"])
 
     # Remember 'now' as the last execution date
     ctx["o_ec2"].set_state("main.last_call_date", value=ctx["now"], TTL=Cfg.get_duration_secs("app.default_ttl"))
@@ -228,9 +206,10 @@ def main_handler_entrypoint(event, context):
 
     ctx["o_cloudwatch"].send_metrics()
     ctx["o_cloudwatch"].configure_dashboard()
+    ctx["o_interact"].pregenerate_interact_data()
 
     # If we got woke up by SNS, acknowledge the message(s) now
-    sqs.process_sqs_records(event)
+    sqs.process_sqs_records(ctx, event)
 
     ctx["o_notify"].notify_user_arn_resources()
 
@@ -259,8 +238,9 @@ def sns_handler(event, context):
     log.log(log.NOTICE, "Handler start.")
     ctx["FunctionName"] = "SNS"
 
+    misc.initialize_clients(["ec2", "sqs", "dynamodb"], ctx)
     init()
-    load_prerequisites(["o_state", "o_notify", "o_targetgroup"])
+    misc.load_prerequisites(ctx, ["o_state", "o_notify", "o_targetgroup"])
 
     Cfg.dump()
 
@@ -294,13 +274,11 @@ def discovery_handler(event, context):
     """
 
     global ctx
-    ctx["FunctionName"] = "Interact"
-    # Remove sensitive informations
-    # Sanitize
-    for k in list(ctx.keys()):
-        if k.startswith("AWS_") or k.startswith("_AWS_") or k.startswith("LAMBDA") or k in ["_HANDLER", "LD_LIBRARY_PATH", "LANG", "PATH", "TZ", "PYTHONPATH", "cwd"] or not isinstance(ctx[k], str):
-            del ctx[k]
-    return json.loads(json.dumps(ctx, default=str))
+    ctx["now"]          = misc.utc_now()
+    ctx["FunctionName"] = "Discovery"
+    discovery = misc.discovery(ctx)
+    log.debug(discovery)
+    return discovery
 
 def interact_handler(event, context):
     log.log(log.NOTICE, "Handler start.")
@@ -328,18 +306,22 @@ def interact_handler_entrypoint(event, context):
     """
 
     global ctx
-    ctx["now"] = misc.utc_now()
-    ctx["FunctionName"] = "Interact"
+    ctx["now"]           = misc.utc_now()
+    ctx["FunctionName"]  = "Interact"
 
     init()
+    notify.do_not_notify = True # We do not want notification and event management in the Interact function
 
-    print(Dbg.pprint(event))
-    load_prerequisites(["o_state", "o_ec2", "o_notify", "o_targetgroup", "o_scheduler", "o_interact"])
+    log.info(json.dumps(event))
+    if ctx["LoggingS3Path"] != "" and Cfg.get_int("app.archive_interact_events"):
+        s3path = "%s/InteractEvents/%s.json" % (ctx["LoggingS3Path"], ctx["now"])
+        log.warning("Pushing Interact event in '%s'!" % s3path)
+        misc.put_s3_object(s3path, Dbg.pprint(event))
 
     response = {}
     if ctx["o_interact"].handler(event, context, response):
-        log.log(log.NOTICE, "API Gateway response: %s" % response)
-    sqs.process_sqs_records(event)
+        log.debug("API Gateway response: %s" % response)
+    sqs.process_sqs_records(ctx, event)
     return response
 
 
@@ -357,5 +339,14 @@ def is_called_too_early():
     return False
 
 if __name__ == '__main__':
-    main_handler(None, None)
+    # To ease debugging, the Lambda Python code can be started inside the DevKit
+    event = None
+    if len(sys.argv) <= 1:
+         main_handler(event, None)
+         sys.exit(0)
+    log.info("Looking for '%s' entrypoint..." % sys.argv[1])
+    func = globals()[sys.argv[1]]
+    if len(sys.argv) == 3:
+        event = json.load(open(sys.argv[2]))
+    func(event, None)
 

@@ -4,7 +4,7 @@ Description: CloneSquad deployment
 
 Globals:
   Function:
-    Timeout: !Ref OperationTimeout
+    Timeout: 300
 
 Parameters: 
   GroupName: 
@@ -46,17 +46,15 @@ Parameters:
     Default: ""
     Description: "(Optional) S3 Path for detailed logging (s3://<bucket_name>/<path>)"
 
-  OperationTimeout: 
+  ApiGWConfiguration:
     Type: String
-    ConstraintDescription: "[0-9]+"
-    Default: 300
-    Description: "(Optional) General timeout for operations"
-
-  VariantNumber:
-    Type: String
-    ConstraintDescription: "[0-9]*"
     Default: ""
-    Description: "(Debug) Used to avoid CloudFormation clashes when updating some resources (ex: DynamoDB Tables)"
+    Description: "(Optional) API Gateway configuration"
+
+  ApiGWEndpointConfiguration:
+    Type: String
+    Default: ""
+    Description: "(Optional) API Gateway endpoint configuration"
 
   XRayDiagnosis:
     Type: String
@@ -66,6 +64,7 @@ Parameters:
 
 Conditions:
     HasCustomizationZipParameters: !Not [ !Equals [ !Ref CustomizationZipParameters, ""]]
+    HasApiGWEndpointConfiguration: !Not [ !Equals [ !Ref ApiGWEndpointConfiguration, ""]]
 
 
 Resources:
@@ -75,7 +74,7 @@ Resources:
         MessageRetentionPeriod: 120
         QueueName: !Sub "CloneSquad-Main-${GroupName}"
         ReceiveMessageWaitTimeSeconds: 10
-        VisibilityTimeout: !Ref OperationTimeout
+        VisibilityTimeout: 300
         Tags: 
           - Key: "clonesquad:group-name"
             Value: !Ref GroupName
@@ -119,7 +118,7 @@ Resources:
     ConfigTable: 
       Type: AWS::DynamoDB::Table
       Properties: 
-        TableName: !Sub "CloneSquad-${GroupName}${VariantNumber}-Configuration"
+        TableName: !Sub "CloneSquad-${GroupName}-Configuration"
         AttributeDefinitions: 
           - 
             AttributeName: "Key"
@@ -141,7 +140,7 @@ Resources:
     AlarmStateEC2Table: 
       Type: AWS::DynamoDB::Table
       Properties: 
-        TableName: !Sub "CloneSquad-${GroupName}${VariantNumber}-AlarmState-EC2"
+        TableName: !Sub "CloneSquad-${GroupName}-AlarmState-EC2"
         AttributeDefinitions: 
           - 
             AttributeName: "AlarmName"
@@ -161,7 +160,7 @@ Resources:
     StateTable: 
       Type: AWS::DynamoDB::Table
       Properties: 
-        TableName: !Sub "CloneSquad-${GroupName}${VariantNumber}-State"
+        TableName: !Sub "CloneSquad-${GroupName}-State"
         AttributeDefinitions: 
           - 
             AttributeName: "Key"
@@ -181,7 +180,7 @@ Resources:
     EventTable: 
       Type: AWS::DynamoDB::Table
       Properties: 
-        TableName: !Sub "CloneSquad-${GroupName}${VariantNumber}-EventLog"
+        TableName: !Sub "CloneSquad-${GroupName}-EventLog"
         AttributeDefinitions: 
           - 
             AttributeName: "EventDate"
@@ -201,7 +200,7 @@ Resources:
     LongTermEventTable: 
       Type: AWS::DynamoDB::Table
       Properties: 
-        TableName: !Sub "CloneSquad-${GroupName}${VariantNumber}-EventLog-LongTerm"
+        TableName: !Sub "CloneSquad-${GroupName}-EventLog-LongTerm"
         AttributeDefinitions: 
           - 
             AttributeName: "EventDate"
@@ -221,7 +220,7 @@ Resources:
     SchedulerTable: 
       Type: AWS::DynamoDB::Table
       Properties: 
-        TableName: !Sub "CloneSquad-${GroupName}${VariantNumber}-Scheduler"
+        TableName: !Sub "CloneSquad-${GroupName}-Scheduler"
         AttributeDefinitions: 
           - 
             AttributeName: "Key"
@@ -238,29 +237,29 @@ Resources:
           - Key: "clonesquad:group-name"
             Value: !Ref GroupName
 
-    EC2EventRule:
-      Type: 'AWS::Events::Rule'
-      Properties:
-        Name: !Sub "CloneSquad-EC2-Notif-${GroupName}"
-        Description: >-
-          CloudWatch Event Rule that detects changes to EC2 Instances and
-          publishes change events to the SQS queue for notification.
-        State: ENABLED
-        Targets:
-          - Arn: !GetAtt MainQueue.Arn
-            Id: !GetAtt MainQueue.QueueName
-        EventPattern:
-          detail-type:
-            - AWS API Call via CloudTrail
-          detail:
-            eventSource:
-              - ec2.amazonaws.com
-            eventName:
-              - RunInstances
-              - RebootInstances
-              - StartInstances
-              - StopInstances
-              - TerminateInstances
+#    EC2EventRule:
+#      Type: 'AWS::Events::Rule'
+#      Properties:
+#        Name: !Sub "CloneSquad-EC2-Notif-${GroupName}"
+#        Description: >-
+#          CloudWatch Event Rule that detects changes to EC2 Instances and
+#          publishes change events to the SQS queue for notification.
+#        State: ENABLED
+#        Targets:
+#          - Arn: !GetAtt MainQueue.Arn
+#            Id: !GetAtt MainQueue.QueueName
+#        EventPattern:
+#          detail-type:
+#            - AWS API Call via CloudTrail
+#          detail:
+#            eventSource:
+#              - ec2.amazonaws.com
+#            eventName:
+#              - RunInstances
+#              - RebootInstances
+#              - StartInstances
+#              - StopInstances
+#              - TerminateInstances
 
     EC2SpotEventRule:
       Type: AWS::Events::Rule
@@ -490,6 +489,35 @@ Resources:
               LogGroupName: !Join ["", ["/aws/lambda/", !Ref "DiscoveryFunction"]]
               RetentionInDays: !Ref LogRetentionDuration
 
+    CustomResourceFunction:
+            Type: AWS::Serverless::Function 
+            Properties:
+              Handler: customresource.handler
+              Runtime: python3.7
+              CodeUri: custo/
+              Layers:
+                  - !Ref CloneSquadLayer
+                  - !Ref CloneSquadDependencyLayer
+              FunctionName: !Sub "CloneSquad-CustomResource-${GroupName}"
+              MemorySize: 128
+              Timeout: 60
+              Policies:
+              - AdministratorAccess
+              Environment:
+                Variables:
+                  PYTHONPATH:                                 "/opt:/opt/site-packages"
+
+    ApiGWParameters:
+            Type: "Custom::CustomResourceFunction"
+            Properties:
+              ServiceToken: !GetAtt CustomResourceFunction.Arn
+              Helper: ApiGWParameters
+              AccountId: !Ref AWS::AccountId
+              Region: !Ref AWS::Region
+              ApiGWConfiguration: !Ref ApiGWConfiguration
+              ApiGWEndpointConfiguration: !Ref ApiGWEndpointConfiguration
+              DefaultGWPolicyURL: "internal:api-gw-default-policy.json"
+
     InteractApi:
             Type: AWS::Serverless::Api
             Properties:
@@ -497,13 +525,60 @@ Resources:
               Name: !Sub "CloneSquad-${GroupName}"
               EndpointConfiguration: REGIONAL
               Auth:
-                DefaultAuthorizer: AWS_IAM
+                   DefaultAuthorizer: AWS_IAM
+                   ResourcePolicy:
+                      CustomStatements: !GetAtt ApiGWParameters.GWPolicy
+              EndpointConfiguration:
+                Type: !GetAtt ApiGWParameters.EndpointConfiguration.Type
             Tags:
             - Key: "clonesquad:group-name"
               Value: !Ref GroupName
 
+    ApiGWVpcEndpointParameters:
+            Type: "Custom::CustomResourceFunction"
+            Condition: HasApiGWEndpointConfiguration
+            Properties:
+              ServiceToken: !GetAtt CustomResourceFunction.Arn
+              Helper: ApiGWVpcEndpointParameters
+              AccountId: !Ref AWS::AccountId
+              Region: !Ref AWS::Region
+              ApiGWConfiguration: !Ref ApiGWConfiguration
+              ApiGWEndpointConfiguration: !Ref ApiGWEndpointConfiguration
+              ApiGWId: !Ref InteractApi
+              DefaultGWVpcEndpointPolicyURL: "internal:api-gw-default-endpoint-policy.json"
+
+    ApiGWVpcEndpoints:
+        Type: AWS::EC2::VPCEndpoint
+        Condition: HasApiGWEndpointConfiguration
+        Properties: 
+          PolicyDocument: !GetAtt ApiGWVpcEndpointParameters.PolicyDocument
+          PrivateDnsEnabled: !GetAtt ApiGWVpcEndpointParameters.PrivateDnsEnabled
+          SecurityGroupIds: 
+            - !Ref ApiGWEndpointSecurityGroup
+          ServiceName: !Sub "com.amazonaws.${AWS::Region}.execute-api"
+          SubnetIds: !GetAtt ApiGWVpcEndpointParameters.SubnetIds
+          VpcEndpointType: Interface
+          VpcId: !GetAtt ApiGWVpcEndpointParameters.VpcId
+
+    ApiGWEndpointSecurityGroup:
+        Type: AWS::EC2::SecurityGroup
+        Condition: HasApiGWEndpointConfiguration
+        Properties:
+          GroupDescription: !Sub "${AWS::StackName} - Security Group for CloneSquad API GW"
+          SecurityGroupEgress:
+          - IpProtocol: -1
+            FromPort: -1
+            ToPort: -1
+            CidrIp: 0.0.0.0/0
+          SecurityGroupIngress: !GetAtt ApiGWVpcEndpointParameters.SecurityGroupIngressRule
+          VpcId: !GetAtt ApiGWVpcEndpointParameters.VpcId
+          Tags:
+          - Key: Name
+            Value: !Join ['', [!Ref "AWS::StackName", "-APIGWEndpointSecurityGroup" ]]
+          
+
     MainFunction:
-            Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+            Type: AWS::Serverless::Function 
             Properties:
               Handler: app.main_handler
               Runtime: python3.7
@@ -513,7 +588,7 @@ Resources:
                   - !Ref CloneSquadDependencyLayer
               FunctionName: !Sub "CloneSquad-Main-${GroupName}"
               MemorySize: !Ref LambdaMemorySize
-              Timeout: !Ref OperationTimeout
+              Timeout: 300
               ReservedConcurrentExecutions: 1
               Tracing: Active
               Policies:
@@ -537,7 +612,6 @@ Resources:
                   EventTable:                                 !Ref EventTable
                   SchedulerTable:                             !Ref SchedulerTable
                   LongTermEventTable:                         !Ref LongTermEventTable
-                  VariantNumber:                              !Ref VariantNumber
                   ConfigurationURL:                           !Ref ConfigurationURL
                   LoggingS3Path:                              !Ref LoggingS3Path
                   AWS_XRAY_SDK_ENABLED:                       !Ref XRayDiagnosis
@@ -591,7 +665,6 @@ Resources:
                   AlarmStateEC2Table:                         !Ref AlarmStateEC2Table
                   StateTable:                                 !Ref StateTable
                   EventTable:                                 !Ref EventTable
-                  VariantNumber:                              !Ref VariantNumber
                   ConfigurationURL:                           !Ref ConfigurationURL
               Events:
                 ScaleUpTopic:
@@ -638,12 +711,16 @@ Resources:
                   EventTable:         !Ref EventTable
                   LongTermEventTable: !Ref LongTermEventTable
                   SchedulerTable:     !Ref SchedulerTable
-                  VariantNumber:      !Ref VariantNumber
                   ConfigurationURL:   !Ref ConfigurationURL
                   LoggingS3Path:      !Ref LoggingS3Path
                   InteractQueue:      !Ref InteractQueue
                   InteractAPIGWUrl:   !Sub "https://${InteractApi}.execute-api.${AWS::Region}.amazonaws.com/v1/"
                   MainFunctionArn:    !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:CloneSquad-Main-${GroupName}"
+                  InteractApi:        !Ref InteractApi
+                  ApiGwVpcEndpointDNSEntries: !If 
+                        - HasApiGWEndpointConfiguration 
+                        - !Select [ 1, !Split [ ":", !Select [ 0, !GetAtt ApiGWVpcEndpoints.DnsEntries]]]
+                        - ""
 
     InteractFunction:
             Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
@@ -673,7 +750,6 @@ Resources:
                   EventTable:         !Ref EventTable
                   LongTermEventTable: !Ref LongTermEventTable
                   SchedulerTable:     !Ref SchedulerTable
-                  VariantNumber:      !Ref VariantNumber
                   ConfigurationURL:   !Ref ConfigurationURL
                   LoggingS3Path:      !Ref LoggingS3Path
                   InteractQueue:      !Ref InteractQueue
@@ -684,18 +760,30 @@ Resources:
                   Properties:
                     Queue: !GetAtt InteractQueue.Arn
                     BatchSize: 10
+                ApiEventCommandGETRoot:
+                  Type: Api
+                  Properties:
+                    RestApiId: !Ref InteractApi
+                    Path: "/"
+                    Method: get
+                    Auth: 
+                        InvokeRole: NONE
                 ApiEventCommandGET:
                   Type: Api
                   Properties:
                     RestApiId: !Ref InteractApi
                     Path: "/{proxy+}"
                     Method: get
+                    Auth: 
+                        InvokeRole: NONE
                 ApiEventCommandPOST:
                   Type: Api
                   Properties:
                     RestApiId: !Ref InteractApi
                     Path: "/{proxy+}"
                     Method: post
+                    Auth: 
+                        InvokeRole: NONE
 
     InteractQueue:
       Type: AWS::SQS::Queue

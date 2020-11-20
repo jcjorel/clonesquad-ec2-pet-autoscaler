@@ -4,7 +4,8 @@ MAINTAINER jeancharlesjorel@gmail.com
 RUN yum upgrade -y
 
 # Prepare for AWS SAM
-RUN yum install git curl wget python3 jq shadow-utils sudo tar which procps-ng vim httpd-tools time dialog uuid -y 
+RUN yum install git curl wget python3 jq shadow-utils sudo tar which procps-ng vim httpd-tools \
+	mtr iputils bind-utils time dialog uuid -y 
 RUN bash -c "curl https://bootstrap.pypa.io/get-pip.py | python3" && \
 	/usr/local/bin/pip3 install jinja2 awscli awscurl==0.17 pythondialog && \
 	yum update -y 

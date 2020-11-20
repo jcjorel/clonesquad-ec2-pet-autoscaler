@@ -305,10 +305,13 @@ def set(key, value, ttl=None):
     _init["configuration_table"].set_kv(key, value, TTL=ttl)
 
 def get_direct_from_kv(key, default=None):
-    global ctx
     t = kvtable.KVTable(ctx, ctx["ConfigurationTable"])
     v = t.get_kv(key, direct=True)
     return v if not None else default
+
+def import_dict(c):
+    t = _init["configuration_table"]
+    t.set_dict(c)
 
 def get(key, none_on_failure=False):
     r = get_extended(key)

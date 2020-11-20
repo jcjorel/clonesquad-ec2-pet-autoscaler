@@ -130,6 +130,7 @@ without any TargetGroup but another external health instance source exists).
     def get_prerequisites(self, only_if_not_already_done=False):
         if only_if_not_already_done and self.prereqs_done:
             return
+        misc.initialize_clients(["ec2"], self.context)
 
         self.state_table = self.o_state.get_state_table()
         client           = self.context["ec2.client"]
@@ -237,6 +238,7 @@ without any TargetGroup but another external health instance source exists).
     def get_instance_statuses(self):
         return self.instance_statuses
 
+    INSTANCE_STATES = ["ok", "impaired", "insufficient-data", "not-applicable", "initializing", "unhealthy", "az_evicted"]
     def is_instance_state(self, instance_id, state):
         i = next(filter(lambda i: i["InstanceId"] == instance_id, self.instance_statuses), None)
         if i is None:
@@ -253,7 +255,7 @@ without any TargetGroup but another external health instance source exists).
             override = self.ec2_status_override[instance_id]
             if "status" in override:
                 override_status = override["status"]
-                if override_status not in ["ok", "impaired", "insufficient-data", "not-applicable", "initializing", "unhealthy"]:
+                if override_status not in INSTANCE_STATES:
                     log.warning("Status override for instance '%s' (defined in %s) has an unmanaged status (%s) !" % 
                             (instance_id, self.ec2_status_override_url, override_status))
                 else:
@@ -676,7 +678,7 @@ without any TargetGroup but another external health instance source exists).
 
     def get_state(self, key, default=None, direct=False):
         if self.state_table is None or direct: 
-            return kvtable.KVTable.get_kv_direct(key, self.context["StateTable"], default=default)
+            return kvtable.KVTable.get_kv_direct(key, self.context["StateTable"], context=self.context, default=default)
         return self.state_table.get_kv(key, default=default, direct=direct)
 
     def get_state_int(self, key, default=0, direct=False):

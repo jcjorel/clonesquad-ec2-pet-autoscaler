@@ -8,6 +8,14 @@ source ${CLONESQUAD_DIR}/scripts/_source-me.sh
 tmpfile=/tmp/cs-config.$$
 aws lambda invoke --function-name CloneSquad-Discovery-${GroupName} --payload '' $tmpfile 1>/dev/stderr
 APIGW_URL=$(jq -r '.["InteractAPIGWUrl"]' <$tmpfile)
+APIGW_VPCENDPOINT_URL=$(jq -r '.["ApiGwVpcEndpointDNSEntries"]' <$tmpfile)
+APIGW_ID=$(jq -r '.["InteractApi"]' <$tmpfile)
 rm -f $tmpfile
-awscurl ${APIGW_URL}Configuration/Dump?Unstable=$1 | jq .
+#if ! [ -z "$APIGW_VPCENDPOINT_URL" ] ; then
+# We use the endpoint VPC URL if available
+#	awscurl -H "x-apigw-api-id: $APIGW_ID" https://${APIGW_VPCENDPOINT_URL}/Configuration/Dump?Unstable=$1 | jq .
+#	awscurl -H "Host: r4u2oxae01.execute-api.eu-west-1.amazonaws.com" https://${APIGW_VPCENDPOINT_URL}/Configuration/Dump?Unstable=$1 | jq .
+#else
+	awscurl ${APIGW_URL}Configuration/Json?Unstable=$1 | jq .
+#fi
 

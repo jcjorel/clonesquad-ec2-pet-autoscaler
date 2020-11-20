@@ -1,0 +1,11 @@
+#!/bin/bash
+
+if [ -z "${CLONESQUAD_DIR}" ] ; then
+	echo "Please define CLONESQUAD_DIR environmen variable!" ; exit 1
+fi
+source ${CLONESQUAD_DIR}/scripts/_source-me.sh
+
+tmpfile=/tmp/cs-config.$$
+aws lambda invoke --function-name CloneSquad-Discovery-${GroupName} --payload '' $tmpfile 1>/dev/stderr
+jq . <$tmpfile
+rm -f $tmpfile

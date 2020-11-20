@@ -16,7 +16,7 @@ specs="1,port=80,protocol=HTTP;2,port=80,protocol=HTTP;3,port=22,protocol=TCP"
 
 ./generate-env.py $specs >$TemplatefileName
 
-STACK_NAME="CS-Demo-LoadBalancers-$GroupName$VariantNumber"
+STACK_NAME="CS-Demo-LoadBalancers-$GroupName"
 aws cloudformation deploy  --template-file $TemplatefileName --stack-name $STACK_NAME \
 	--parameter-overrides $(get_parameters)
 

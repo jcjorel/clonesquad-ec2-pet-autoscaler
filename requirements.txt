@@ -5,3 +5,4 @@ pyyaml
 aws-xray-sdk
 tox
 jinja2
+crhelper

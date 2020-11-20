@@ -1,0 +1,23 @@
+[
+  {
+    "Effect": "Allow",
+    "Principal": {
+      "AWS": "*"
+    },
+    "Action": "execute-api:Invoke",
+    "Resource": "execute-api:/*"
+  },
+  {
+    "Effect": "Deny",
+    "Principal": {
+      "AWS": "*"
+    },
+    "Action": "execute-api:Invoke",
+    "Resource": "execute-api:/*",
+    "Condition": {
+      "StringNotEquals": {
+        "aws:PrincipalAccount": "%(AccountId)"
+      }
+    }
+  }
+]

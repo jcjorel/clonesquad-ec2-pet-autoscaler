@@ -651,6 +651,28 @@ parameter should NOT be modified by user.
         if len(instances_with_issues): 
             log.info("These instances are 'unuseable' (unavail/unhealthy/impaired/spotinterrupted/lackofcpucredit...) : %s" % instances_with_issues)
 
+        # Compute higher level synthethic metrics
+        running_fleet_size       = len(running_instances)
+        serving_fleet_size       = self.get_useable_instance_count(exclude_problematic_instances=True) 
+        maximum_fleet_size       = len(self.instances_wo_excluded_error_spotexcluded)
+        managed_fleet_size       = len(self.instances_wo_excluded)
+        servingfleetpercentage_maximumfleetsize = int(min(100, 100 * serving_fleet_size / maximum_fleet_size)) if maximum_fleet_size else 0
+        servingfleetpercentage_managedfleetsize = int(min(100, 100 * serving_fleet_size / managed_fleet_size)) if managed_fleet_size else 0
+        s_metrics = {
+            "AutoscaledFleet" : {
+                "MaximumFleetSize"                            : maximum_fleet_size,
+                "ManagedFleetSize"                            : managed_fleet_size,
+                "FaultyFleetSize"                             : managed_fleet_size - maximum_fleet_size,
+                "ServingFleetSize"                            : serving_fleet_size,
+                "RunningFleetSize"                            : running_fleet_size,
+                "ServingFleet_vs_MaximumFleetSizePourcentage" : servingfleetpercentage_maximumfleetsize,
+                "ServingFleet_vs_ManagedFleetSizePourcentage" : servingfleetpercentage_managedfleetsize
+            }
+        }
+        self.synthetic_metrics = s_metrics
+
+    def get_synthetic_metrics(self):
+        return self.synthetic_metrics
 
     ###############################################
     #### LOW LEVEL INSTANCE HANDLING ##############

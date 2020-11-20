@@ -15,7 +15,7 @@ TemplatefileName="$demo_run_dir/template-generated.yaml"
 ./generate-env.py --specs $FLEET_SPECIFICATION --static-fleet-specs $STATIC_FLEET_SPECIFICATION \
 	--static-fleet-rds-specs $STATIC_FLEET_RDS_SPECIFICATION | tee $TemplatefileName
 
-aws cloudformation deploy  --template-file $TemplatefileName --stack-name "CS-Demo-TestEC2nRDSInstances-$GroupName$Variant$1" --capabilities CAPABILITY_IAM \
+aws cloudformation deploy  --template-file $TemplatefileName --stack-name "CS-Demo-TestEC2nRDSInstances-$GroupName$1" --capabilities CAPABILITY_IAM \
 	--parameter-overrides $(get_parameters) GroupName=$GroupName
 
 cat <<EOF
