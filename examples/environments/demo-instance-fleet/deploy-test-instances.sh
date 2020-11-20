@@ -21,7 +21,7 @@ aws cloudformation deploy  --template-file $TemplatefileName --stack-name "CS-De
 cat <<EOF
 Stack ready!
 
-Optionnaly, please consider activating Vertical Scaling with 'demo-loadbalancers' demonstration 
+Optionaly, please consider activating Vertical Scaling with 'demo-loadbalancers' demonstration 
 to experience smart management of instance types!
 
 ***** IMPORTANT *****
