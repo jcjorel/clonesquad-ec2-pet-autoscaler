@@ -29,7 +29,7 @@ to never create or terminate [EC2](https://aws.amazon.com/ec2/) instances but on
 	- Support for mixed instance type fleet,
 	- Integrated [event scheduler](docs/SCHEDULER.md) ('cron' or 'rate' based) for complex scaling scenario,
 	- Configuration hierarchy for complex dynamic settings,
-	- API Gateway to monitor and make some basic operations.
+	- [API Gateway](docs/INTERACTING.md#interacting-with-clonesquad) to monitor and make some basic operations.
 * Observability
 	- (Optional) CloudWatch dashboard (*Note: activated by default*),
 	- [Events & Notifications](docs/EVENTS_AND_NOTIFICATIONS.md) (Lambda/SQS/SNS targets) framework to react to Squad events (ex: Register a just-started instance to an external monitoring solution and/or DNS),

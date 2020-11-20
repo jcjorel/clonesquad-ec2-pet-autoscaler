@@ -169,7 +169,7 @@ class Interact:
         return self.context["o_ec2_schedule"].get_synthetic_metrics()
 
     def manage_publish_report(self, context, event, response, cacheddata):
-        return debug.manage_publish_report(self, context, event, response)
+        return debug.manage_publish_report(context, event, response)
 
     def fleet_status(self, context, event, response, cacheddata):
         response["statusCode"] = 200
