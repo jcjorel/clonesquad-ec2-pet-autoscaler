@@ -277,20 +277,144 @@ This API acts on the DynamoDB Scheduler table and follows the same semantic than
 
 * Callable from : API Gateway
 
+This API dumps the latest CloneSquad metrics sent to CloudWatch (These metrics are the one graphed by the CloneSquad supplied dashboard).
 
-* Callable from : API Gateway
+**API Gateway synopsis:**
+
+	# Dump CloneSquad latest custom metrics.
+	# awscurl https://pq264fab39.execute-api.eu-west-3.amazonaws.com/v1/cloudwatch/sentmetrics
+	[
+	    {
+		"Dimensions": [
+		    {
+			"Name": "GroupName",
+			"Value": "test"
+		    }
+		],
+		"MetricName": "RunningInstances",
+		"StorageResolution": 60,
+		"Timestamp": "2020-11-20 14:52:01.386924+00:00",
+		"Unit": "Count",
+		"Value": 17.0
+	    },
+	    {
+		"Dimensions": [
+		    {
+			"Name": "GroupName",
+			"Value": "test"
+		    }
+		],
+		"MetricName": "PendingInstances",
+		"StorageResolution": 60,
+		"Timestamp": "2020-11-20 14:52:01.386924+00:00",
+		"Unit": "Count",
+		"Value": 0.0
+	    },
+	    ...
+	    ...
+	]
+
 
 ## API `cloudwatch/metriccache`
 
 * Callable from : API Gateway
 
+This API dumps the CloneSquad metric cache. This cache holds the metrics queried by CloneSquad mainly for autoscaling purpose but also
+to monitor the 'CPU Credit' of managed burstable instances.
+
+**API Gateway synopsis:**
+
+	# Dump CloneSquad latest custom metrics.
+	# awscurl https://pq264fab39.execute-api.eu-west-3.amazonaws.com/v1/cloudwatch/sentmetrics
+	[
+	    {
+		"Id": "idxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+		"Label": "AWS/EC2 i-0aaaaaaaaaaaaaaaa CPUUtilization",
+		"StatusCode": "Complete",
+		"Timestamps": [
+		    "2020-11-20 22:55:00+00:00",
+		    "2020-11-20 22:54:00+00:00"
+		],
+		"Values": [
+		    59.0,
+		    57.0
+		],
+		"_MetricId": "CloneSquad-test-i-01111111111111111-00",
+		"_SamplingTime": "2020-11-20 22:56:46.641023+00:00"
+	    },
+	    {
+		"Id": "idyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy",
+		"Label": "AWS/EC2 i-0bbbbbbbbbbbbbbbb CPUUtilization",
+		"StatusCode": "Complete",
+		"Timestamps": [
+		    "2020-11-20 22:55:00+00:00",
+		    "2020-11-20 22:54:00+00:00"
+		],
+		"Values": [
+		    23.0,
+		    23.0
+		],
+		"_MetricId": "CloneSquad-test-i-0bbbbbbbbbbbbbbbb-00",
+		"_SamplingTime": "2020-11-20 22:56:46.641023+00:00"
+	    },
+	    ...
+	    ...
+	]
+
+
+
 ## API `fleet/status`
 
 * Callable from : API Gateway
+
+This API dumps some synthetic status indicators. It contains indicators that can be used to follow the dynamic of status change 
+in the CloneSquad fleets (autoscaled only currently).
+
+Example use-case: Track the fleet reaching 100% serving status.   
+To perform an immutable update, user may set 'ec2.schedule.desired_instance_count' to `100%` value to have all instances started.
+This API can be polled to know when the whole fleet is started (`RunningFleetSize`) and ready (`ServingFleet_vs_MaximumFleetSizePourcentage`).
+
+**API Gateway synopsis:**
+
+	# awscurl https://pq264fab39.execute-api.eu-west-3.amazonaws.com/v1/fleet/status
+	{
+	    "AutoscaledFleet": {
+		"FaultyFleetSize": 0,
+		"ManagedFleetSize": 20,
+		"MaximumFleetSize": 20,
+		"RunningFleetSize": 17,
+		"ServingFleetSize": 17,
+		"ServingFleet_vs_ManagedFleetSizePourcentage": 85,
+		"ServingFleet_vs_MaximumFleetSizePourcentage": 85
+	    }
+	}
+
+**Return value:**
+* "AutoscaledFleet"
+	* `FaultyFleetSize`: Number of instances (in the autoscaled fleet) that are reporting a unhealthy status.
+	* `ManagedFleetSize`: Number of instances with the matching 'clonesquad:group-name' tag.
+	* `MaximumFleetSize`: Maximum number of instances that can be running at this moment (This number excludes instances that CloneSquad
+knows that it can't start now. Ex: Instance in `error`or `spot interrupted`).
+	* `RunningInstances`: Number of instances with status 'pending' or 'running'.
+	* `ServingFleetSize`: Number of instances that are running AND have passed all HealthChecks (either EC2 System or TargetGroup health check).
+	* `ServingFleet_vs_ManagedFleetSizePourcentage`: int(100 * ServingFleetSize / MaximumFleetSize),
+	* `ServingFleet_vs_MaximumFleetSizePourcentage`: int(100 * ServingFleetSize / ManagedFleetSize)
+
 
 ## API `debug/publishreportnow`
 
 * Callable from : SQS Queue
 
+This API triggers the generation of a Debug report to S3.
 
+**SQS Payload synopsis:**
+
+```json
+        {
+                "OpType": "Debug/PublishReportNow"
+        }
+```
+
+An example of this API call can be seen in the command [cs-debug-report-dump](../tools/cs-debug-report-dump) that is used to manually
+trigger the generation of a Debug report in S3.
 
