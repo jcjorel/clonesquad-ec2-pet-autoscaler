@@ -103,7 +103,6 @@ class Interact:
                     "func": self.process_ack_event_dates,
                 },
                 "configuration"       : {
-                    "cache": "none",
                     "interface": ["apigw"],
                     "clients": ["dynamodb"],
                     "cache": "none",
@@ -111,7 +110,6 @@ class Interact:
                     "func": self.configuration_dump,
                 },
                 "configuration/(.*)"       : {
-                    "cache": "none",
                     "interface": ["apigw"],
                     "clients": ["dynamodb"],
                     "cache": "none",
@@ -119,7 +117,6 @@ class Interact:
                     "func": self.configuration,
                 },
                 "scheduler"       : {
-                    "cache": "none",
                     "interface": ["apigw"],
                     "clients": ["dynamodb"],
                     "cache": "none",
@@ -127,7 +124,6 @@ class Interact:
                     "func": self.scheduler_dump,
                 },
                 "scheduler/(.*)"       : {
-                    "cache": "none",
                     "interface": ["apigw"],
                     "clients": ["dynamodb"],
                     "cache": "none",
@@ -143,16 +139,47 @@ class Interact:
                 },
                 "cloudwatch/getmetriccache": {
                     "interface": ["apigw"],
-                    "cache": "global",
                     "clients": ["ec2", "cloudwatch"],
                     "cache": "global",
                     "prerequisites": ["o_state", "o_ec2", "o_notify", "o_cloudwatch"],
                     "func": self.cloudwatch_get_metric_cache
+                },
+                "cloudwatch/sentmetrics": {
+                    "interface": ["apigw"],
+                    "clients": [],
+                    "cache": "global",
+                    "prerequisites": [],
+                    "prepare": self.cloudwatch_sentmetrics_prepare,
+                    "func": self.cloudwatch_sentmetrics
+                },
+                "fleet/status": {
+                    "interface": ["apigw"],
+                    "cache": "global",
+                    "clients": [],
+                    "prerequisites": [],
+                    "prepare": self.fleet_status_prepare,
+                    "func": self.fleet_status
                 }
             }
 
     def get_prerequisites(self):
         return
+
+    def fleet_status_prepare(self):
+        return self.context["o_ec2_schedule"].get_synthetic_metrics()
+
+    def fleet_status(self, context, event, response, cacheddata):
+        response["statusCode"] = 200
+        response["body"]       = Dbg.pprint(cacheddata)
+        return True
+
+    def cloudwatch_sentmetrics_prepare(self):
+        return self.context["o_cloudwatch"].sent_metrics()
+
+    def cloudwatch_sentmetrics(self, context, event, response, cacheddata):
+        response["statusCode"] = 200
+        response["body"]       = Dbg.pprint(cacheddata)
+        return True
 
     def metadata_prepare(self):
         data = {}
@@ -174,12 +201,7 @@ class Interact:
             }
         return data
 
-    def metadata(self, context, event, response):
-        if "metadata" not in query_cache.interact_precomputed_data["data"]:
-            response["statusCode"] = 500
-            response["body"]       = "Empty cache"
-            return True
-        data = query_cache.interact_precomputed_data["data"]["metadata"]
+    def metadata(self, context, event, response, cacheddata):
         if "requestContext" not in event or "identity" not in event["requestContext"]:
             response["statusCode"] = 403
             response["body"]       = "Must call this API with AWS_IAM authentication."
@@ -195,24 +217,24 @@ class Interact:
         except:
             log.exception("Failed to retrieve IAM caller id (%s)!" % caller)
 
-        if instance_id not in data:
+        if instance_id not in cacheddata:
             response["statusCode"] = 400
             response["body"]       = "No information for instance id '%s'!" % instance_id
             return True
 
         response["statusCode"] = 200
-        d                      = data[instance_id].copy()
+        d                      = cacheddata[instance_id].copy()
         d["InstanceId"]        = instance_id
         response["body"]       = Dbg.pprint(d)
         return True
 
-    def allmetadatas(self, context, event, response):
+    def allmetadatas(self, context, event, response, cacheddata):
         response["statusCode"] = 200
         query_cache.load_cached_data()
         response["body"]       = Dbg.pprint(query_cache.interact_precomputed_data["data"]["metadata"])
         return True
 
-    def discovery(self, context, event, response):
+    def discovery(self, context, event, response, cacheddata):
         response["statusCode"]   = 200
         discovery = {
                 "identity": event["requestContext"]["identity"],
@@ -221,19 +243,19 @@ class Interact:
         response["body"]         = Dbg.pprint(discovery)
         return True
 
-    def cloudwatch_get_metric_cache(self, context, event, response):
+    def cloudwatch_get_metric_cache(self, context, event, response, cacheddata):
         response["statusCode"] = 200
         response["body"] = Dbg.pprint(context["o_cloudwatch"].get_metric_cache())
         return True
 
-    def process_ack_event_dates(self, context, event, response):
+    def process_ack_event_dates(self, context, event, response, cacheddata):
         context["o_notify"].ack_event_dates(event["Events"])
         response["statusCode"] = 200
         response["body"]       = json.dumps({
             })
         return False
 
-    def configuration_dump(self, context, event, response):
+    def configuration_dump(self, context, event, response, cacheddata):
         response["statusCode"] = 200
         is_yaml = "format" in event and event["format"] == "yaml"
         if "httpMethod" in event and event["httpMethod"] == "POST":
@@ -250,7 +272,7 @@ class Interact:
             response["body"] = yaml.dump(dump) if is_yaml else Dbg.pprint(dump)
         return True
 
-    def configuration(self, context, event, response):
+    def configuration(self, context, event, response, cacheddata):
         m = re.search("configuration/(.*)$", event["OpType"])
         if m is None:
             response["statusCode"] = 400
@@ -273,14 +295,14 @@ class Interact:
                 response["body"] = value
         return True
 
-    def scheduler_json(self, context, event, response):
+    def scheduler_json(self, context, event, response, cacheddata):
         scheduler_table = kvtable.KVTable(self.context, self.context["SchedulerTable"])
         scheduler_table.reread_table()
         response["statusCode"] = 200
         response["body"]       = Dbg.pprint(scheduler_table.get_dict())
         return True
 
-    def scheduler_dump(self, context, event, response):
+    def scheduler_dump(self, context, event, response, cacheddata):
         scheduler_table = kvtable.KVTable(self.context, self.context["SchedulerTable"])
         scheduler_table.reread_table()
         is_yaml = "format" in event and event["format"] == "yaml"
@@ -298,7 +320,7 @@ class Interact:
             response["body"]     = yaml.dump(c) if is_yaml else Dbg.pprint(c)
         return True
 
-    def scheduler(self, context, event, response):
+    def scheduler(self, context, event, response, cacheddata):
         m = re.search("scheduler/(.*)$", event["OpType"])
         if m is None:
             response["statusCode"] = 400
@@ -381,10 +403,16 @@ class Interact:
                     return True
             misc.initialize_clients(cmd["clients"], self.context)
             misc.load_prerequisites(self.context, cmd["prerequisites"])
+            cacheddata = None
             if "prepare" in cmd:
                 log.log(log.NOTICE, "Loading cached data...")
                 query_cache.load_cached_data()
-            if cmd["func"](self.context, event, response) and is_cacheable:
+                if command not in query_cache.interact_precomputed_data["data"]:
+                    response["statusCode"] = 500
+                    response["body"]       = "Missing data"
+                    return True
+                cacheddata = query_cache.interact_precomputed_data["data"][command]
+            if cmd["func"](self.context, event, response, cacheddata) and is_cacheable and response["statusCode"] == 200:
                 query_cache.put(cacheable_url, response)
             return True
 
@@ -418,14 +446,20 @@ class Interact:
             if "sqs" not in cmd["interface"]:
                 log.warn("Command '%s' not available through SQS queue!" % command)
                 return True
+            cacheddata = None
             if "prepare" in cmd:
                 log.log(log.NOTICE, "Loading cached data...")
                 query_cache.load_cached_data()
+                if command not in query_cache.interact_precomputed_data["data"]:
+                    response["statusCode"] = 500
+                    response["body"]       = "Missing data"
+                    return True
+                cacheddata = query_cache.interact_precomputed_data["data"][command]
 
             log.info("Loading prerequisites %s..." % cmd["prerequisites"])
             misc.initialize_clients(cmd["clients"], self.context)
             misc.load_prerequisites(self.context, cmd["prerequisites"])
-            cmd["func"](self.context, event, {"headers":{}})
+            cmd["func"](self.context, event, {"headers":{}}, cacheddata)
             log.info("Processed command '%s' through an SQS message." % command)
         return True
 
