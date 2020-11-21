@@ -774,6 +774,7 @@ without any TargetGroup but another external health instance source exists).
             instance_name = instance_tags["Name"] if "Name" in instance_tags else None
             s_metrics[instance_id] = {
                 "InstanceName": instance_name,
+                "InstanceType": i["InstanceType"],
                 "Tags": i["Tags"],
                 "SpotInstance": is_spot
             }
