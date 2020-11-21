@@ -21,6 +21,7 @@ import scheduler
 import notify
 import interact
 import rds
+import transferfamily
 import state
 from kvtable import KVTable
 import debug
@@ -110,16 +111,18 @@ if this flag changed its status and allow normal operation again."""
     o_scheduler       = scheduler.Scheduler(ctx, o_ec2, o_cloudwatch)
     o_interact        = interact.Interact(ctx)
     o_rds             = rds.RDS(ctx, o_state, o_cloudwatch)
+    o_transferfamily  = transferfamily.TransferFamily(ctx, o_state, o_cloudwatch)
     ctx.update({
-        "o_state"        : o_state,
-        "o_ec2"          : o_ec2,
-        "o_targetgroup"  : o_targetgroup,
-        "o_cloudwatch"   : o_cloudwatch,
-        "o_notify"       : o_notify,
-        "o_ec2_schedule" : o_ec2_schedule,
-        "o_scheduler"    : o_scheduler,
-        "o_interact"     : o_interact,
-        "o_rds"          : o_rds
+        "o_state"         : o_state,
+        "o_ec2"           : o_ec2,
+        "o_targetgroup"   : o_targetgroup,
+        "o_cloudwatch"    : o_cloudwatch,
+        "o_notify"        : o_notify,
+        "o_ec2_schedule"  : o_ec2_schedule,
+        "o_scheduler"     : o_scheduler,
+        "o_interact"      : o_interact,
+        "o_rds"           : o_rds,
+        "o_transferfamily": o_transferfamily
         })
 
 
@@ -158,7 +161,7 @@ def main_handler_entrypoint(event, context):
     ctx["FunctionName"] = "Main"
 
     misc.initialize_clients(["ec2", "cloudwatch", "events", "sqs", "sns", "dynamodb", 
-        "elbv2", "rds", "resourcegroupstaggingapi"], ctx)
+        "elbv2", "rds", "resourcegroupstaggingapi", "transfer"], ctx)
     init()
 
     if Cfg.get_int("app.disable") != 0 and not misc.is_sam_local():
@@ -188,7 +191,8 @@ def main_handler_entrypoint(event, context):
         return
 
     log.debug("Load prerequisites.")
-    misc.load_prerequisites(ctx, ["o_state", "o_ec2", "o_notify", "o_cloudwatch", "o_targetgroup", "o_ec2_schedule", "o_scheduler", "o_rds"])
+    misc.load_prerequisites(ctx, ["o_state", "o_ec2", "o_notify", "o_cloudwatch", "o_targetgroup", 
+        "o_ec2_schedule", "o_scheduler", "o_rds", "o_transferfamily"])
 
     # Remember 'now' as the last execution date
     ctx["o_ec2"].set_state("main.last_call_date", value=ctx["now"], TTL=Cfg.get_duration_secs("app.default_ttl"))
@@ -201,7 +205,8 @@ def main_handler_entrypoint(event, context):
     ctx["o_ec2_schedule"].schedule_instances()
     ctx["o_ec2_schedule"].stop_drained_instances()
     ctx["o_cloudwatch"].configure_alarms()
-    ctx["o_rds"].manage_subfleet_rds()
+    ctx["o_rds"].manage_subfleet()
+    ctx["o_transferfamily"].manage_subfleet()
     ctx["o_ec2_schedule"].prepare_metrics()
 
     ctx["o_cloudwatch"].send_metrics()

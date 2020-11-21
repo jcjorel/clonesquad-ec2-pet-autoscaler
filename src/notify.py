@@ -27,16 +27,19 @@ this.notify_mgr    = None
 this.do_not_notify = False
 
 def record_call(is_success_func, f, *args, **kwargs):
-    return _record_call(True, is_success_func, f, *args, **kwargs)
+    return _record_call(None, True, is_success_func, f, *args, **kwargs)
 
 def record_call_lt(is_success_func, f, *args, **kwargs):
-    return _record_call(False, is_success_func, f, *args, **kwargs)
+    return _record_call(None, False, is_success_func, f, *args, **kwargs)
+
+def record_call_prefix(prefix, is_success_func, f, *args, **kwargs):
+    return _record_call(prefix, True, is_success_func, f, *args, **kwargs)
 
 @xray_recorder.capture()
-def _record_call(need_shortterm_record, is_success_func, f, *args, **kwargs):
+def _record_call(prefix, need_shortterm_record, is_success_func, f, *args, **kwargs):
     global this
     record = {}
-    record["EventType"] = f.__name__ 
+    record["EventType"] = f.__name__ if prefix is None else "%s.%s" % (prefix, f.__name__)
     record["Input"] = { 
             "*args": list(args),
             "**kwargs": dict(kwargs)
@@ -132,6 +135,7 @@ def _record_call(need_shortterm_record, is_success_func, f, *args, **kwargs):
                     "DebugReport" : True
                 },
             ]
+
     xray_recorder.begin_subsegment("notifycall-update_tables:%s" % f.__name__)
     for table in tables:
         if not table["NeedWrite"]:

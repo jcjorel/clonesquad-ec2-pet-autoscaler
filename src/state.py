@@ -6,6 +6,8 @@ import debug as Dbg
 import config
 import kvtable
 import misc
+import re
+import itertools
 
 from aws_xray_sdk.core import xray_recorder
 from aws_xray_sdk.core import patch_all
@@ -16,9 +18,10 @@ log = cslog.logger(__name__)
 
 class StateManager:
     def __init__(self, context):
-        self.context = context
-        self.table = None
-        self.table_aggregates = []
+        self.context               = context
+        self.table                 = None
+        self.table_aggregates      = []
+        self.clonesquad_resources = []
 
     def get_prerequisites(self):
         ctx        = self.context
@@ -26,6 +29,32 @@ class StateManager:
         for a in self.table_aggregates:
             self.table.register_aggregates(a)
         self.table.reread_table()
+
+        # Retrieve all CloneSquad resources
+        tagging_client = self.context["resourcegroupstaggingapi.client"]
+        paginator      = tagging_client.get_paginator('get_resources')
+        tag_mappings   = itertools.chain.from_iterable(
+            page['ResourceTagMappingList']
+                for page in paginator.paginate(
+                    TagFilters=[
+                        {
+                            'Key': 'clonesquad:group-name',
+                            'Values': [ self.context["GroupName"] ]
+                        }]
+                    )
+            )
+        self.clonesquad_resources = list(tag_mappings)
+
+    def get_resources(self, service=None):
+        resources = []
+        for t in self.clonesquad_resources:
+            arn = t["ResourceARN"]
+            if service is not None:
+                m = re.search("^arn:[a-z]+:([a-z0-9]+):([-a-z0-9]+):([0-9]+):(.+)", arn)
+                if m[1] != service:
+                    continue
+            resources.append(t)
+        return resources
 
     def get_state_table(self):
         return self.table

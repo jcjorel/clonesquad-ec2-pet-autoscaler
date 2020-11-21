@@ -123,7 +123,7 @@ Disabled by default to save Main Lambda execution time. This flag activates supp
         log.log(log.NOTICE, "Detected following static subfleet names across RDS resources: %s" % static_subfleet_names)
 
     @xray_recorder.capture()
-    def manage_subfleet_rds(self):
+    def manage_subfleet(self):
         """Manage start/stop actions for static subfleet RDS instances
         """
         if not Cfg.get_int("rds.enable"):
@@ -135,11 +135,11 @@ Disabled by default to save Main Lambda execution time. This flag activates supp
             subfleet_name  = self.get_static_subfleet_name_for_db(arn)
             forbidden_chars = "[ .]"
             if re.match(forbidden_chars, subfleet_name):
-                log.warning("Subfleet name '%s' contains invalid characters (%s)!! Ignore this DB..." % (arn, forbidden_chars))
+                log.warning("Subfleet name '%s' contains invalid characters (%s)!! Ignore %s..." % (subfleet_name, forbidden_chars, arn))
                 continue
             expected_state = Cfg.get("staticfleet.%s.state" % subfleet_name, none_on_failure=True)
             if expected_state is None:
-                log.log(log.NOTICE, "Encountered a static fleet RDS database (%s) without state directive. Please set 'staticfleet.%s.state' configuration key..." % 
+                log.log(log.NOTICE, "Encountered a static fleet RDS database (%s) without matching state directive. Please set 'staticfleet.%s.state' configuration key..." % 
                         (arn, subfleet_name))
                 continue
             db_expected_state = expected_state if expected_state != "running" else "available"

@@ -204,7 +204,7 @@ def get_url(url):
         if len(m.groups()) != 2:
             return None
         bucket, key = [m.group(1), m.group(2)]
-        client = Boto3ProxyClass.client("s3")
+        client = boto3.client("s3")
         try:
             response = client.get_object(
                Bucket=bucket,
@@ -235,7 +235,7 @@ def put_s3_object(s3path, content):
         return False
     bucket, key = [m.group(1), m.group(2)]
     key = "/".join([p for p in key.split("/") if p != ""]) # Remove extra '/'
-    client = Boto3ProxyClass.client("s3")
+    client = boto3.client("s3")
     try:
         response = client.put_object(
            Bucket=bucket,
@@ -323,7 +323,7 @@ def initialize_clients(clients, ctx):
         k = "%s.client" % c
         if k not in ctx:
             log.debug("Initialize client '%s'." % c)
-            ctx[k] = Boto3ProxyClass.client(c, config=config)
+            ctx[k] = boto3.client(c, config=config)
 
 def discovery(ctx):
     """ Returns a discovery JSON dict of essential environment variables
