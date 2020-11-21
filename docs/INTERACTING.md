@@ -157,15 +157,28 @@ This API can be polled to know when the whole fleet is started (`RunningFleetSiz
 
 	# awscurl https://pq264fab39.execute-api.eu-west-3.amazonaws.com/v1/fleet/status
 	{
-	    "AutoscaledFleet": {
-		"FaultyFleetSize": 0,
-		"ManagedFleetSize": 20,
-		"MaximumFleetSize": 20,
-		"RunningFleetSize": 17,
-		"ServingFleetSize": 17,
-		"ServingFleet_vs_ManagedFleetSizePourcentage": 85,
-		"ServingFleet_vs_MaximumFleetSizePourcentage": 85
-	    }
+		"EC2": {
+		    "i-0cf5683a31b52e9c1": {
+			"SpotInstance": true,
+			"SpotDetails": {
+		            "InterruptedAt": "None",
+                            "RebalanceRecommendedAt": "2020-11-21 20:40:06.748674+00:00"
+			}
+		    }
+		    ...
+                    ...
+		},
+		"EC2.Schedule": {
+		    "AutoscaledFleet": {
+			"FaultyFleetSize": 0,
+			"ManagedFleetSize": 20,
+			"MaximumFleetSize": 20,
+			"RunningFleetSize": 17,
+			"ServingFleetSize": 17,
+			"ServingFleet_vs_ManagedFleetSizePourcentage": 85,
+			"ServingFleet_vs_MaximumFleetSizePourcentage": 85
+		    }
+		}
 	}
 
 **Return value:**

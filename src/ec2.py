@@ -768,16 +768,19 @@ without any TargetGroup but another external health instance source exists).
     def get_synthetic_metrics(self):
         s_metrics = {}
         for i in self.instances:
-            instance_id = i["InstanceId"]
-            is_spot     = self.is_spot_instance(i)
+            instance_id   = i["InstanceId"]
+            is_spot       = self.is_spot_instance(i)
+            instance_tags = self.get_instance_tags(i)
+            instance_name = instance_tags["Name"] if "Name" in instance_tags else None
             s_metrics[instance_id] = {
+                "InstanceName": instance_name,
                 "Tags": i["Tags"],
                 "SpotInstance": is_spot
             }
             if is_spot:
                 s_metrics[instance_id]["SpotDetails"] = {
-                        "InterruptedAt" : EC2.get_spot_event(self.context, instance_id, "interrupted", default="None"),
-                        "RebalanceRecommendedAt" : EC2.get_spot_event(self.context, instance_id, "rebalance_recommended" , default="None")
+                        "InterruptedAt" : EC2.get_spot_event(self.context, instance_id, "interrupted"),
+                        "RebalanceRecommendedAt" : EC2.get_spot_event(self.context, instance_id, "rebalance_recommended")
                 }
         return s_metrics
 
