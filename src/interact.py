@@ -88,13 +88,6 @@ class Interact:
                     "prepare": self.metadata_prepare,
                     "func": self.metadata,
                 },
-                "allmetadatas"           : {
-                    "interface": ["apigw"],
-                    "cache": "global",
-                    "clients": [],
-                    "prerequisites": [],
-                    "func": self.allmetadatas,
-                },
                 "discovery"           : {
                     "interface": ["apigw"],
                     "cache": "none",
@@ -166,7 +159,14 @@ class Interact:
                     "prerequisites": [],
                     "prepare": self.fleet_status_prepare,
                     "func": self.fleet_status
-                }
+                },
+                "fleet/metadata"           : {
+                    "interface": ["apigw"],
+                    "cache": "global",
+                    "clients": [],
+                    "prerequisites": [],
+                    "func": self.allmetadatas,
+                },
             }
 
     def get_prerequisites(self):
@@ -177,11 +177,14 @@ class Interact:
         response["body"] =  "\n".join([ c for c in sorted(self.commands.keys()) if c != "" and "apigw" in self.commands[c]["interface"]])
         return True
 
-    def fleet_status_prepare(self):
-        return self.context["o_ec2_schedule"].get_synthetic_metrics()
-
     def manage_publish_report(self, context, event, response, cacheddata):
         return debug.manage_publish_report(context, event, response)
+
+    def fleet_status_prepare(self):
+        return {
+            "EC2.Scheduler" : self.context["o_ec2_schedule"].get_synthetic_metrics(),
+            "EC2" : self.context["o_ec2"].get_synthetic_metrics()
+        }
 
     def fleet_status(self, context, event, response, cacheddata):
         response["statusCode"] = 200
@@ -231,6 +234,9 @@ class Interact:
                 return True
         except:
             log.exception("Failed to retrieve IAM caller id (%s)!" % caller)
+            response["statusCode"] = 500
+            response["body"] = "Can't process metadata caller '%s'!" % caller
+            return True
 
         if instance_id not in cacheddata:
             response["statusCode"] = 400
