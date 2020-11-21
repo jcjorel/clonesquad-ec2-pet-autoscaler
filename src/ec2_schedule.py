@@ -662,7 +662,7 @@ parameter should NOT be modified by user.
             "AutoscaledFleet" : {
                 "MaximumFleetSize"                            : maximum_fleet_size,
                 "ManagedFleetSize"                            : managed_fleet_size,
-                "FaultyFleetSize"                             : managed_fleet_size - maximum_fleet_size,
+                "UnhealthyFleetSize"                          : managed_fleet_size - maximum_fleet_size,
                 "ServingFleetSize"                            : serving_fleet_size,
                 "RunningFleetSize"                            : running_fleet_size,
                 "ServingFleet_vs_MaximumFleetSizePourcentage" : servingfleetpercentage_maximumfleetsize,

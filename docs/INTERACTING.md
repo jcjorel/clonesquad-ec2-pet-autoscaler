@@ -170,7 +170,7 @@ This API can be polled to know when the whole fleet is started (`RunningFleetSiz
 		},
 		"EC2.Schedule": {
 		    "AutoscaledFleet": {
-			"FaultyFleetSize": 0,
+			"UnhealthyFleetSize": 0,
 			"ManagedFleetSize": 20,
 			"MaximumFleetSize": 20,
 			"RunningFleetSize": 17,
