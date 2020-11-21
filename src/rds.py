@@ -32,7 +32,7 @@ class RDS:
                     "Format": "Bool",
                     "Description": """Enable management of RDS databases.
 
-Disabled by default, to save Main Lambda execution time. This flag activates supports of RDS instances in Static Subfleets.
+Disabled by default to save Main Lambda execution time. This flag activates support of RDS instances in Static Subfleets.
                 """
                 },
                 "rds.state.default_ttl" : "hours=2",

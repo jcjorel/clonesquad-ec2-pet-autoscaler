@@ -593,6 +593,17 @@ When specified in percentage, 100% represents the ['Maximum earned credits than 
 
 
 
+### rds.enable
+Default Value: `0`   
+Format       :  [Bool](#Bool)
+
+Enable management of RDS databases.
+
+Disabled by default to save Main Lambda execution time. This flag activates support of RDS instances in Static Subfleets.
+                
+
+
+
 ## Configuration key formats
 
 ### Duration
