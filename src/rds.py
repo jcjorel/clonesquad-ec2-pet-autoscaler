@@ -26,8 +26,25 @@ class RDS:
         self.context     = context
         self.o_state     = o_state
         self.cloudwatch  = o_cloudwatch
+        Cfg.register({
+                "rds.enable,Stable": {
+                    "DefaultValue": "0",
+                    "Format": "Bool",
+                    "Description": """Enable management of RDS databases.
+
+Disabled by default, to save Main Lambda execution time. This flag activates supports of RDS instances in Static Subfleets.
+                """
+                },
+                "rds.state.default_ttl" : "hours=2",
+                "rds.metrics.time_resolution": "60",
+            })
+
 
     def get_prerequisites(self):
+        if not Cfg.get_int("rds.enable"):
+            log.log(log.NOTICE, "RDS support currently disabled. Set 'rds.enable' to '1' to enable.")
+            return
+
         rds_client     = self.context["rds.client"]
         tagging_client = self.context["resourcegroupstaggingapi.client"]
 
@@ -66,13 +83,6 @@ class RDS:
                     )[response_index])
             except Exception as e:
                 log.exception("Failed to describe RDS database type '%s'" % (db_type))
-
-        #log.debug(Dbg.pprint(self.databases))
-
-        Cfg.register({
-                 "rds.state.default_ttl" : "hours=2",
-                 "rds.metrics.time_resolution": "60",
-            })
 
         self.state_table = self.o_state.get_state_table()
         self.state_table.register_aggregates([
@@ -116,6 +126,9 @@ class RDS:
     def manage_subfleet_rds(self):
         """Manage start/stop actions for static subfleet RDS instances
         """
+        if not Cfg.get_int("rds.enable"):
+            return
+
         states = defaultdict(int)
         arns   = self.get_subfleet_arns()
         for arn in arns:
