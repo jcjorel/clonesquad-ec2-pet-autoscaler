@@ -765,10 +765,39 @@ without any TargetGroup but another external health instance source exists).
                 pass
         return recs
 
+    def get_synthetic_metrics(self):
+        s_metrics = {}
+        for i in self.instances:
+            instance_id = i["InstanceId"]
+            is_spot     = self.is_spot_instance(i)
+            s_metrics[instance_id] = {
+                "Tags": i["Tags"],
+                "SpotInstance": is_spot
+            }
+            if is_spot:
+                s_metrics[instance_id]["SpotDetails"] = {
+                        "InterruptedAt" : EC2.get_spot_event(self.context, instance_id, "interrupted", default="None"),
+                        "RebalanceRecommendedAt" : EC2.get_spot_event(self.context, instance_id, "rebalance_recommended" , default="None")
+                }
+        return s_metrics
+
 
 ###############################################
 #### SPOT INSTANCE MANAGEMENT #################
 ###############################################
+
+    def is_spot_instance(self, i):
+        return "SpotInstanceRequestId" in i
+
+    @staticmethod
+    def get_spot_event(ctx, instance_id, reason, default=None):
+        v = ctx["o_ec2"].get_state("ec2.instance.spot.event.%s.%s_at" % (instance_id, reason))
+        return v if v is not None else default
+
+    @staticmethod
+    def set_spot_event(ctx, instance_id, reason, now):
+        ctx["o_ec2"].set_state("ec2.instance.spot.event.%s.%s_at" % (instance_id, reason), now,
+            TTL=Cfg.get_duration_secs("ec2.instance.spot.event.%s_at_ttl" % reason))
 
 def manage_spot_notification(sqs_record, ctx):
     try:
@@ -795,8 +824,7 @@ def manage_spot_notification(sqs_record, ctx):
     ctx["o_ec2"].get_prerequisites(only_if_not_already_done=True)
 
     log.info("EC2 Spot instance '%s' received event '%s'! " % (instance_id, reason))
-    ctx["o_ec2"].set_state("ec2.instance.spot.event.%s.%s_at" % (instance_id, reason), now,
-        TTL=Cfg.get_duration_secs("ec2.instance.spot.event.%s_at_ttl" % reason))
+    EC2.set_spot_event(ctx, instance_id, reason, now)
 
     # Notify interested entities about the event
     R(None, func, InstanceId=instance_id, Event=body)

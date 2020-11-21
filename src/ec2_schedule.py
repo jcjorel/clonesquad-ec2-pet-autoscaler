@@ -1190,8 +1190,9 @@ parameter should NOT be modified by user.
         if spot_implicit is not None and "spot" not in cc:
             cc["spot"] = spot_implicit
         if "spot" in cc:
-            if cc["spot"] and not "SpotInstanceRequestId" in i: return False
-            if not cc["spot"] and "SpotInstanceRequestId" in i: return False
+            is_spot = self.ec2.is_spot_instance(i)
+            if cc["spot"] and not is_spot: return False
+            if not cc["spot"] and is_spot: return False
         return True
 
     def scaleup_sort_instances(self, candidates, expected_count, caller):
@@ -1446,7 +1447,7 @@ parameter should NOT be modified by user.
                 if len(list(filter(lambda t: expected_distribution[t] > 0, instance_types[:index]))) == 0:
                     continue
 
-            if "SpotInstanceRequestId" in inst: continue # Can't change instance type for Spot instance
+            if self.ec2.is_spot_instance(inst): continue # Can't change instance type for Spot instance
 
             for t in instance_types:
                 if expected_distribution[t] <= 0: continue # Too many instances of this type
