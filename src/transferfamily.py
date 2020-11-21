@@ -121,7 +121,6 @@ Disabled by default to save Main Lambda execution time. This flag activates supp
                 log.info("'%s' is transitionning from '%s' to '%s' state..." % (arn, current_state, expected_state))
             states[current_state] += 1
 
-            pdb.set_trace()
             if expected_state == "running" and server["State"] == "OFFLINE":
                 self.start_resource(arn, server["ServerId"])
             if expected_state == "stopped" and server["State"] == "ONLINE":
