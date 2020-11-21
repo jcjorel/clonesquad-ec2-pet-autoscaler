@@ -130,7 +130,7 @@ with the assumption the issue was transient.
 		running in an AZ with issues.
 	* `Tags`: The describe_instance() EC2 API reponse field named `["Tags"]` for this instance.
 
-## API `allmetadatas`
+## API `fleet/metadata`
 
 * Callable from : `API Gateway`
 
@@ -141,6 +141,44 @@ This API returns a dict of the `metadata` structures for all managed EC2 instanc
 	# awscurl https://pq264fab39.execute-api.eu-west-3.amazonaws.com/v1/allmetadatas
 
 This API can called by any IAM authenticated and authorized entities.
+
+## API `fleet/status`
+
+* Callable from : `API Gateway`
+
+This API dumps some synthetic status indicators. It contains indicators that can be used to follow the dynamic of status change 
+in the CloneSquad fleets (autoscaled only currently).
+
+Example use-case: Track the fleet reaching 100% serving status.   
+To perform an immutable update, user may set '`ec2.schedule.desired_instance_count`' to `100%` value to have all instances started.
+This API can be polled to know when the whole fleet is started (`RunningFleetSize`) and ready (`ServingFleet_vs_MaximumFleetSizePourcentage` == `100%`).
+
+**API Gateway synopsis:**
+
+	# awscurl https://pq264fab39.execute-api.eu-west-3.amazonaws.com/v1/fleet/status
+	{
+	    "AutoscaledFleet": {
+		"FaultyFleetSize": 0,
+		"ManagedFleetSize": 20,
+		"MaximumFleetSize": 20,
+		"RunningFleetSize": 17,
+		"ServingFleetSize": 17,
+		"ServingFleet_vs_ManagedFleetSizePourcentage": 85,
+		"ServingFleet_vs_MaximumFleetSizePourcentage": 85
+	    }
+	}
+
+**Return value:**
+* "AutoscaledFleet"
+	* `FaultyFleetSize`: Number of instances that are reporting an unhealthy status. Note: Only instances in the autoscaled fleet are counted ; especially, static subfleet instances are not part of this indicator.
+	* `ManagedFleetSize`: Number of instances with the matching 'clonesquad:group-name' tag.
+	* `MaximumFleetSize`: Maximum number of instances that can be running at this moment (This number excludes instances that CloneSquad
+knows that it can't start now. Ex: Instance in `error`or `spot interrupted`).
+	* `RunningInstances`: Number of instances with status 'pending' or 'running'.
+	* `ServingFleetSize`: Number of instances that are running AND have passed all HealthChecks (either EC2 System or TargetGroup health check).
+	* `ServingFleet_vs_ManagedFleetSizePourcentage`: int(100 * ServingFleetSize / MaximumFleetSize),
+	* `ServingFleet_vs_MaximumFleetSizePourcentage`: int(100 * ServingFleetSize / ManagedFleetSize)
+
 
 ## API `discovery`
 
@@ -358,44 +396,6 @@ to monitor the 'CPU Credit' of managed burstable instances.
 	    ...
 	]
 
-
-
-## API `fleet/status`
-
-* Callable from : `API Gateway`
-
-This API dumps some synthetic status indicators. It contains indicators that can be used to follow the dynamic of status change 
-in the CloneSquad fleets (autoscaled only currently).
-
-Example use-case: Track the fleet reaching 100% serving status.   
-To perform an immutable update, user may set '`ec2.schedule.desired_instance_count`' to `100%` value to have all instances started.
-This API can be polled to know when the whole fleet is started (`RunningFleetSize`) and ready (`ServingFleet_vs_MaximumFleetSizePourcentage` == `100%`).
-
-**API Gateway synopsis:**
-
-	# awscurl https://pq264fab39.execute-api.eu-west-3.amazonaws.com/v1/fleet/status
-	{
-	    "AutoscaledFleet": {
-		"FaultyFleetSize": 0,
-		"ManagedFleetSize": 20,
-		"MaximumFleetSize": 20,
-		"RunningFleetSize": 17,
-		"ServingFleetSize": 17,
-		"ServingFleet_vs_ManagedFleetSizePourcentage": 85,
-		"ServingFleet_vs_MaximumFleetSizePourcentage": 85
-	    }
-	}
-
-**Return value:**
-* "AutoscaledFleet"
-	* `FaultyFleetSize`: Number of instances that are reporting an unhealthy status. Note: Only instances in the autoscaled fleet are counted ; especially, static subfleet instances are not part of this indicator.
-	* `ManagedFleetSize`: Number of instances with the matching 'clonesquad:group-name' tag.
-	* `MaximumFleetSize`: Maximum number of instances that can be running at this moment (This number excludes instances that CloneSquad
-knows that it can't start now. Ex: Instance in `error`or `spot interrupted`).
-	* `RunningInstances`: Number of instances with status 'pending' or 'running'.
-	* `ServingFleetSize`: Number of instances that are running AND have passed all HealthChecks (either EC2 System or TargetGroup health check).
-	* `ServingFleet_vs_ManagedFleetSizePourcentage`: int(100 * ServingFleetSize / MaximumFleetSize),
-	* `ServingFleet_vs_MaximumFleetSizePourcentage`: int(100 * ServingFleetSize / ManagedFleetSize)
 
 
 ## API `debug/publishreportnow`
