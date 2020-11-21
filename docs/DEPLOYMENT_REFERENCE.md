@@ -34,9 +34,9 @@ requests coming from the resource located in the AWS account where CloneSquad is
 **Required: No**   
 **Format: MetaString**
 
-	ApiGWEndpointConfiguration=VpcId=vpc-12345678,
+	ApiGWEndpointConfiguration=VpcId=vpc-12345678,VpcEndpointPolicyURL=<url_to_policy_file>,SubnetIds=<subent_id_list>,TrustedClients=<list_of_rules>
 
-This parameter controls the creation of VPC Endpoint to access the API Gateway from a specified VpcId.   
+This parameter controls the creation of VPC Endpoints to access the API Gateway from a specified VpcId.   
 
 > By default, no VPC Endpoints are created: This is intended to allow CloneSquad deployment in an account
 that uses VPC Sharing mechanism. When the API Gateway needs to be accessed from a VPC Shared, leave this field
