@@ -153,7 +153,7 @@ in the CloneSquad fleets (autoscaled only currently).
 
 Example use-case: Track the fleet reaching 100% serving status.   
 To perform an immutable update, user may set '`ec2.schedule.desired_instance_count`' to `100%` value to have all instances started.
-This API can be polled to know when the whole fleet is started (`RunningFleetSize`) and ready (`ServingFleet_vs_MaximumFleetSizePourcentage` == `100%`).
+This API can be polled to know when the whole fleet is started (`RunningFleetSize`) and ready (`ServingFleet_vs_MaximumFleetSizePourcentage` == `100`).
 
 **API Gateway synopsis:**
 
