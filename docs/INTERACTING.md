@@ -315,6 +315,24 @@ This API acts on the DynamoDB Scheduler table and follows the same semantic than
 
 This API acts on the DynamoDB Scheduler table and follows the same semantic than API `configuration/(.*)` (see `configuration/(.*)` documentation).
 
+## API `control/reschedulenow`
+
+* Callable from : API Gateway and SQS Queue
+
+This API triggers a manual resource scheduling in a specified time delay. It is especially useful when
+`app.run_period` has a big value and user do not to wait for the next scheduled rescheduling.
+
+**Argument:**
+	`delay`: (Required) Number of seconds before resheduling (must be 0 or positive).
+
+**API Gateway synopsis:**
+
+	# awscurl https://pq264fab39.execute-api.eu-west-3.amazonaws.com/v1/control/reschedulenow?delay=5
+	On-demand rescheduling request acknowledged. Reschedule in 5 second(s)...
+
+This call can be performed at any time (even if a scheduling is on-going). CloneSquad will also attempt to summarize
+in a single reschuling run, multiple requests requested through this API.
+
 ## API `cloudwatch/sentmetrics`
 
 * Callable from : `API Gateway`
