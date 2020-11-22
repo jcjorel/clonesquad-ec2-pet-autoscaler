@@ -101,7 +101,7 @@ This API returned status related to the calling EC2 instances.
 		    },
 		    {
 			"Key": "aws:ec2launchtemplate:id",
-			"Value": "lt-0995b3e0a9eda5b61"
+			"Value": "lt-0618fa840ca325b61"
 		    },
 		    {
 			"Key": "clonesquad:group-name",
@@ -203,33 +203,27 @@ knows that it can't start now. Ex: Instance in `error`or `spot interrupted`).
 	{
 	    "discovery": {
 		"AlarmStateEC2Table": "CloneSquad-test-AlarmState-EC2",
-		"ApplicationName": "CloneSquad",
 		"ConfigurationTable": "CloneSquad-test-Configuration",
 		"ConfigurationURL": "",
 		"EventTable": "CloneSquad-test-EventLog",
-		"FunctionName": "Interact",
-		"GenericInsufficientDataActions_SNSTopicArn": "arn:aws:sns:eu-west-3:111111111111:CloneSquad-CloudWatchAlarm-InsufficientData-test",
-		"GenericOkActions_SNSTopicArn": "arn:aws:sns:eu-west-3:111111111111:CloneSquad-CloudWatchAlarm-Ok-test",
 		"GroupName": "test",
 		"InteractQueue": "https://sqs.eu-west-3.amazonaws.com/111111111111/CloneSquad-Interact-test",
 		"LoggingS3Path": "s3://my-clonesquad-logging-bucketname/reports/",
 		"LongTermEventTable": "CloneSquad-test-EventLog-LongTerm",
-		"MainFunctionArn": "arn:aws:lambda:eu-west-3:111111111111:function:CloneSquad-Main-test",
-		"ScaleUp_SNSTopicArn": "arn:aws:sns:eu-west-3:111111111111:CloneSquad-CloudWatchAlarm-ScaleUp-test",
 		"SchedulerTable": "CloneSquad-test-Scheduler",
 		"StateTable": "CloneSquad-test-State"
 	    },
 	    "identity": {
 		"accessKey": "AS------------------",
 		"accountId": "111111111111",
-		"caller": "AR-------------------:i-0adc6dab31524a8d1",
+		"caller": "AR-------------------:i-0ab1af6b52934bea1",
 		"cognitoAuthenticationProvider": null,
 		"cognitoAuthenticationType": null,
 		"cognitoIdentityId": null,
 		"cognitoIdentityPoolId": null,
 		"principalOrgId": "o-oooooooooo",
 		"sourceIp": "172.31.42.2",
-		"user": "AROA4XZPU6QWAN5QP4NGD:i-0adc6dab31524a8d1",
+		"user": "AR-------------------:i-0ab1af6b52934bea1",
 		"userAgent": "python-requests/2.25.0",
 		"userArn": "arn:aws:sts::111111111111:assumed-role/EC2AdminRole/i-0ab1af6b52934bea1",
 		"vpcId": "vpc-11111111",
