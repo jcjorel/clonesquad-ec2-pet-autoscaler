@@ -323,6 +323,7 @@ This API triggers a manual resource scheduling in a specified time delay. It is 
 `app.run_period` has a big value and user do not want to wait for the next planned rescheduling.
 
 **Argument:**
+
 	`delay`: (Required) Number of seconds before resheduling (must be 0 or positive).
 
 **API Gateway synopsis:**
