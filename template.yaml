@@ -572,7 +572,6 @@ Resources:
               Environment:
                 Variables:
                   PYTHONPATH:                                 "/opt:/opt/site-packages"
-                  ApplicationName:                            "CloneSquad"
                   MainSQSQueue:                               !Ref MainQueue
                   UserNotificationArns:                       !Ref UserNotificationArns
                   InteractLambdaArn:                          !GetAtt InteractFunction.Arn
@@ -631,7 +630,6 @@ Resources:
               Environment:
                 Variables:
                   PYTHONPATH:                                 "/opt:/opt/site-packages"
-                  ApplicationName:                            "CloneSquad"
                   MainSQSQueue:                               !Ref MainQueue
                   GroupName:                                  !Ref GroupName
                   GenericOkActions_SNSTopicArn:               !Ref SNSOk
@@ -676,7 +674,6 @@ Resources:
               Environment:
                 Variables:
                   PYTHONPATH:         "/opt:/opt/site-packages"
-                  ApplicationName:    "CloneSquad"
                   GroupName:          !Ref GroupName
                   GenericOkActions_SNSTopicArn: !Ref SNSOk
                   ScaleUp_SNSTopicArn: !Ref SNSScaleUp
@@ -715,7 +712,6 @@ Resources:
               Environment:
                 Variables:
                   PYTHONPATH:         "/opt:/opt/site-packages"
-                  ApplicationName:    "CloneSquad"
                   GroupName:          !Ref GroupName
                   GenericOkActions_SNSTopicArn: !Ref SNSOk
                   ScaleUp_SNSTopicArn: !Ref SNSScaleUp
