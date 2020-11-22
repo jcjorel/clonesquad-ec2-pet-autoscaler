@@ -84,15 +84,15 @@ Disabled by default to save Main Lambda execution time. This flag activates supp
             except Exception as e:
                 log.exception("Failed to describe RDS database type '%s'" % (db_type))
 
-        self.state_table = self.o_state.get_state_table()
-        self.state_table.register_aggregates([
-            {
-                "Prefix": "rds.",
-                "Compress": True,
-                "DefaultTTL": Cfg.get_duration_secs("rds.state.default_ttl"),
-                "Exclude" : []
-            }
-            ])
+        #self.state_table = self.o_state.get_state_table()
+        #self.state_table.register_aggregates([
+        #    {
+        #        "Prefix": "rds.",
+        #        "Compress": True,
+        #        "DefaultTTL": Cfg.get_duration_secs("rds.state.default_ttl"),
+        #        "Exclude" : []
+        #    }
+        #    ])
 
         metric_time_resolution = Cfg.get_int("rds.metrics.time_resolution")
         if metric_time_resolution < 60: metric_time_resolution = 1 # Switch to highest resolution
@@ -243,11 +243,14 @@ Disabled by default to save Main Lambda execution time. This flag activates supp
                 if self.get_rds_db(db_arn) is None:
                     continue
                 tags   = self.get_rds_tags(db_arn)
+                name   = None
+                if "clonesquad:excluded" in tags and tags["clonesquad:excluded"] in ["True", "true"]:
+                    continue
                 if "clonesquad:static-subfleet-name" in tags:
-                    if "clonesquad:excluded" in tags and tags["clonesquad:excluded"] in ["True", "true"]:
-                        continue
-                    static_subfleet_name = tags["clonesquad:static-subfleet-name"]
-                    if static_subfleet_name not in names: names.append(static_subfleet_name)
+                    name = tags["clonesquad:static-subfleet-name"]
+                if "clonesquad:static-subfleet-name" in tags:
+                    name = tags["clonesquad:static-subfleet-name"]
+                if name is not None and name not in names: names.append(name)
         return names
 
     def get_subfleet_arns(self):

@@ -78,6 +78,17 @@ Disabled by default to save Main Lambda execution time. This flag activates supp
                   "StorageResolution": metric_time_resolution },
                 ])
 
+        # We need to register dynamically static subfleet configuration keys to avoid a 'key unknown' warning 
+        #   when the user is going to set it
+        subfleet_names = self.get_subfleet_names()
+        for static_fleet in subfleet_names:
+            key = "staticfleet.%s.state" % static_fleet
+            if not Cfg.is_builtin_key_exist(key):
+                Cfg.register({
+                    key : ""
+                    })
+        log.log(log.NOTICE, "Detected TransferFamily subfleets '%s'." % subfleet_names)
+
 
     @xray_recorder.capture()
     def manage_subfleet(self):
@@ -89,7 +100,7 @@ Disabled by default to save Main Lambda execution time. This flag activates supp
         states = defaultdict(int)
         for server in self.servers:
             arn = server["Arn"]
-            subfleet_name  = self.get_static_subfleet_name(arn)
+            subfleet_name  = self.get_subfleet_name(arn)
             if subfleet_name is None:
                 log.warn("Missing tag 'clonesquad:static-subfleet-name' on resource %s!" % arn)
                 continue
@@ -165,9 +176,23 @@ Disabled by default to save Main Lambda execution time. This flag activates supp
             tags[t["Key"]] = t["Value"]
         return tags
 
-    def get_static_subfleet_name(self, svc):
+    def get_subfleet_name(self, svc):
         tags = self.get_tags(svc)
+        if "clonesquad:static-fleet-name" in tags:
+            return tags["clonesquad:static-fleet-name"]
         if "clonesquad:static-subfleet-name" in tags:
             return tags["clonesquad:static-subfleet-name"]
         return None
+    
+    def get_subfleet_names(self):
+        names = []
+        for s in self.resources:
+            arn  = s["ResourceARN"]
+            tags = self.get_tags(arn)
+            if "clonesquad:excluded" in tags and tags["clonesquad:excluded"] in ["True", "true"]:
+                continue
+            name = self.get_subfleet_name(arn)
+            if name is not None and name not in names:
+                names.append(names)
+        return names
 
