@@ -285,7 +285,7 @@ This API dumps (or upload) the whole CloneSquad configuration in JSON format by 
 
 	# Upload modifications to the active configuration (written in DynamoDB table).
 	#    Note: The existing configuration is not replaced but patched
-	# awscurl -X POST -d @configfile.yaml https://pq264fab39.execute-api.eu-west-3.amazonaws.com/v1/configuration?format=json
+	# awscurl -X POST -d @configfile.yaml https://pq264fab39.execute-api.eu-west-3.amazonaws.com/v1/configuration?format=yaml
 	Ok (12 key(s) processed)
 
 
