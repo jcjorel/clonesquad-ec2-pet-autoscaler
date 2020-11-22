@@ -713,6 +713,7 @@ Resources:
                 Variables:
                   PYTHONPATH:         "/opt:/opt/site-packages"
                   GroupName:          !Ref GroupName
+                  MainSQSQueue:       !Ref MainQueue
                   GenericOkActions_SNSTopicArn: !Ref SNSOk
                   ScaleUp_SNSTopicArn: !Ref SNSScaleUp
                   GenericInsufficientDataActions_SNSTopicArn: !Ref SNSInsufficientData

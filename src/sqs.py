@@ -22,6 +22,8 @@ log = cslog.logger(__name__)
 ctx = None
 
 def seconds_since_last_call():
+    if "main.last_call_date" not in ctx:
+        return 0
     return (misc.utc_now() - misc.str2utc(ctx["main.last_call_date"], default=misc.epoch())).total_seconds()
 
 def next_call_delay():
@@ -34,8 +36,8 @@ def next_call_delay():
     return max(int(delta), 0)
 
 @xray_recorder.capture()
-def call_me_back_send():
-    delay  = max(next_call_delay() + 1, 2)
+def call_me_back_send(delay=None):
+    delay  = delay if delay is not None else max(next_call_delay() + 1, 2)
     client = ctx["sqs.client"]
 
     log.log(log.NOTICE, "Sending SQS 'CallMeBack' message (delay=%d) to Main lambda queue: %s" % (delay, ctx["MainSQSQueue"]))

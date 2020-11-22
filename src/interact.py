@@ -10,6 +10,7 @@ import config as Cfg
 import pdb
 import re
 import kvtable
+import traceback
 import urllib.parse
 
 from aws_xray_sdk.core import xray_recorder
@@ -167,10 +168,35 @@ class Interact:
                     "prerequisites": [],
                     "func": self.allmetadatas,
                 },
+                "control/reschedulenow"           : {
+                    "interface": ["apigw", "sqs"],
+                    "cache": "global",
+                    "clients": ["sqs"],
+                    "prerequisites": ["o_state"],
+                    "func": self.control_reschedulenow,
+                },
             }
 
     def get_prerequisites(self):
         return
+
+    def control_reschedulenow(self, context, event, response, cacheddata):
+        if "delay" not in event:
+            response["statusCode"] = 400
+            response["body"] = "Missing 'delay' parameter!"
+            return False
+        try:
+            delay = int(event["delay"])
+            self.context["o_state"].set_state("main.last_call_date", "") # Remove the last execution date to allow immediate rescheduling
+            sqs.call_me_back_send(delay=delay)
+            response["statusCode"] = 200
+            response["body"] = "On-demand rescheduling request acknowledged. Reschedule in %d seconds..." % delay
+        except Exception as e:
+            response["statusCode"] = 400
+            response["body"] = "Failed to parse supplied 'delay' parameter as a int() '%s' : %s" % (event["delay"], traceback.format_exc())
+            log.exception(response["body"])
+            return False
+        return True
 
     def usage(self, context, event, response, cacheddata):
         response["statusCode"] = 200
@@ -223,7 +249,7 @@ class Interact:
         if "requestContext" not in event or "identity" not in event["requestContext"]:
             response["statusCode"] = 403
             response["body"]       = "Must call this API with AWS_IAM authentication."
-            return True
+            return False
         identity = event["requestContext"]["identity"]
         caller   = identity["caller"]
         try:
@@ -231,17 +257,17 @@ class Interact:
             if not instance_id.startswith("i-"):
                 response["statusCode"] = 500
                 response["body"]       = "Can't retrieve requesting InstanceId (%s)." % caller
-                return True
+                return False
         except:
             log.exception("Failed to retrieve IAM caller id (%s)!" % caller)
             response["statusCode"] = 500
             response["body"] = "Can't process metadata caller '%s'!" % caller
-            return True
+            return False
 
         if instance_id not in cacheddata:
             response["statusCode"] = 400
             response["body"]       = "No information for instance id '%s'!" % instance_id
-            return True
+            return False
 
         response["statusCode"] = 200
         d                      = cacheddata[instance_id].copy()
@@ -287,6 +313,7 @@ class Interact:
             except Exception as e:
                 response["statusCode"] = 500
                 response["body"] = "Can't parse YAML/JSON document : %s " % e
+                return False
         else:
             only_stable_keys = "unstable" not in event or event["unstable"].lower() != "true"
             dump             = config.dumps(only_stable_keys=only_stable_keys) 
@@ -298,7 +325,7 @@ class Interact:
         if m is None:
             response["statusCode"] = 400
             response["body"]       = "Missing config key path."
-            return True
+            return False
         config_key = m.group(1)
         if "httpMethod" in event and event["httpMethod"] == "POST":
             value = event["body"].partition('\n')[0]
@@ -311,6 +338,7 @@ class Interact:
             if value is None:
                 response["statusCode"] = 400
                 response["body"] = "Unknown configuration key '%s'!" % config_key
+                return False
             else:
                 response["statusCode"] = 200
                 response["body"] = value
@@ -336,6 +364,7 @@ class Interact:
             except Exception as e:
                 response["statusCode"] = 500
                 response["body"] = "Can't parse YAML/JSON document : %s " % e
+                return False
         else:
             c = scheduler_table.get_dict()
             response["body"]     = yaml.dump(c) if is_yaml else Dbg.pprint(c)
@@ -346,7 +375,7 @@ class Interact:
         if m is None:
             response["statusCode"] = 400
             response["body"]       = "Missing config key path."
-            return True
+            return False
         config_key = m.group(1)
         if "httpMethod" in event and event["httpMethod"] == "POST":
             value = event["body"].partition('\n')[0]
@@ -359,6 +388,7 @@ class Interact:
             if value is None:
                 response["statusCode"] = 400
                 response["body"] = "Unknown configuration key!"
+                return False
             else:
                 response["statusCode"] = 200
                 response["body"] = value
@@ -389,7 +419,7 @@ class Interact:
 
             querystring = ""
             if "queryStringParameters" in event and event["queryStringParameters"] is not None:
-                querystring = "&".join(event["queryStringParameters"])
+                querystring = "&".join([ "%s:%s" % (q, event["queryStringParameters"][q]) for q in event["queryStringParameters"].keys()])
                 event.update(event["queryStringParameters"])
 
             log.log(log.NOTICE, "Received API Gateway message for path '%s'" % event["path"])

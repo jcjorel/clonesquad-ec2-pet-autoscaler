@@ -31,6 +31,7 @@ class StateManager:
         self.table.reread_table()
 
         # Retrieve all CloneSquad resources
+        misc.initialize_clients(["resourcegroupstaggingapi"], self.context)
         tagging_client = self.context["resourcegroupstaggingapi.client"]
         paginator      = tagging_client.get_paginator('get_resources')
         tag_mappings   = itertools.chain.from_iterable(
