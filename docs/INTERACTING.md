@@ -80,7 +80,7 @@ Thanks to IAM policies, users can implement fined-grained access control to the 
 
 * Callable from : `API Gateway`
 
-> Note: Only callable from autoscaled EC2 instances.
+> Notice: **This API is only callable from autoscaled EC2 instances.**
 
 This API returned status related to the calling EC2 instances.
 
