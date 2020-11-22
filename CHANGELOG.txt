@@ -1,3 +1,6 @@
+v0.1.1:
+- (Bug/major) Fix impact of version name in template.yaml name during extract-version.
+
 v0.1.0:
 Note: This a major release with large reworks of the API Gateway code especially.
 - (Improvment/Major) Major rework of API Gateway code. Added INTERACTING.md documentation.
