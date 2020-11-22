@@ -233,6 +233,8 @@ class Interact:
             az             = i["Placement"]["AvailabilityZone"]
             located_in_az_with_issues = az in az_with_issues
             instance_state = ec2.get_scaling_state(instance_id)
+            statuses       = [state for state in ec2.INSTANCE_STATES if ec2.is_instance_state(instance_id, [state])]
+            status         = statuses[0] if len(statuses) else "unknown"
             data[instance_id] = {
                 "LocatedInAZWithIssues" : located_in_az_with_issues,
                 "Instance": {
