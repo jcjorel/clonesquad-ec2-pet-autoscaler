@@ -320,7 +320,7 @@ This API acts on the DynamoDB Scheduler table and follows the same semantic than
 * Callable from : API Gateway and SQS Queue
 
 This API triggers a manual resource scheduling in a specified time delay. It is especially useful when
-`app.run_period` has a big value and user do not to wait for the next scheduled rescheduling.
+`app.run_period` has a big value and user do not want to wait for the next planned rescheduling.
 
 **Argument:**
 	`delay`: (Required) Number of seconds before resheduling (must be 0 or positive).
@@ -331,7 +331,7 @@ This API triggers a manual resource scheduling in a specified time delay. It is 
 	On-demand rescheduling request acknowledged. Reschedule in 5 second(s)...
 
 This call can be performed at any time (even if a scheduling is on-going). CloneSquad will also attempt to summarize
-in a single reschuling run, multiple requests requested through this API.
+in a single reschuling run, multiple requests requested through this API if possible.
 
 ## API `cloudwatch/sentmetrics`
 
