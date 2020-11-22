@@ -262,7 +262,7 @@ This API dumps (or upload) the whole CloneSquad configuration in JSON format by 
 **Argument:**
 
 * `format`: (Optional) `json` or `yaml`
-* `unstable`: (Optional) `true` or `false`. (Dump unstable configuration keys. **WARNING: Unstable configuration keys can be modified/suppressed between CloneSqaud releases. Use them only for testing/debugging.**)
+* `unstable`: (Optional) `true` or `false`. (Dump unstable configuration keys. **WARNING: Unstable configuration keys can be modified/suppressed between CloneSquad releases. Use them only for testing/debugging.**)
 
 **API Gateway synopsis:**
 
