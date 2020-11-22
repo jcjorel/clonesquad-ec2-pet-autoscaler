@@ -257,8 +257,9 @@ A working example of use of this API is demonstrated [in this example](../exampl
 This API dumps (or upload) the whole CloneSquad configuration in JSON format by default (YAML format available on request).
 
 **Argument:**
-	`format`: (Optional) `json` or `yaml`
-	`unstable`: (Optional) `true` or `false`. (Dump unstable configuration keys. **Unstable configuration keys can be modified/suppressed between CloneSqaud releases.**)
+
+* `format`: (Optional) `json` or `yaml`
+* `unstable`: (Optional) `true` or `false`. (Dump unstable configuration keys. **Unstable configuration keys can be modified/suppressed between CloneSqaud releases.**)
 
 **API Gateway synopsis:**
 
@@ -324,7 +325,7 @@ This API triggers a manual resource scheduling in a specified time delay. It is 
 
 **Argument:**
 
-	`delay`: (Required) Number of seconds before resheduling (must be 0 or positive).
+* `delay`: (Required) Number of seconds before resheduling (must be 0 or positive).
 
 **API Gateway synopsis:**
 
