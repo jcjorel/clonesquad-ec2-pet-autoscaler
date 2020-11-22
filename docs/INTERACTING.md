@@ -336,7 +336,7 @@ This API triggers a manual resource scheduling in a specified time delay. It is 
 	On-demand rescheduling request acknowledged. Reschedule in 5 second(s)...
 
 This call can be performed at any time (even if a scheduling is on-going). CloneSquad will also attempt to summarize
-multiple requests sent through this API an single rescheduling run if possible.
+multiple requests sent through this API in a single rescheduling run if possible.
 
 ## API `cloudwatch/sentmetrics`
 
