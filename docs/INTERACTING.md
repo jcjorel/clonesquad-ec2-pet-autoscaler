@@ -293,7 +293,7 @@ This API dumps (or upload) the whole CloneSquad configuration in JSON format by 
 
 * Callable from : `API Gateway`
 
-This API dumps and updates configuration on a pey key basis.
+This API dumps and updates configuration on a per key basis.
 
 **API Gateway synopsis:**
 
