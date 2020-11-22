@@ -604,6 +604,17 @@ Disabled by default to save Main Lambda execution time. This flag activates supp
 
 
 
+### transferfamily.enable
+Default Value: `0`   
+Format       :  [Bool](#Bool)
+
+Enable management of TransferFamily services.
+
+Disabled by default to save Main Lambda execution time. This flag activates support of TransferFamily services in Static Subfleets.
+                
+
+
+
 ## Configuration key formats
 
 ### Duration

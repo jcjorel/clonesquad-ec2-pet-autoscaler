@@ -1,3 +1,13 @@
+v0.1.0:
+Note: This a major release with large reworks of the API Gateway code especially.
+- (Improvment/Major) Major rework of API Gateway code. Added INTERACTING.md documentation.
+- (Improvment/Major) Added new 'Spot recommendation' event support and reworked Spot interruption handling
+- (Improvment/Major) Added support for TransferFamily subfleet management. Enable it with 'tranferfamily.enable' set to '1'.
+- (Improvment/Minor) Added API GW 'control/reschedulenow' command.
+- (Improvment/Minor) Removed some needed less variable output for API Gateway 'discovery'.
+- (Improvment/Major) Behavior compatibility break: 'rds.enable' to be set to '1' to activate RDS database support. This change is made to reduce execution duration of the Main Lambda function when RDS database are not the User use-case.
+- (Improvment/Major) Behavior compatibility break: Published CloudFormation template filename now contains the CloneSquad version.
+
 v0.0.60:
 - (Improvment/Major) Added 'Spot Rebalance recommendation' support and reworked 'Spot interruption handling'.
 
