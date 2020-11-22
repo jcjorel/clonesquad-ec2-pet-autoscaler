@@ -195,8 +195,7 @@ class Interact:
             response["statusCode"] = 400
             response["body"] = "Failed to parse supplied 'delay' parameter as a int() '%s' : %s" % (event["delay"], traceback.format_exc())
             log.exception(response["body"])
-            return False
-        return True
+        return False
 
     def usage(self, context, event, response, cacheddata):
         response["statusCode"] = 200
