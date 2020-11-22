@@ -43,7 +43,7 @@ Note: This parameter can contain wildcards ("*" and "?")
 
 If an operation takes parameters, they have to be passed as URL Query string.
 
-The API gateway requires SiGV4 authentication ('AWS_IAM' authorizer) so you must present valid STS credentials to get access.
+The API gateway requires SiGV4 authentication (`AWS_IAM` authorizer) so you must present valid STS credentials to get access.
 Using a tool like '[awscurl](https://github.com/okigan/awscurl)' (version 0.17 is known to work) can simplify 
 this process or other AWS SDK managing as well with this kind of authentication.
 
@@ -80,7 +80,7 @@ Thanks to IAM policies, users can implement fined-grained access control to the 
 
 * Callable from : `API Gateway`
 
-> Note: Only calleable from autoscaled EC2 instances.
+> Note: Only callable from autoscaled EC2 instances.
 
 This API returned status related to the calling EC2 instances.
 
