@@ -140,7 +140,7 @@ This API returns a dict of the `metadata` structures for all managed EC2 instanc
 
 **Synopsis:**
 
-	# awscurl https://pq264fab39.execute-api.eu-west-3.amazonaws.com/v1/allmetadatas
+	# awscurl https://pq264fab39.execute-api.eu-west-3.amazonaws.com/v1/fleet/metadata
 
 This API can called by any IAM authenticated and authorized entities.
 
@@ -202,7 +202,7 @@ knows that it can't start now. Ex: Instance in `error`or `spot interrupted`).
 
 **Synopsis:**
 
-	# awscurl https://pq264fab39.execute-api.eu-west-3.amazonaws.com/v1/allmetadatas
+	# awscurl https://pq264fab39.execute-api.eu-west-3.amazonaws.com/v1/discovery
 	{
 	    "discovery": {
 		"AlarmStateEC2Table": "CloneSquad-test-AlarmState-EC2",
