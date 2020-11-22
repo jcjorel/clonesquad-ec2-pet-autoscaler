@@ -121,7 +121,9 @@
                     [ ".", "StaticFleet.RDS.Size", ".", "." ],
                     [ ".", "StaticFleet.RDS.AvailableDBs", ".", "." ],
                     [ ".", "StaticFleet.RDS.StoppingDBs", ".", "." ],
-                    [ ".", "StaticFleet.RDS.StartingDBs", ".", "." ]
+                    [ ".", "StaticFleet.RDS.StartingDBs", ".", "." ],
+                    [ ".", "StaticFleet.TransferFamily.Size", ".", "." ],
+                    [ ".", "StaticFleet.TransferFamily.RunningServers", ".", "." ]
                 ],
                 "region": "{AWS_DEFAULT_REGION}",
                 "period": {ec2.schedule.metrics.time_resolution},
