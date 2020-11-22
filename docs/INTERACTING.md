@@ -118,7 +118,7 @@ This API returned status related to the calling EC2 instances.
 **Return value:**
 * `InstanceId`: Instance Id of the calling EC2 instance.
 * `LocatedInAZWithIssues`: Boolean indicating if this EC2 instance is located in an AZ signaled with issues (either manually or via the describe_availability_zones() EC2 API).
-* "Instance":
+* **"Instance"**:
 	* `AvailabilityZone`: Calling instance AvailabilityZone name 
 	* `State`: Can be any of ["`pending`", "`running`", "`error`", "`bounced`", "`draining`"]
 		* `pending`, `running` value comes from describe_instance EC2 API call and response field `["State"]["Name"]`
@@ -184,7 +184,8 @@ This API can be polled to know when the whole fleet is started (`RunningFleetSiz
 	}
 
 **Return value:**
-* "AutoscaledFleet"
+
+* **"AutoscaledFleet"**:
 	* `FaultyFleetSize`: Number of instances that are reporting an unhealthy status. Note: Only instances in the autoscaled fleet are counted ; especially, static subfleet instances are not part of this indicator.
 	* `ManagedFleetSize`: Number of instances with the matching 'clonesquad:group-name' tag.
 	* `MaximumFleetSize`: Maximum number of instances that can be running at this moment (This number excludes instances that CloneSquad
