@@ -1,4 +1,4 @@
-v0.1.1:
+v0.1.2:
 - (Bug/major) Fix impact of version name in template.yaml name during extract-version.
 
 v0.1.0:
