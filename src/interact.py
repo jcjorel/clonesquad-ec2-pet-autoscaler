@@ -190,7 +190,7 @@ class Interact:
             self.context["o_state"].set_state("main.last_call_date", "") # Remove the last execution date to allow immediate rescheduling
             sqs.call_me_back_send(delay=delay)
             response["statusCode"] = 200
-            response["body"] = "On-demand rescheduling request acknowledged. Reschedule in %d seconds..." % delay
+            response["body"] = "On-demand rescheduling request acknowledged. Reschedule in %d second(s)..." % delay
         except Exception as e:
             response["statusCode"] = 400
             response["body"] = "Failed to parse supplied 'delay' parameter as a int() '%s' : %s" % (event["delay"], traceback.format_exc())
