@@ -193,6 +193,6 @@ Disabled by default to save Main Lambda execution time. This flag activates supp
                 continue
             name = self.get_subfleet_name(arn)
             if name is not None and name not in names:
-                names.append(names)
+                names.append(name)
         return names
 
