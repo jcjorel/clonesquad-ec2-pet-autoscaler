@@ -47,10 +47,13 @@ class ManagedTargetGroup:
         targetgroup_resources = self.context["o_state"].get_resources(service="elasticloadbalancing", resource_name="^targetgroup/.*")
         targetgroups_arns     = [r["ResourceARN"] for r in targetgroup_resources]
         
-        response = self.client_elbv2.describe_target_groups(
-                TargetGroupArns=targetgroups_arns
-            )
-        targetgroups = response["TargetGroups"]
+        targetgroups = []
+        while len(targetgroups_arns):
+            response = self.client_elbv2.describe_target_groups(
+                    TargetGroupArns=targetgroups_arns[:20]
+                )
+            targetgroups.extend(response["TargetGroups"])
+            targetgroups_arns = targetgroups_arns[20:]
         
         self.targetgroups = []
         for t in targetgroups:
