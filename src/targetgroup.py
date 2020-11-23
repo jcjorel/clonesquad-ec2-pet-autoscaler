@@ -46,16 +46,17 @@ class ManagedTargetGroup:
         response = self.client_elbv2.describe_target_groups()
         targetgroups = response["TargetGroups"]
         targetgroups_arns = [t["TargetGroupArn"] for t in targetgroups]
-        if len(targetgroups_arns):
+        while len(targetgroups_arns):
             # Enrich TargetGroup objects with their tags
             response = self.client_elbv2.describe_tags(
-                ResourceArns=targetgroups_arns
+                    ResourceArns=targetgroups_arns[:20]
                 )
 
             for tags in response["TagDescriptions"]:
                 arn = tags["ResourceArn"]
                 targetgroup = next(filter(lambda x: x["TargetGroupArn"] == arn, targetgroups))
                 targetgroup["Tags"] = tags["Tags"]
+            targetgroups_arns = targetgroups_arns[20:]
         
         self.targetgroups = []
         for t in targetgroups:

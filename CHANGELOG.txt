@@ -1,3 +1,6 @@
+v0.1.3:
+- (Bug/Major) Some random rare transient states can lead to a Python exception just after an instance start.
+
 v0.1.2:
 - (Bug/major) Fix impact of version name in template.yaml name during extract-version.
 
