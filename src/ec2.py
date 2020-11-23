@@ -35,7 +35,7 @@ class EC2:
         self.state_table             = None
 
         Cfg.register({
-                 "ec2.describe_instances.max_results" : "250",
+                 "ec2.describe_instances.max_results" : "500",
                  "ec2.describe_instance_types.enabled": "0",
                  "ec2.az.statusmgt.disable": 0,
                  "ec2.az.unavailable_list,Stable": {
@@ -143,7 +143,7 @@ without any TargetGroup but another external health instance source exists).
         while (response is None or "NextToken" in response):
             response = client.describe_instances(Filters=Filters,
                     MaxResults=Cfg.get_int("ec2.describe_instances.max_results"),
-                    NextToken=response["NextToken"] if response is not None else "")
+                    NextToken=response["NextToken"] if response is not None and "NextToken" in response else "")
             for reservation in response["Reservations"]:
                 instances.extend(reservation["Instances"])
 
@@ -169,11 +169,14 @@ without any TargetGroup but another external health instance source exists).
         # Get instances status
         instance_statuses = []
         response          = None
-        while response is None or "NextToken" in response:
-            q = { "InstanceIds": self.instance_ids }
-            if response is not None and "NextToken" in response: q["NextToken"] = response["NextToken"]
-            response = client.describe_instance_status(**q)
-            instance_statuses.extend(response["InstanceStatuses"])
+        i_ids             = self.instance_ids.copy()
+        while len(i_ids):
+            q = { "InstanceIds": i_ids[:100] }
+            while response is None or "NextToken" in response:
+                if response is not None and "NextToken" in response: q["NextToken"] = response["NextToken"]
+                response = client.describe_instance_status(**q)
+                instance_statuses.extend(response["InstanceStatuses"])
+            i_ids = i_ids[100:]
         self.instance_statuses = instance_statuses
 
         # Get AZ status
