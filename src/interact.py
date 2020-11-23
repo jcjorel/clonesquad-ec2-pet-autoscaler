@@ -181,12 +181,8 @@ class Interact:
         return
 
     def control_reschedulenow(self, context, event, response, cacheddata):
-        if "delay" not in event:
-            response["statusCode"] = 400
-            response["body"] = "Missing 'delay' parameter!"
-            return False
         try:
-            delay = int(event["delay"])
+            delay = int(event["delay"]) if "delay" in event else 0
             self.context["o_state"].set_state("main.last_call_date", "") # Remove the last execution date to allow immediate rescheduling
             sqs.call_me_back_send(delay=delay)
             response["statusCode"] = 200

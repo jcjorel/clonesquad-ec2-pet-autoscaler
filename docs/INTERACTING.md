@@ -328,7 +328,7 @@ This API triggers a manual resource scheduling in a specified time delay. It is 
 
 **Argument:**
 
-* `delay`: (Required) Number of seconds before resheduling (must be 0 or positive).
+* `delay`: (Optional) Number of seconds before resheduling (must be 0 or positive). Default is `0`.
 
 **API Gateway synopsis:**
 
