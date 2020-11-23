@@ -96,7 +96,7 @@ Below, some rough key figures to build an estimate:
 	- Dashboard: 1 x 3$ per month ([can be disabled](docs/CONFIGURATION_REFERENCE.md#cloudwatchdashboarduse_default))
 	- Metrics: 
 		* Up to 25 x CloudWatch metrics (0.10$ each) ~2.5$ per month (Metrics can be disabled individually with [`cloudwatch.metrics.excluded`](CONFIGURATION_REFERENCE.md#cloudwatchmetricsexcluded) to save costs. Metrics are also disabled if not applicable).
-		* GetMetricData API call cost highly depends on number of running EC2 instances at a given time (as a rule of thumb, assume 1k requests per hour (=~7$ per month) when Squad is small/medium; assume more on large Squad and/or with intense and frequent scale out activities - CloneSquad increases dynamically its request rate toward CloudWatch under scale-out stress situation to increase its scaling decision accuracy).
+		* GetMetricData API call cost highly depends on number of running EC2 instances at a given time (as a rule of thumb, assume 1k requests per hour (=~7$ per month) when Squad is small/medium; assume more on large Squad and/or with intense and frequent scale out activities.
 * Lambda
 	- The 'Main' Lambda function runs every 20 seconds by default for <4 seconds (~5$ per month)
 * DynamoDB
