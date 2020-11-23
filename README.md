@@ -101,7 +101,7 @@ Below, some rough key figures to build an estimate:
 	- The 'Main' Lambda function runs every 20 seconds by default for <4 seconds (~5$ per month)
 * DynamoDB
 	- Should be a few $ per month depending on scaling activities. See [`DynamodDBConfiguration`](docs/DEPLOYMENT_REFERENCE.md#dynamodbconfiguration)
-to configure DynamoDB tables in PROVISIONED capacity instead of default PAY_PER_REQUEST to significantly reduce these costs if needed.
+parameter to configure DynamoDB tables in PROVISIONED capacity instead of default PAY_PER_REQUEST to significantly reduce these costs if needed.
 * X-Ray
 	- Few cents per month (can be disabled)
 
