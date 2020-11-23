@@ -43,26 +43,20 @@ class ManagedTargetGroup:
         self.client_ec2    = self.context["ec2.client"]
         self.client_elbv2  = self.context["elbv2.client"]
 
-        response = self.client_elbv2.describe_target_groups()
+        # Retrieve all targetgroups tagged for CloneSquad queried with the resourcegroupapi.
+        targetgroup_resources = self.context["o_state"].get_resources(service="elasticloadbalancing", resource_name="^targetgroup/.*")
+        targetgroups_arns     = [r["ResourceARN"] for r in targetgroup_resources]
+        
+        response = self.client_elbv2.describe_target_groups(
+                TargetGroupArns=targetgroups_arns
+            )
         targetgroups = response["TargetGroups"]
-        targetgroups_arns = [t["TargetGroupArn"] for t in targetgroups]
-        while len(targetgroups_arns):
-            # Enrich TargetGroup objects with their tags
-            response = self.client_elbv2.describe_tags(
-                    ResourceArns=targetgroups_arns[:20]
-                )
-
-            for tags in response["TagDescriptions"]:
-                arn = tags["ResourceArn"]
-                targetgroup = next(filter(lambda x: x["TargetGroupArn"] == arn, targetgroups))
-                targetgroup["Tags"] = tags["Tags"]
-            targetgroups_arns = targetgroups_arns[20:]
         
         self.targetgroups = []
         for t in targetgroups:
-            tag = next(filter(lambda x: x["Key"] == "clonesquad:group-name" and x["Value"] == self.context["GroupName"], t["Tags"]), None)
-            if tag is not None:
-                self.targetgroups.append(t)       
+            resource = next(filter(lambda x: x["ResourceARN"] == t["TargetGroupArn"], targetgroup_resources), None)
+            t["Tags"] = resource["Tags"] if resource is not None else []
+            self.targetgroups.append(t)       
 
         for i in self.targetgroups:
             response = self.client_elbv2.describe_target_health(

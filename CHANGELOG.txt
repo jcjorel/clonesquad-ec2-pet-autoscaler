@@ -1,3 +1,9 @@
+v0.2.0:
+- (Improvment/Major) Optimized TargetGroup lookup that reduces number of call to "ELBv2" APIs. This reduces execution time of Main Lambda function and make it linear with the number of targetgroups with CloneSquad tags and no more with the number of overall targetgroups into the account.
+
+v0.1.4:
+- (Bug/Major) Limit the number of ARNs supplied to elbv2.describe_tags() API call to avoid an exception.
+
 v0.1.3:
 - (Bug/Major) Some random rare transient states can lead to a Python exception just after an instance start.
 

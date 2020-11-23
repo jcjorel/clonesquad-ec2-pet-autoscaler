@@ -46,14 +46,15 @@ class StateManager:
             )
         self.clonesquad_resources = list(tag_mappings)
 
-    def get_resources(self, service=None):
+    def get_resources(self, service=None, resource_name=None):
         resources = []
         for t in self.clonesquad_resources:
             arn = t["ResourceARN"]
-            if service is not None:
-                m = re.search("^arn:[a-z]+:([a-z0-9]+):([-a-z0-9]+):([0-9]+):(.+)", arn)
-                if m[1] != service:
-                    continue
+            m = re.search("^arn:[a-z]+:([a-z0-9]+):([-a-z0-9]+):([0-9]+):(.+)", arn)
+            if service is not None and m[1] != service:
+                continue
+            if resource_name is not None and not re.match(resource_name, m[4]):
+                continue
             resources.append(t)
         return resources
 
