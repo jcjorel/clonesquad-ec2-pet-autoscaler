@@ -100,7 +100,8 @@ Below, some rough key figures to build an estimate:
 * Lambda
 	- The 'Main' Lambda function runs every 20 seconds by default for <4 seconds (~5$ per month)
 * DynamoDB
-	- Should be a few $ per month depending on scaling activities.
+	- Should be a few $ per month depending on scaling activities. See [`DynamodDBConfiguration`](docs/DEPLOYMENT_REFERENCE.md#dynamodbconfiguration)
+to configure DynamoDB tables in PROVISIONED capacity instead of default PAY_PER_REQUEST to significantly reduce these costs if needed.
 * X-Ray
 	- Few cents per month (can be disabled)
 
@@ -115,7 +116,6 @@ metrics will generate a significant part of the demonstration bill and may not b
 	This early release is meant to understand and validate the original concept of CloneSquad (please send feedbacks to jeancharlesjorel@gmail.com)
 * Think about an automatic testing capability (currently, tests are manuals),
 * Implement a CI/CD pipeline for release (beyond the existing [release-everything script](scripts/release-everything)...),
-* The API gateway responses are slow due to the way it is currently handled internally. Large ways of optimization are possible.
 * There may be a cost benefit to move the 'Main' Lambda to an ECS Fargate Spot task. With limited effort, we could do this move while
 keeping the 'Main' Lambda as automatic fallback in case of Spot interruption. To be investigated.
 
