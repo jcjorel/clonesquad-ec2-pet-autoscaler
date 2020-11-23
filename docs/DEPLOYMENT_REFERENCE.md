@@ -83,6 +83,24 @@ Coma separated list of notification targets. Can be Lambda, SQS or SNS ARNs.
 
 Coma separated list of YAML files to load as configuration files.
 
+## `DynamoDBConfiguration`
+
+**Required: No**   
+**Format: MetaString**
+
+By defaut, DynamoDB tables are configured to use On-Demand capacity provisionning. This parameter allows to switch to PROVISIONED capacity 
+and so reduce costs. 
+
+> Tip: Observe the tables metrics over a relevant period of time and determine the appropriate `ReadCapacityUnits` and 
+`WriteCapacityUnits` for each tables. **WARNING: Do not make a table throttle by setting too low values as it will generate Python
+exceptions preventing normal CloneSquad operations.**
+
+Coma separated list of DynamoDB Table PROVISIONED throughput. Table name must be one of 
+["ConfigTable", "AlarmStateEC2Table", "EventTable", "LongTermEventTable", "SchedulerTable", "StateTable"]
+
+	ApiGWConfiguration=<TableName>=<ReadCapacityUnits>:<WriteCapacityUnits>,...
+	Ex: ApiGWConfiguration=StateTable=3:3,EventTable=2:5
+
 ## `CustomizationZipParameters`
 
 **Required: No**   

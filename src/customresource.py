@@ -161,6 +161,30 @@ def ApiGWParameters_CreateOrUpdate(data, AccountId=None, Region=None,
     log.info(Dbg.pprint(data["GWPolicy"]))
     data["EndpointConfiguration.Type"] = data["GWType"]
 
+def DynamoDBParameters_CreateOrUpdate(data, AccountId=None, Region=None, 
+        DynamoDBConfiguration=None):
+
+    config = misc.parse_line_as_list_of_dict(DynamoDBConfiguration, with_leading_string=False)
+
+    TABLES = ["ConfigTable", "AlarmStateEC2Table", "EventTable", "LongTermEventTable", "SchedulerTable", "StateTable"]
+    for c in TABLES:
+        data["%s.BillingMode" % c]           = "PAY_PER_REQUEST"
+        data["%s.ProvisionedThroughput" % c] = { 
+                "ReadCapacityUnits" : "0",
+                "WriteCapacityUnits": "0"
+            }
+        if len(config) and c in config[0] and config[0][c] != "":
+            try:
+                capacity                      = config[0][c].split(":")
+                read_capacity, write_capacity = (capacity[0], capacity[1] if len(capacity) > 1 else capacity[0])
+                data["%s.BillingMode" % c]           = "PROVISIONED"
+                data["%s.ProvisionedThroughput" % c] = {
+                        "ReadCapacityUnits" : str(int(read_capacity)),
+                        "WriteCapacityUnits": str(int(write_capacity))
+                    }
+            except Exception as e:
+                raise ValueError("Failed to parse DynamoDBParameters keyword '%s' with value '%s'!" % (c, config[0][c]))
+
 def call(event, context):
     parameters    = event["ResourceProperties"].copy()
     request_type  = event["RequestType"]

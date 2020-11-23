@@ -56,6 +56,11 @@ Parameters:
     Default: ""
     Description: "(Optional) API Gateway endpoint configuration"
 
+  DynamoDBConfiguration:
+    Type: String
+    Default: ""
+    Description: "(Optional) DynamodDB configuration. Format: Comma separated list of <TableName>=<ReadCapacityUnits>:<WriteCapacityUnits>"
+
   XRayDiagnosis:
     Type: String
     Default: 1
@@ -115,6 +120,15 @@ Resources:
                   aws:SourceArn:
                   - !GetAtt MainFunction.Arn
 
+    DynamoDBParameters:
+            Type: "Custom::CustomResourceFunction"
+            Properties:
+              ServiceToken: !GetAtt CustomResourceFunction.Arn
+              Helper: DynamoDBParameters
+              AccountId: !Ref AWS::AccountId
+              Region: !Ref AWS::Region
+              DynamoDBConfiguration: !Ref DynamoDBConfiguration
+
     ConfigTable: 
       Type: AWS::DynamoDB::Table
       Properties: 
@@ -130,7 +144,8 @@ Resources:
         TimeToLiveSpecification:
           AttributeName: ExpirationTime
           Enabled: True
-        BillingMode: "PAY_PER_REQUEST"
+        BillingMode: !GetAtt DynamoDBParameters.ConfigTable.BillingMode
+        ProvisionedThroughput: !GetAtt DynamoDBParameters.ConfigTable.ProvisionedThroughput
         StreamSpecification:
           StreamViewType: NEW_IMAGE
         Tags: 
@@ -152,7 +167,8 @@ Resources:
         TimeToLiveSpecification:
           AttributeName: ExpirationTime
           Enabled: True
-        BillingMode: "PAY_PER_REQUEST"
+        BillingMode: !GetAtt DynamoDBParameters.AlarmStateEC2Table.BillingMode
+        ProvisionedThroughput: !GetAtt DynamoDBParameters.AlarmStateEC2Table.ProvisionedThroughput
         Tags: 
           - Key: "clonesquad:group-name"
             Value: !Ref GroupName
@@ -172,7 +188,8 @@ Resources:
         TimeToLiveSpecification:
           AttributeName: ExpirationTime
           Enabled: True
-        BillingMode: "PAY_PER_REQUEST"
+        BillingMode: !GetAtt DynamoDBParameters.StateTable.BillingMode
+        ProvisionedThroughput: !GetAtt DynamoDBParameters.StateTable.ProvisionedThroughput
         Tags: 
           - Key: "clonesquad:group-name"
             Value: !Ref GroupName
@@ -192,7 +209,8 @@ Resources:
         TimeToLiveSpecification:
           AttributeName: ExpirationTime
           Enabled: True
-        BillingMode: "PAY_PER_REQUEST"
+        BillingMode: !GetAtt DynamoDBParameters.EventTable.BillingMode
+        ProvisionedThroughput: !GetAtt DynamoDBParameters.EventTable.ProvisionedThroughput
         Tags: 
           - Key: "clonesquad:group-name"
             Value: !Ref GroupName
@@ -212,7 +230,8 @@ Resources:
         TimeToLiveSpecification:
           AttributeName: ExpirationTime
           Enabled: True
-        BillingMode: "PAY_PER_REQUEST"
+        BillingMode: !GetAtt DynamoDBParameters.LongTermEventTable.BillingMode
+        ProvisionedThroughput: !GetAtt DynamoDBParameters.LongTermEventTable.ProvisionedThroughput
         Tags: 
           - Key: "clonesquad:group-name"
             Value: !Ref GroupName
@@ -232,7 +251,8 @@ Resources:
         TimeToLiveSpecification:
           AttributeName: ExpirationTime
           Enabled: True
-        BillingMode: "PAY_PER_REQUEST"
+        BillingMode: !GetAtt DynamoDBParameters.SchedulerTable.BillingMode
+        ProvisionedThroughput: !GetAtt DynamoDBParameters.SchedulerTable.ProvisionedThroughput
         Tags: 
           - Key: "clonesquad:group-name"
             Value: !Ref GroupName

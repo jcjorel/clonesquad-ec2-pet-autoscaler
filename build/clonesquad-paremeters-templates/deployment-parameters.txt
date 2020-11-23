@@ -3,6 +3,9 @@ GroupName=
 OperationTimeout=
 UserNotificationArns=
 ConfigurationURL=
+DynamoDBConfiguration=
+ApiGWConfiguration=
+ApiGWEndpointConfiguration=
 
 InteractLambdaArn=<ARN_for_Interact_lambda_function>
 InstanceAMI=<instance_ami_for_demo>
