@@ -236,7 +236,7 @@ class Interact:
                 "Instance": {
                     "AvailabilityZone": az,
                     "Tags"     : i["Tags"],
-                    "Status"   : [state for state in ec2.INSTANCE_STATES if ec2.is_instance_state(instance_id, [state])][0],
+                    "Status"   : status,
                     "State"    : instance_state if instance_state is not None else i["State"]["Name"]
                 }
             }
