@@ -92,15 +92,15 @@ Display all relevant configuration parameters in CloudWatch logs.
 
 
 ### config.loaded_files
-Default Value: `internal:predefined.config.yaml;internal:custom.config.yaml`   
+Default Value: ``   
 Format       :  [StringList](#StringList)
 
 A semi-column separated list of URL to load as configuration.
 
 Upon startup, CloneSquad will load the listed files in sequence and stack them allowing override between layers.
 
-The default contains a reference to the empty internal file 'custom.config.yaml'. Users that intend to embed
-customization directly inside the Lambda delivery should override this file with their own configuration. See 
+Internally, 2 files are systematically loaded: 'internal:predefined.config.yaml' and 'internal:custom.config.yaml'. Users that intend to embed
+customization directly inside the Lambda delivery should override file 'internal:custom.config.yaml' with their own configuration. See 
 [Customizing the Lambda package](#customizing-the-lambda-package).
 
 This key is evaluated again after each URL parsing meaning that a layer can redefine the 'config.loaded_files' to load further

@@ -40,14 +40,14 @@ def init(context, with_kvtable=True, with_predefined_configuration=True):
                  """
              },
              "config.loaded_files,Stable" : {
-                 "DefaultValue" : "internal:predefined.config.yaml;internal:custom.config.yaml",
+                 "DefaultValue" : "",
                  "Format"       : "StringList",
                  "Description"  : """A semi-column separated list of URL to load as configuration.
 
 Upon startup, CloneSquad will load the listed files in sequence and stack them allowing override between layers.
 
-The default contains a reference to the empty internal file 'custom.config.yaml'. Users that intend to embed
-customization directly inside the Lambda delivery should override this file with their own configuration. See 
+Internally, 2 files are systematically loaded: 'internal:predefined.config.yaml' and 'internal:custom.config.yaml'. Users that intend to embed
+customization directly inside the Lambda delivery should override file 'internal:custom.config.yaml' with their own configuration. See 
 [Customizing the Lambda package](#customizing-the-lambda-package).
 
 This key is evaluated again after each URL parsing meaning that a layer can redefine the 'config.loaded_files' to load further
@@ -68,7 +68,8 @@ See [Parameter sets](#parameter-sets) documentation.
 
     # Load extra configuration from specified URLs
     xray_recorder.begin_subsegment("config.init:load_files")
-    files_to_load = get_list("config.loaded_files", default=[]) if with_predefined_configuration else []
+    files_to_load = ["internal:predefined.config.yaml", "internal:custom.config.yaml"]
+    files_to_load.extend(get_list("config.loaded_files", default=[]) if with_predefined_configuration else [])
     if "ConfigurationURL" in context:
         files_to_load.extend(context["ConfigurationURL"].split(";"))
     if misc.is_sam_local():
@@ -82,8 +83,8 @@ See [Parameter sets](#parameter-sets) documentation.
     i = 0
     while i < len(files_to_load):
         f = files_to_load[i]
+        i += 1
         if f == "": 
-            i += 1
             continue
 
         fd = None
@@ -91,12 +92,12 @@ See [Parameter sets](#parameter-sets) documentation.
         try:
             fd = misc.get_url(f, throw_exception_on_warning=True)
             c  = yaml.safe_load(fd)
-            if c is None: raise Exception("Failed to parse YAML!")
+            if c is None: c = [] # Empty YAML file
             loaded_files.append({
                     "source": f,
                     "config": c
                 })
-            if "config.loaded_files" in c:
+            if "config.loaded_files" in c and c["config.loaded_files"] != "":
                 files_to_load.extend(c["config.loaded_files"].split(";"))
             if i > get_int("config.max_file_hierarchy_depth"):
                 log.warning("Too much config file loads (%s)!! Stopping here!" % loaded_files) 
@@ -108,7 +109,6 @@ See [Parameter sets](#parameter-sets) documentation.
                 log.warning("Failed to parse config file '%s'! %s (Notice: It will be safely ignored!)" % (f, e))
             else: 
                 log.exception("Failed to process config file '%s'! (Notice: It will be safely ignored!)" % f)
-        i += 1
     _init["loaded_files"] = loaded_files
     xray_recorder.end_subsegment()
 
