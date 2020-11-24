@@ -97,6 +97,7 @@ See [Parameter sets](#parameter-sets) documentation.
                 files_to_load.extend(c["config.loaded_files"].split(";"))
             if i > get_int("config.max_file_hierarchy_depth"):
                 log.warning("Too much config file loads (%s)!! Stopping here!" % loaded_files) 
+                break
         except Exception as e:
             log.warning("Failed to load and/or parse config file '%s'! (Notice: It will be safely ignored!)" % f)
         i += 1

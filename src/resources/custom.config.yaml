@@ -1,5 +1,0 @@
-#
-# Please use this file to customize your deployement configuraton without 
-# requiring possibly unreliable dependencies to external configuration URLs.
-#   (See CustomizationXXX parameters in Cloudformation template YAML file)
-#
