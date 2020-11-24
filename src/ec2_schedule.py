@@ -795,13 +795,19 @@ parameter should NOT be modified by user.
     def drain_instances(self, DrainedInstanceIds=None):
         return {}
 
+    def is_instance_cpu_crediting_eligible(self, i):
+       instance_type = i["InstanceType"]
+       if instance_type not in self.cpu_credits or instance_type.startswith("t2"):
+           return False # Not a burstable or not eligible instance
+       return True
+
     def is_instance_need_cpu_crediting(self, i, meta):
        now           = self.context["now"]
        instance_id   = i["InstanceId"]
 
        instance_type = i["InstanceType"]
-       if instance_type not in self.cpu_credits:
-           return False # Not a burstable instance
+       if self.is_instance_cpu_crediting_eligible(i):
+           return False 
 
        # This instance to stop is a burstable one
        stopped_instances    = self.stopped_instances_wo_excluded_error
@@ -857,8 +863,9 @@ parameter should NOT be modified by user.
         #    It ensures that burstable instances are still available *even CPU Exhausted* to the fleet.
         max_number_crediting_instances = min(max_number_crediting_instances, len(max_startable_stopped_instances) 
                 + len(self.draining_lighthouse_instances_ids)) # We add the number of draining LH instances as they may be in CPU crediting state and
-                                                               # can't be part of a full scaleout sequence (so are useless to rendered available)
+                                                               # can't be part of a full scaleout sequence (so are useless to be rendered available)
         ids_to_stop                    = []
+        too_much_cpu_crediting         = False
         for i in instances:
            instance_id = i["InstanceId"]
            # Refresh the TTL if the 'draining' operation takes a long time
@@ -880,12 +887,14 @@ parameter should NOT be modified by user.
                need_stop_now = True
 
            if not need_stop_now:
-               if self.is_instance_need_cpu_crediting(i, meta):
+               if nb_cpu_crediting >= max_number_crediting_instances:
+                   if not too_much_cpu_crediting and self.is_instance_cpu_crediting_eligible(i):
+                        log.info("Maximum number of CPU Crediting instances reached! (nb_cpu_crediting=%s,ec2.schedule.max_cpu_crediting_instances=%d)" %
+                           (nb_cpu_crediting, max_number_crediting_instances))
+                        too_much_cpu_crediting = True
+               elif self.is_instance_need_cpu_crediting(i, meta):
                    if is_static_subfleet_instance:
                        continue
-                   if nb_cpu_crediting > max_number_crediting_instances:
-                       log.info("Maximum number of CPU Crediting instances reached! (nb_cpu_crediting=%s,ec2.schedule.max_cpu_crediting_instances=%d)" %
-                               (nb_cpu_crediting, max_number_crediting_instances))
                    else:
                        nb_cpu_crediting += 1
                        continue
