@@ -1,5 +1,5 @@
 v0.2.3:
-- (Improvment/Minor) Makes the  'CPU Crediting mode' more intuitive. If ec2.schedule.max_cpu_crediting_instances is set to 0%, CloneSquad will no more wait for CloudWatch CPU credit metric so enable quick shutdown of t3/t4 instances.
+- (Improvment/Minor) Makes the  'CPU Crediting mode' more intuitive. If ec2.schedule.max_cpu_crediting_instances is set to 0%, CloneSquad will no more wait for CloudWatch CPU credit metric so enable quick shutdown of t3/t4 instances. t2 instances are not more subject to CPU Crediting as they can’t preserve CPU Credit over restart.
 
 v0.2.2:
 - (Bug/Major) Removed memory caching of http(s):// and s3:// located configuration files.
