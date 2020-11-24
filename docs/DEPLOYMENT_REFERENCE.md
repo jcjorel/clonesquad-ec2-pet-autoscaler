@@ -74,14 +74,14 @@ When specified, on critical error (ex: Python exception), CloneSquad will genera
 
 Coma separated list of notification targets. Can be Lambda, SQS or SNS ARNs.
 
-## `ConfigurationURL`
+## `ConfigurationURLs`
 
 **Required: No**   
 **Format: StringList**
 
-	ConfigurationURL=<Url_to_a_YAML_file>,...
+	ConfigurationURLs=<Url_to_a_YAML_file>;...
 
-Coma separated list of YAML files to load as configuration files.
+Semicolon separated list of YAML files to load as configuration ones.
 
 ## `DynamoDBConfiguration`
 
