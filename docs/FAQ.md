@@ -43,11 +43,12 @@ activate the debug reports by setting this parameter.
 
 See [Debugging CloneSquad](BUILD_RELEASE_DEBUG.md#debugging) for more information.
 
-## I am a new CloneSquad and I do not understand why burstable instances (t3/t4...) do not shutdown as expected. It is normal?
+## I am a new CloneSquad user and I do not understand why burstable instances (t3/t4...) do not shutdown as expected. Is it normal?
 
 Yes. The 'CPU Crediting mode' is activated by default. It means that CloneSquad will refuse to shutdown a t3/t4 instance that
 do not gain at least 30% of daily accruable credits. It is one of the [cost optimization mechanisms](COST_OPTIMIZATION.md#clonesquad-cpu-crediting) 
-available in CloneSquad.
-If you want CloneSquad disreguard the 'CPU Credit' status of burstabled instances, please set the configuration key
+available in CloneSquad. While in 'CPU Crediting mode', an instance do not participate to any TargetGroup to accrue credits in a low CPU condition.
+
+If you want CloneSquad to disreguard the 'CPU Credit' status of burstabled instances, please set the configuration key
 [`ec2.schedule.max_cpu_crediting_instances`](CONFIGURATION_REFERENCE.md#ec2schedulemax_cpu_crediting_instances) to `0%`. Once set, burstable instances
 would be stopped immediatly as any other instance types.
