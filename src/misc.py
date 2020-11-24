@@ -327,11 +327,12 @@ def initialize_clients(clients, ctx):
 def discovery(ctx):
     """ Returns a discovery JSON dict of essential environment variables
     """
-    for k in list(ctx.keys()):
+    context = ctx.copy()
+    for k in ctx.keys():
         if (k.startswith("AWS_") or k.startswith("_AWS_") or k.startswith("LAMBDA") or 
                 k.endswith("_SNSTopicArn") or
                 k in ["_HANDLER", "LD_LIBRARY_PATH", "LANG", "PATH", "TZ", "PYTHONPATH", "cwd", "FunctionName", "MainFunctionArn"] or 
-                not isinstance(ctx[k], str)):
-            del ctx[k]
-    return json.loads(json.dumps(ctx, default=str))
+                not isinstance(context[k], str)):
+            del context[k]
+    return json.loads(json.dumps(context, default=str))
 
