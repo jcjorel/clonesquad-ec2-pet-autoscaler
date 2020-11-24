@@ -3,6 +3,7 @@ v0.2.2:
 
 v0.2.1:
 - (Improvment/Minor) Get more details in logs when a config file load fails.
+- (Improvment/Major) Added optional 'DynamoDBConfiguration' template.yaml parameter to configure DynamoDB Tables with PROVISIONED capacity instead of default PAY_PER_REQUEST billing model.
 
 v0.2.0:
 - (Improvment/Major) Optimized TargetGroup lookup that reduces number of call to "ELBv2" APIs. This reduces execution time of Main Lambda function and make it linear with the number of targetgroups with CloneSquad tags and no more with the number of overall targetgroups into the account.
