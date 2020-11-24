@@ -70,8 +70,8 @@ See [Parameter sets](#parameter-sets) documentation.
     xray_recorder.begin_subsegment("config.init:load_files")
     files_to_load = ["internal:predefined.config.yaml", "internal:custom.config.yaml"]
     files_to_load.extend(get_list("config.loaded_files", default=[]) if with_predefined_configuration else [])
-    if "ConfigurationURL" in context:
-        files_to_load.extend(context["ConfigurationURL"].split(";"))
+    if "ConfigurationURLs" in context:
+        files_to_load.extend(context["ConfigurationURLs"].split(";"))
     if misc.is_sam_local():
         # For debugging purpose. Ability to override config when in SAM local
         resource_file = "internal:sam.local.config.yaml" 
