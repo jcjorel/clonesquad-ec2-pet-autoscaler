@@ -1,5 +1,5 @@
 v0.2.4:
-- (Improvment/Minor) Backward compatibility break: Renamed ConfigurationURL template parameter to ConfigConfigurationURLs.
+- (Improvment/Minor) BACKWARD COMPATIBILITY BREAK: Renamed 'ConfigurationURL' template parameter to 'ConfigConfigurationURLs'.
 - (Bug/Major) Fixed regression introduced in v0.2.3 about burstable instance management.
 - (Bug/Minor) Fixed discovery API enumeration random and rare exception.
 
