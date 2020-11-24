@@ -806,7 +806,7 @@ parameter should NOT be modified by user.
        instance_id   = i["InstanceId"]
 
        instance_type = i["InstanceType"]
-       if self.is_instance_cpu_crediting_eligible(i):
+       if not self.is_instance_cpu_crediting_eligible(i):
            return False 
 
        # This instance to stop is a burstable one
