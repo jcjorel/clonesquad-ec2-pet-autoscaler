@@ -169,7 +169,13 @@ def Session():
     return s
 
 url_cache = {}
-def get_url(url):
+def get_url(url, throw_exception_on_warning=False):
+    def _warning(msg):
+        if throw_exception_on_warning: 
+            raise Exception(msg)
+        else: 
+            log.warning(msg)
+
     global url_cache
     if url is None or url == "":
         return None
@@ -194,7 +200,7 @@ def get_url(url):
                     continue
                 url_cache[url] = f.read()
                 return url_cache[url]
-        log.warning("Fail to read internal url '%s'!" % url)
+        _warning("Fail to read internal url '%s'!" % url)
         return None
 
 
@@ -212,7 +218,7 @@ def get_url(url):
             url_cache[url] = response["Body"].read()
             return url_cache[url]
         except Exception as e:
-            log.warning("Failed to fetch S3 url '%s' : %s" % (url, e))
+            _warning("Failed to fetch S3 url '%s' : %s" % (url, e))
             return None
 
     # <other>:// protocols management
@@ -220,7 +226,7 @@ def get_url(url):
     try:
         response = s.get(url)
     except Exception as e:
-        log.warning("Failed to fetch url '%s' : %s" % (url, e))
+        _warning("Failed to fetch url '%s' : %s" % (url, e))
         return None
     if response is not None:
         url_cache[url] = response.content

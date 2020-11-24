@@ -86,9 +86,12 @@ See [Parameter sets](#parameter-sets) documentation.
             i += 1
             continue
 
+        fd = None
+        c  = None
         try:
-            c = yaml.safe_load(misc.get_url(f))
-            if c is None: c = {}
+            fd = misc.get_url(f, throw_exception_on_warning=True)
+            c  = yaml.safe_load(fd)
+            if c is None: raise Exception("Failed to parse YAML!")
             loaded_files.append({
                     "source": f,
                     "config": c
@@ -99,7 +102,12 @@ See [Parameter sets](#parameter-sets) documentation.
                 log.warning("Too much config file loads (%s)!! Stopping here!" % loaded_files) 
                 break
         except Exception as e:
-            log.warning("Failed to load and/or parse config file '%s'! (Notice: It will be safely ignored!)" % f)
+            if fd  is None: 
+                log.warning("Failed to load config file '%s'! %s (Notice: It will be safely ignored!)" % (f, e))
+            elif c is None: 
+                log.warning("Failed to parse config file '%s'! %s (Notice: It will be safely ignored!)" % (f, e))
+            else: 
+                log.exception("Failed to process config file '%s'! (Notice: It will be safely ignored!)" % f)
         i += 1
     _init["loaded_files"] = loaded_files
     xray_recorder.end_subsegment()
