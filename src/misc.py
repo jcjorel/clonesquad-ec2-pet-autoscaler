@@ -168,7 +168,6 @@ def Session():
     s.mount('file://', FileAdapter())
     return s
 
-url_cache = {}
 def get_url(url, throw_exception_on_warning=False):
     def _warning(msg):
         if throw_exception_on_warning: 
@@ -176,11 +175,8 @@ def get_url(url, throw_exception_on_warning=False):
         else: 
             log.warning(msg)
 
-    global url_cache
     if url is None or url == "":
         return None
-    if url in url_cache:
-        return url_cache[url]
 
     # internal: protocol management
     internal_str = "internal:"
@@ -198,8 +194,7 @@ def get_url(url, throw_exception_on_warning=False):
                     f = open("%s/%s/%s" % (path, sub_path, filename), "rb")
                 except:
                     continue
-                url_cache[url] = f.read()
-                return url_cache[url]
+                return f.read()
         _warning("Fail to read internal url '%s'!" % url)
         return None
 
@@ -215,8 +210,7 @@ def get_url(url, throw_exception_on_warning=False):
             response = client.get_object(
                Bucket=bucket,
                Key=key)
-            url_cache[url] = response["Body"].read()
-            return url_cache[url]
+            return response["Body"].read()
         except Exception as e:
             _warning("Failed to fetch S3 url '%s' : %s" % (url, e))
             return None
@@ -229,8 +223,7 @@ def get_url(url, throw_exception_on_warning=False):
         _warning("Failed to fetch url '%s' : %s" % (url, e))
         return None
     if response is not None:
-        url_cache[url] = response.content
-        return url_cache[url]
+        return response.content
     return None
 
 def put_s3_object(s3path, content):
