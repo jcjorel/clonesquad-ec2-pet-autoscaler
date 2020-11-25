@@ -15,9 +15,9 @@ if [ -d releases/$VERSION ] ;then
 fi
 sam build
 mkdir -p releases/$VERSION
-sam package --s3-bucket $S3_BUCKET --s3-prefix $S3_PREFIX/$index --output-template-file /tmp/template.yaml --force-upload
+sam package --s3-bucket $S3_BUCKET --s3-prefix $S3_PREFIX/$index --output-template-file /tmp/template-latest.yaml --force-upload
 aws s3 sync s3://$S3_BUCKET/$S3_PREFIX/$index/ releases/$VERSION/
-tools/patch-s3uri /tmp/template.yaml --obfuscate True >releases/$VERSION/template-$VERSION.yaml
+tools/patch-s3uri /tmp/template-latest.yaml --obfuscate True >releases/$VERSION/template-$VERSION.yaml
 rm -f releases/latest
 ln -sf $VERSION releases/latest
 echo $VERSION >VERSION.txt

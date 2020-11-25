@@ -53,7 +53,7 @@ export AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-$(curl -s http://169.254.169.254
 # Upload template.yaml and CloneSquad Lambda functions to specified S3 bucket and prefix
 docker run --rm clonesquad/devkit:${CLONESQUAD_VERSION} extract-version "${CLONESQUAD_S3_BUCKETNAME}" "${CLONESQUAD_S3_PREFIX}" latest s3
 # Deploy a CloneSquad setup to manage GroupName=test (see Documentation for Group name concept)
-aws cloudformation create-stack --template-url https://s3.amazonaws.com/${CLONESQUAD_S3_BUCKETNAME}/${CLONESQUAD_S3_PREFIX}/template.yaml \
+aws cloudformation create-stack --template-url https://s3.amazonaws.com/${CLONESQUAD_S3_BUCKETNAME}/${CLONESQUAD_S3_PREFIX}/template-${CLONESQUAD_VERSION}.yaml \
     --stack-name MyFirstCloneSquad-${CLONESQUAD_GROUPNAME} \
     --capabilities '["CAPABILITY_NAMED_IAM","CAPABILITY_IAM","CAPABILITY_AUTO_EXPAND"]' \
     --parameter "[{\"ParameterKey\":\"GroupName\",\"ParameterValue\":\"${CLONESQUAD_GROUPNAME}\"}]"
