@@ -1,3 +1,6 @@
+v0.3.0:
+- (Improvment/Major) 'template.yaml' is no more generated. 'template-latest.yaml' and 'template-<version>.yaml is the new standard.
+
 v0.2.4:
 - (Improvment/Minor) BACKWARD COMPATIBILITY BREAK: Renamed 'ConfigurationURL' template parameter to 'ConfigConfigurationURLs'.
 - (Bug/Major) Fixed regression introduced in v0.2.3 about burstable instance management.
