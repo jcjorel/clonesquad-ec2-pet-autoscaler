@@ -16,6 +16,7 @@ do
 	./generate-env.py --period ${PERIOD} --demoname $demoname --with-parameterset True
 
 	echo
+	echo "rds.enable: 1" | ${CLONESQUAD_DIR}/tools/cs-kvtable CloneSquad-${STACK_NAME}-Scheduler import --ttl=days=1
 	${CLONESQUAD_DIR}/tools/cs-kvtable CloneSquad-${STACK_NAME}-Scheduler import --ttl=days=1 <staticfleet-hourly-flipflop-cronfile.yaml
 	echo "Configured static fleets Flip-Flop scheduling demo!!"
 	echo
