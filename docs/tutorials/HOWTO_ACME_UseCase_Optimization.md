@@ -20,7 +20,7 @@ in the mean time, there is an immediate pressure from stakeholders (management e
 
 The workload is a traditionnal 3-Tier application with Frontend and Backend sized in Production to the Peak loads that occur each day between 
 7AM-9AM and 1PM-3PM; during the Weekends, there is almost neither Production nor Non-Production activity. It also happens that some peak loads 
-occur from time to time: Most of the time, it can be anticipated few hours in advance in front of this event but sometimes it is unpredictable.
+occur from time to time out of the normal daily peak window: Most of the time, it can be anticipated few hours in advance in front of this event but sometimes it is unpredictable.
 
 The application has different kinds of resource usage pattern:
 * **Development activities**: A reduced set of resources are needed only during Business hours.
@@ -79,6 +79,7 @@ stop-frontend-at-8PM: "cron(0 20 * * ? *),staticfleet.frontend.state=stopped"
 stop-backend-at-8PM: "cron(2 20 * * ? *),staticfleet.backend.state=stopped"
 stop-database-at-8PM: "cron(4 20 * * ? *),staticfleet.database.state=stopped"
 ```
+
 	- Upload the configuration to the Scheduler configuration:
 
 ```shell
