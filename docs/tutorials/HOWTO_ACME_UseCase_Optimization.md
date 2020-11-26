@@ -11,7 +11,7 @@ the customer did not follow AWS best practices like multi-Account strategy and n
 
 ![Schema]()
 
-The workload is a mutable one and relies on lots of hardcoded dependencies (IP address, DNS names) with
+The workload architecture is a mutable one and relies on lots of hardcoded dependencies (IP address, DNS names) with
 limited ability to recreate the EC2 instances (aka **Pet** machines): No elasticity mecanism is used (especially, no AWS Auto-Scaling). 
 The PostgreSQL database was already replatformed to *Amazon Aurora for PostgreSQL* during the migration.
 
