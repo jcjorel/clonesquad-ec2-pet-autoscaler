@@ -63,13 +63,13 @@ When stopping a whole environment, the sequence must be the opposite.
 
 ```shell
 # Start the database
-awscurl -X POST -d running https://d54ss8eypc.execute-api.eu-west-1.amazonaws.com/v1/configuration/staticfleet.database.state
+awscurl -X POST -d running https://abcdefghij.execute-api.eu-west-1.amazonaws.com/v1/configuration/staticfleet.database.state
 sleep 120
 # Start the backend
-awscurl -X POST -d running https://d54ss8eypc.execute-api.eu-west-1.amazonaws.com/v1/configuration/staticfleet.backend.state
+awscurl -X POST -d running https://abcdefghij.execute-api.eu-west-1.amazonaws.com/v1/configuration/staticfleet.backend.state
 sleep 120
 # Start the frontend
-awscurl -X POST -d running https://d54ss8eypc.execute-api.eu-west-1.amazonaws.com/v1/configuration/staticfleet.fronted.state
+awscurl -X POST -d running https://abcdefghij.execute-api.eu-west-1.amazonaws.com/v1/configuration/staticfleet.fronted.state
 ```
 
 Configure the scheduler to stop the environment after 8PM UTC every day:
