@@ -39,7 +39,7 @@ Note: This parameter can contain wildcards ("*" and "?")
 
 **Url format:**
 
-	 https://<api_gateway_hostname>/v1/<Interact_API_operation>[?<Param1:Value1>&<Param2:Value2>]
+	 https://<api_gateway_hostname>/v1/<Interact_API_operation>[?<Param1=Value1>&<Param2=Value2>]
 
 If an operation takes parameters, they have to be passed as URL Query string.
 
