@@ -7,7 +7,7 @@ The ACME company migrated recently a critical application to AWS with a Rehost (
 The workload is deployed in a single AWS acccount with a single VPC. 
 
 > Note: For the sake of tutorial simplicity. we consider that 
-the customer did not follow AWS best practices like multi-Account strategy and network seggration by kind of workload.
+the customer did not follow AWS best practices like multi-Account strategy and network seggregation by kind of workload.
 
 ![Schema]()
 
