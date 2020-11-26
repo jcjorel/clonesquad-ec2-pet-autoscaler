@@ -22,8 +22,6 @@ The workload is a traditionnal 3-Tier application with Frontend and Backend size
 7AM-9AM and 1PM-3PM; during the Weekends, there is almost neither Production nor Non-Production activity. It also happens that some peak loads 
 occur from time to time: Most of the time, it can be anticipated few hours in advance in front of this event but sometimes it is unpredictable.
 
-For some reason, ACME needs to use traditional monitoring solution like Centreon.
-
 The application has different kind of resource usage pattern:
 * Development activities: A reduced set of resources are needed only during Business hours.
 * Integration activities: Same as Development with the additional need for dedicated tooling instances.
