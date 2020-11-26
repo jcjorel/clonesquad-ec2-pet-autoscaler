@@ -72,15 +72,15 @@ sleep 120
 awscurl -X POST -d running https://d54ss8eypc.execute-api.eu-west-1.amazonaws.com/v1/configuration/staticfleet.fronted.state
 ```
 
-* Configure the scheduler to stop the environment after 8PM UTC every day:
-	1) Create a YAML file `cronfile.yaml` like follow:
+Configure the scheduler to stop the environment after 8PM UTC every day:
+* Create a YAML file `cronfile.yaml` like follow:
 ```yaml
 stop-frontend-at-8PM: "cron(0 20 * * ? *),staticfleet.frontend.state=stopped"
 stop-backend-at-8PM: "cron(2 20 * * ? *),staticfleet.backend.state=stopped"
 stop-database-at-8PM: "cron(4 20 * * ? *),staticfleet.database.state=stopped"
 ```
 
-	2) Upload the configuration to the Scheduler configuration:
+* Upload the configuration to the Scheduler configuration:
 
 ```shell
 awscurl -X POST -d @cronfile.yaml https://abcdefghij.execute-api.eu-west-1.amazonaws.com/v1/scheduler?format=yaml
