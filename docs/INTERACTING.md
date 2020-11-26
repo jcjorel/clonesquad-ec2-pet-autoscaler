@@ -4,7 +4,7 @@
 CloneSquad comes with an Interaction API to perform both mutable and nonmutable actions.
 
 There are 2 ways to interact with a CloneSquad deployment:
-* A public API Gateway,
+* An API Gateway (by default REGIONAL public; optionally PRIVATE - See [DEPLOYMENT_REFERENCE](DEPLOYMENT_REFERENCE.md#apigwconfiguration)),
 * An SQS Queue.
 
 Only the API Gateway is able to reply back an answer. The SQS queue can only be used to send command in an asynchronous manner
