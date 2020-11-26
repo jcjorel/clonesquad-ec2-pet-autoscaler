@@ -18,7 +18,7 @@ The PostgreSQL database was already replatformed to *Amazon Aurora for PostgreSQ
 ACME is planning to refactor to immutable EC2 patterns and cloud native but, 
 in the mean time, there is an immediate pressure from stakeholders (management especially) to reduce cost as fast as possible before this refactoring effort.
 
-The workload is a traditionnal 3-Tier application with Frontend and Backend sized in Production to the Peak loads of the day that occur each day between 
+The workload is a traditionnal 3-Tier application with Frontend and Backend sized in Production to the Peak loads that occur each day between 
 7AM-9AM and 1PM-3PM; during the Weekends, there is almost neither Production nor Non-Production activity. It also happens that some peak loads 
 occur from time to time: Most of the time, it can be anticipated few hours in advance in front of this event but sometimes it is unpredictable.
 
