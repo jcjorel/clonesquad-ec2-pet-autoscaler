@@ -14,7 +14,7 @@ Each layer can override configuration defined in below layers.
 Layer overrides by order of precedence (highest priority to lowest one):
 1) DynamodDB configuration table [Parameter set](#parameter-sets),
 2) DynamodDB configuration table,
-3) Main Lambda 'ConfigurationURL' URLs,
+3) CloudFormation template parameter '`ConfigurationURLs`' pointing to a list of s3:// or http(s):// URLs,
 4) YAML URLs listed in configuration key [`config.loaded_files`](#configloaded_files),
 5) Built-in Defaults
 
