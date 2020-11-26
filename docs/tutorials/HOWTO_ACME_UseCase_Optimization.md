@@ -23,11 +23,11 @@ The workload is a traditionnal 3-Tier application with Frontend and Backend size
 occur from time to time: Most of the time, it can be anticipated few hours in advance in front of this event but sometimes it is unpredictable.
 
 The application has different kinds of resource usage pattern:
-* Development activities: A reduced set of resources are needed only during Business hours.
-* Integration activities: Same as Development with the additional need for dedicated tooling instances.
-* Performance and non-regression activities: A representative environment at scale is needed. Due to Production alike sizing and continuous delivery & testing practice of many different application configurations, ACME have to keep this environment up and running at all time.
-* Pre-Production activities: A clone of the Production setup, needed on-demand and few hours per week. 
-* Production: Even there is almost no traffic during the Week-end and at night, the application must be available at all time.
+* **Development activities**: A reduced set of resources are needed only during Business hours.
+* **Integration activities**: Same as Development with the additional need for dedicated tooling instances.
+* **Performance and non-regression activities**: A representative environment at scale is needed. Due to Production alike sizing and continuous delivery & testing practice of many different application configurations, ACME have to keep this environment up and running at all time.
+* **Pre-Production activities**: A clone of the Production setup, needed on-demand and few hours per week. 
+* **Production**: Even there is almost no traffic during the Week-end and at night, the application must be available at all time.
 
 Currently, all resources are always on and ACME is investigating the usage of CloneSquad to perform an iterative cost optimization effort with the initial
 expectation to do quickwins and show visible financial posture improvments in matter of days. 
