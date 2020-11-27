@@ -55,8 +55,7 @@ awscurl -X POST -d @cronfile.yaml https://abcdefghij.execute-api.eu-west-1.amazo
 ```
 
 * Look at the 'CloneSquad-<GroupName>' CloudWatch dashboard to check that instances are starting/stopping as expected.
-	- Notice that 't3' instances that can only stop after they accrued 30% of their maximum CPU Credit. It helps to avoid
-`unlimited bursting`fees.
+	- Notice that, if the 't3' instances were recently launched, they do not stop immediatly but enter the 'CPU Crediting' mode. They will stop automatically after they accrued 30% of their maximum CPU Credit. It helps to avoid `unlimited bursting` fees. See the metric 'NbOfCPUCreditingInstances' on the CloudWatch dashboard to identify this situation (Note: This behavior can be disabled if not expected).
 
 > Tip: A very similar optimization method can be applied for Pre-Production workload.
 
