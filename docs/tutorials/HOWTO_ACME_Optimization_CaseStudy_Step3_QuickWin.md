@@ -83,6 +83,7 @@ Ok (6 key(s) processed)
 #!/bin/bash
 EXPECTED_CONFIGURATION=pset-maximum-load
 awscurl -X POST -d ${EXPECTED_CONFIGURATION} https://<frontend_api_gw_id>.execute-api.eu-west-1.amazonaws.com/v1/configuration/config.active_parameter_set
+awscurl -X POST -d ${EXPECTED_CONFIGURATION} https://<backend_api_gw_id>.execute-api.eu-west-1.amazonaws.com/v1/configuration/config.active_parameter_set
 ```
 
 * Always look at the two 'CloneSquad-<GroupName>' CloudWatch dashboards to check that instances are starting/stopping as expected.
