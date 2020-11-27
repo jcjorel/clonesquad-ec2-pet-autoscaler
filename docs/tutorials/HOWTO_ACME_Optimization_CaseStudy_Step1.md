@@ -1,4 +1,4 @@
-# Step #1: 'Integration/Development optimization' Quick-Win 
+# Step #1: 'Integration/Development and Pre-production optimization' Quick-Win 
 
 ## Additional context:
 
@@ -55,5 +55,8 @@ awscurl -X POST -d @cronfile.yaml https://abcdefghij.execute-api.eu-west-1.amazo
 ```
 
 * Look at the 'CloneSquad-<GroupName>' CloudWatch dashboard to check that instances are starting/stopping as expected.
+	- Notice that 't3' instances that can only stop after they accrued 30% of their maximum CPU Credit. It helps to avoid
+`unlimited bursting`fees.
 
+> Tip: A very similar optimization method can be applied for Pre-Production workload.
 
