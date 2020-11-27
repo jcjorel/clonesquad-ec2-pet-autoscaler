@@ -22,23 +22,23 @@ activity, the ACME test orchestrator will ask the CloneSquad API to scale (=star
 	- `GroupName` for the frontend: Value `<environment>-frontend`(ex: `perf1-frontend`)
 	- `GroupName` for the backend: Value `<environment>-backend`(ex: `perf1-backend`)
 	- See [README / Getting started](../README.md#installing--getting-started) for CloneSquad deployment instructions.
-* Tag all development environment resources (EC2 resources) with their dedicated name (see previous bullet):
+* Tag all environment resources (EC2 resources only) with their dedicated name (see previous bullet):
 	- `clonesquad:group-name`: <GroupName> (ex: "perf1-frontend" end "perf1-backend")
 * Locate the two API Gateway URLs of Frontend and Backend CloneSquad deployemnt in their respective CloudFormation Outputs (parameter `InteractAPIWUrl`).
-* Install [awscurl](https://github.com/okigan/awscurl) on the developper desktop (or best, manage the following steps through a CI tool like RunDeck, Jenkins...)
-* Write a scaling shell scripts to be used by the orchestrator in the morning:
+* Install [awscurl](https://github.com/okigan/awscurl) on orchestrator.
+* Write a scaling shell scripts to be used by the orchestrator:
 
 ```shell
 #!/bin/bash
-SCALE_FOR_FRONTEND=$1  # Can be expressed as a number of instance or in percentage of available instances.
+SCALE_FOR_FRONTEND=$1  # Can be expressed as a number of instances or in percentage of available instances.
 SCALE_FOR_BACKEND=$2
 awscurl -X POST -d ${SCALE_FOR_FRONTEND} https://<frontend_api_gw_id>.execute-api.eu-west-1.amazonaws.com/v1/configuration/ec2.scheduler.desired_instance_count
 awscurl -X POST -d ${SCALE_FOR_BACKEND} https://<backend_api_gw_id>.execute-api.eu-west-1.amazonaws.com/v1/configuration/ec2.scheduler.desired_instance_count
 ```
 
-> In the orchestrator, before each test run, call the previous with expected size of frontend and backend instance fleet as first and second arguments.
-
-* Look at the two 'CloneSquad-<GroupName>' CloudWatch dashboards to check that instances are starting/stopping as expected.
+* In the orchestrator, before each test run, call the previous oscript with expected size of frontend and backend instance fleet as first and second arguments.
+* Poll the API GW 'fleet/status' to know when the scaling is ready with `.["EC2.Schedule""]["ServingFleet_vs_MaximumFleetSizePourcentage"] (See [API documentation](INTERACTING.md#api-fleetstatus))
+* Start test when the fleet is at the target capacity.
 
 
 
