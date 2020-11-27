@@ -122,7 +122,7 @@ activity, the ACME test orchestrator will ask the CloneSquad API to scale (=star
 
 ```shell
 #!/bin/bash
-SCALE_FOR_FRONTEND=$1  # Can be expressed as a number of instance or in percentage of available instances
+SCALE_FOR_FRONTEND=$1  # Can be expressed as a number of instance or in percentage of available instances.
 SCALE_FOR_BACKEND=$2
 awscurl -X POST -d ${SCALE_FOR_FRONTEND} https://<frontend_api_gw_id>.execute-api.eu-west-1.amazonaws.com/v1/configuration/ec2.scheduler.desired_instance_count
 awscurl -X POST -d ${SCALE_FOR_BACKEND} https://<backend_api_gw_id>.execute-api.eu-west-1.amazonaws.com/v1/configuration/ec2.scheduler.desired_instance_count
