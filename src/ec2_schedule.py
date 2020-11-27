@@ -233,6 +233,14 @@ is enabled, from an instance type distribution PoV.
                  "ec2.schedule.bounce.instances_with_issue_grace_period": "minutes=5",
                  "ec2.schedule.draining.instance_cooldown": "minutes=2",
                  "ec2.schedule.start.warmup_delay": "minutes=2",
+                 "ec2.schedule.burstable_instance.preserve_accrued_cpu_credit,Stable": {
+                         "DefaultValue": 1,
+                         "Format"      : "Bool",
+                         "Description" : """Enable the weekly wakeup of burstable instances ["t3","t4"]
+
+This flag enables an automatic wakeup of stopped instances before the one-week limit meaning accrued CPU Credit loss.
+                         """
+                 },
                  "ec2.schedule.burstable_instance.max_time_stopped": "days=6,hours=12",
                  "ec2.schedule.burstable_instance.max_cpucrediting_time,Stable": {
                          "DefaultValue": "hours=12",
@@ -935,6 +943,11 @@ parameter should NOT be modified by user.
         """
         Start burstable instances that are stopped for a long time and could lose their CPU Credits soon.
         """
+        pdb.set_trace()
+        if not Cfg.get_int("ec2.schedule.burstable_instance.preserve_accrued_cpu_credit"):
+            log.log(log.NOTICE, "Burstable instance CPU Credit preservation disabled (ec2.schedule.burstable_instance.preserve_accrued_cpu_credit=0).")
+            return
+
         now                = self.context["now"]
         stopped_instances  = self.stopped_instances_wo_excluded_error # ec2.get_instances(State="stopped", ScalingState="-excluded,error")
         for i in stopped_instances:

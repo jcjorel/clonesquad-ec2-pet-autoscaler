@@ -14,7 +14,7 @@ Each layer can override configuration defined in below layers.
 Layer overrides by order of precedence (highest priority to lowest one):
 1) DynamodDB configuration table [Parameter set](#parameter-sets),
 2) DynamodDB configuration table,
-3) Main Lambda 'ConfigurationURL' URLs,
+3) CloudFormation template parameter '`ConfigurationURLs`' pointing to a list of URLs (see supported protocoles below),
 4) YAML URLs listed in configuration key [`config.loaded_files`](#configloaded_files),
 5) Built-in Defaults
 
@@ -560,6 +560,17 @@ is enabled, from an instance type distribution PoV.
 
 > If your application supports it, activate instance bouncing.
 
+                         
+
+
+
+### ec2.schedule.burstable_instance.preserve_accrued_cpu_credit
+Default Value: `1`   
+Format       :  [Bool](#Bool)
+
+Enable the weekly wakeup of burstable instances ["t3","t4"]
+
+This flag enables an automatic wakeup of stopped instances before the one-week limit meaning accrued CPU Credit loss.
                          
 
 

@@ -9,3 +9,4 @@ config.dump_configuration: 1
 #config.active_parameter_set: debug-min-desired-count-90-per-cent
 #debug-min-desired-count-90-per-cent:
 #   ec2.schedule.min_instance_count: 90%
+#ec2.schedule.burstable_instance.preserve_accrued_cpu_credit: 0
