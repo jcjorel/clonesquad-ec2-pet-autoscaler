@@ -17,7 +17,7 @@ For this "ON/OFF" like use-case, the autoscaling feature is not needed and the p
 
 * Find a naming convention for each environment (ex: dev-user1, dev-user2, dev-user3 etc...)
 * Deploy a CloneSquad CloudFormation template for each environment name (specify the environment name in the `GroupName` template variable)
-	- See [README / Getting started](../README.md#installing--getting-started) for instructions.
+	- See [README / Getting started](../../README.md#installing--getting-started) for instructions.
 * Tag all development environment resources (EC2 and RDS resources) with their dedicated name:
 	- `clonesquad:group-name`: <GroupName> (ex: "dev-user1")
 * Tag with the additional tag `clonesquad:static-subfleet-name` depending on the layer:

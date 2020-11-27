@@ -21,7 +21,7 @@ For this use-case, the proposal is to use both scheduled and on-demand imperativ
 * Deploy a CloneSquad CloudFormation template for production environment name. 
 	- `GroupName` for the frontend: Value `<environment>-frontend`(ex: `production-frontend`)
 	- `GroupName` for the frontend: Value `<environment>-backend`(ex: `production-backend`)
-	- See [README / Getting started](../README.md#installing--getting-started) for CloneSquad deployment instructions.
+	- See [README / Getting started](../../README.md#installing--getting-started) for CloneSquad deployment instructions.
 * Tag all the production resources (EC2 resources only) with their dedicated name (see previous bullet):
 	- `clonesquad:group-name`: <GroupName> (ex: "prod1-frontend" or "prod1-backend")
 * Locate the two API Gateway URLs of Frontend and Backend CloneSquad deployemnt in their respective CloudFormation Outputs (parameter `InteractAPIWUrl`).

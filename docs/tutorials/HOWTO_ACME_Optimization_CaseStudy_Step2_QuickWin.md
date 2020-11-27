@@ -21,7 +21,7 @@ activity, the ACME test orchestrator will ask the CloneSquad API to scale (=star
 * Deploy a CloneSquad CloudFormation template for each environment name **AND both backend and frontend layers**. So, 2 CloneSquad deployments are needed by environment. 
 	- `GroupName` for the frontend: Value `<environment>-frontend`(ex: `perf1-frontend`)
 	- `GroupName` for the backend: Value `<environment>-backend`(ex: `perf1-backend`)
-	- See [README / Getting started](../README.md#installing--getting-started) for CloneSquad deployment instructions.
+	- See [README / Getting started](../../README.md#installing--getting-started) for CloneSquad deployment instructions.
 * Tag all environment resources (EC2 resources only) with their dedicated name (see previous bullet):
 	- `clonesquad:group-name`: <GroupName> (ex: "perf1-frontend" end "perf1-backend")
 * Locate the two API Gateway URLs of Frontend and Backend CloneSquad deployemnt in their respective CloudFormation Outputs (parameter `InteractAPIWUrl`).
