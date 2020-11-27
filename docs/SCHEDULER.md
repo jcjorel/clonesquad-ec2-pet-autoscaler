@@ -17,5 +17,9 @@ Configuration of an event in the DynamoDB table has the following format: The Ke
 
 Note: Coma needs to be double-escaped with backslashes.
 
+## CloudWatch Limitations about cron scheduling expression
+
+> **You can't specify the Day-of-month and Day-of-week fields in the same cron expression. If you specify a value (or a '*') in one of the fields, you must use a ? (question mark) in the other.**
+
 
 
