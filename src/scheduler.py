@@ -68,19 +68,34 @@ class Scheduler:
                 max_rules_per_batch -= 1
                 if max_rules_per_batch <= 0:
                     break
-                rule_def = self.get_ruledef_by_name(r)
+                rule_def            = self.get_ruledef_by_name(r)
+                schedule_expression = rule_def["Data"][0]["schedule"] 
 
+                # In order to remove burden on user, we perform a sanity check about a wellknown 
+                #    limitation of Cloudwatch.
+                if schedule_expression.startswith("cron("):
+                    expr = [ i for i in schedule_expression.replace("(", " ").replace(")"," ").split(" ") if i != ""]
+                    if len(expr) != 7:
+                        log.warn("Schedule rule '%s' has an invalid cron expression '%s' (too short cron syntax)! Ignore it..." % 
+                                (rule_def["EventName"], schedule_expression))
+                        continue
+                    if (expr[5] != '?' and not expr[3] == '?') or (expr[3] != '?' and not expr[5] == '?'):
+                        log.warn("Schedule rule '%s' has an invalid cron expression '%s'. " 
+                        "You can't specify the Day-of-month and Day-of-week fields in the same cron expression. If you specify a value (or a *) in one of the fields, you must use a ? (question mark) in the other. """ %  (rule_def["EventName"], schedule_expression))
+                        continue
+
+                # Update Cloudwatch rule
                 try:
                     response = client.put_rule(
                        Name=r,
                        Description="Schedule Event '%s': %s" % (rule_def["EventName"], rule_def["Event"]),
                        RoleArn=self.context["CloudWatchEventRoleArn"],
-                       ScheduleExpression=rule_def["Data"][0]["schedule"],
+                       ScheduleExpression=schedule_expression,
                        State='ENABLED'
                     )
                     log.debug("put_rule: %s" % response)
                 except Exception as e:
-                    log.exception("Failed to create scheduler event '%s' (%s) : %s" % (r, rule_def["Data"][0]["schedule"], e))
+                    log.exception("Failed to create scheduler event '%s' (%s) : %s" % (r, schedule_expression, e))
 
                 try:
                     response = client.put_targets(
