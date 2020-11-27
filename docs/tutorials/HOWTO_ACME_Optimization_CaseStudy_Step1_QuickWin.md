@@ -54,7 +54,7 @@ stop-database-at-8PM: "cron(4 20 * * ? *),staticfleet.database.state=stopped"
 awscurl -X POST -d @cronfile.yaml https://abcdefghij.execute-api.eu-west-1.amazonaws.com/v1/scheduler?format=yaml
 ```
 
-* Look at the *'CloneSquad-environment-*'* CloudWatch dashboards to check that instances are starting/stopping as expected.
+* Look at the *'CloneSquad-environment-**'* CloudWatch dashboards to check that instances are starting/stopping as expected.
 	- Notice that, if the 't3' instances were recently launched, they do not stop immediatly but enter the 'CPU Crediting' mode. They will stop automatically after they accrued 30% of their maximum CPU Credit. It helps to avoid [unlimited bursting](../COST_OPTIMIZATION.md#clonesquad-cpu-crediting) fees. See the metric 'NbOfCPUCreditingInstances' on the CloudWatch dashboard to identify this situation (Note: This behavior can be disabled if not expected).
 
 > Tip: A very similar optimization method can be applied for Pre-Production workload.
