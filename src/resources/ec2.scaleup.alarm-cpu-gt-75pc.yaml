@@ -1,19 +1,16 @@
-ActionsEnabled: True
-OKActions: 
-- {GenericOkActions_SNSTopicArn}
-AlarmActions: 
-- {ScaleUp_SNSTopicArn}
-InsufficientDataActions: 
-- {GenericInsufficientDataActions_SNSTopicArn}
-Statistic: Average
-Period: 60
-
+#
+# This is a CloneSquad managed alarm definition tracking the 'CPU Utilization' of EC2 instances managed by CloneSquad. 
+#   All these arguments are passed to CloudWatch.PutMetricAlarm API (See https://docs.aws.amazon.com/AmazonCloudWatch/latest/APIReference/API_PutMetricAlarm.html)
+#
+#   Before to be sent to this API, CloneSquad performs some variable substitutions (InstanceId, *_SNSTopicArn, GroupName).
+#
+#   A reference to this file must be set in the CloneSquad configuration (See docs/CONFIGURATION_REFERENCE.md#cloudwatchalarm00configuration_url)
+#
+#
 Namespace: AWS/EC2
 MetricName: CPUUtilization
-Dimensions: 
-- Name: InstanceId
-  Value: {InstanceId}
-
+Statistic: Average
+Period: 60
 Unit: Percent
 EvaluationPeriods: 2
 DatapointsToAlarm: 2
@@ -21,6 +18,19 @@ Threshold: 75.0
 ComparisonOperator: GreaterThanOrEqualToThreshold
 TreatMissingData: missing
 
+################################################
+# /!\ DO NOT MODIFY BELOW PARAMETERS
+#
+ActionsEnabled: True
+Dimensions: 
+- Name: InstanceId
+  Value: {InstanceId}
+OKActions: 
+- {GenericOkActions_SNSTopicArn}
+AlarmActions: 
+- {ScaleUp_SNSTopicArn}
+InsufficientDataActions: 
+- {GenericInsufficientDataActions_SNSTopicArn}
 Tags:
   - Key: clonesquad:group-name
     Value: {GroupName}
