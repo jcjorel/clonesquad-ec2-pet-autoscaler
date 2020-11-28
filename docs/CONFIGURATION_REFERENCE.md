@@ -384,21 +384,6 @@ at its maximum size in a stable manner (i.e. even if there are impaired/unhealth
 
 
 
-### ec2.schedule.max_cpu_crediting_instances
-Default Value: `50%`   
-Format       :  [IntegerOrPercentage](#IntegerOrPercentage)
-
-Maximum number of instances that could be in the CPU crediting state at the same time.
-
-Setting this parameter to 100% could lead to fleet availability issues and so is not recommended. Under scaleout stress
-condition, CloneSquad will automatically stop and restart instances in CPU Crediting state but it may take time (up to 3 mins). 
-                     
-    If you need to increase this value, it may mean that your burstable instance types are too 
-    small for your workload. Consider upgrading instance types instead.
-                     
-
-
-
 ### ec2.schedule.scaleout.disable
 Default Value: `0`   
 Format       :  [Bool](#Bool)
@@ -564,6 +549,21 @@ is enabled, from an instance type distribution PoV.
 
 
 
+### ec2.schedule.burstable_instance.max_cpu_crediting_instances
+Default Value: `50%`   
+Format       :  [IntegerOrPercentage](#IntegerOrPercentage)
+
+Maximum number of instances that could be in the CPU crediting state at the same time.
+
+Setting this parameter to 100% could lead to fleet availability issues and so is not recommended. Under scaleout stress
+condition, CloneSquad will automatically stop and restart instances in CPU Crediting state but it may take time (up to 3 mins). 
+                     
+    If you need to increase this value, it may mean that your burstable instance types are too 
+    small for your workload. Consider upgrading instance types instead.
+                     
+
+
+
 ### ec2.schedule.burstable_instance.preserve_accrued_cpu_credit
 Default Value: `1`   
 Format       :  [Bool](#Bool)
@@ -598,7 +598,7 @@ over spending for ever.
 
 
 
-### ec2.schedule.burstable_instances.min_cpu_credit_required
+### ec2.schedule.burstable_instance.min_cpu_credit_required
 Default Value: `30%`   
 Format       :  [IntegerOrPercentage](#IntegerOrPercentage)
 

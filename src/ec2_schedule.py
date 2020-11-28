@@ -68,25 +68,6 @@ at its maximum size in a stable manner (i.e. even if there are impaired/unhealth
                  },
                  "ec2.schedule.max_instance_start_at_a_time" : 5,
                  "ec2.schedule.max_instance_stop_at_a_time" : 4,
-                 "ec2.schedule.max_cpu_crediting_instances,Stable" : {
-                     "DefaultValue" : "50%",
-                     "Format"       : "IntegerOrPercentage",
-                     "Description"  : """Maximum number of instances that could be in the CPU crediting state at the same time.
-
-Setting this parameter to 100% could lead to fleet availability issues and so is not recommended. Under scaleout stress
-condition, CloneSquad will automatically stop and restart instances in CPU Crediting state but it may take time (up to 3 mins). 
-                     
-    If you need to increase this value, it may mean that your burstable instance types are too 
-    small for your workload. Consider upgrading instance types instead.
-                     """
-                 },
-                 "ec2.schedule.max_cpu_credit_instance_issues" : {
-                     "DefaultValue" : "50%",
-                     "Format"       : "Integer >= 0 _OR_ Percentage",
-                     "Description"  : """Maximum number of instances that could be considered as unhealthy because their CPU credit are exhausted.
-                     Setting this parameter to 100% will indicate that all instances could marked as unhealthy at the same time.
-                     """
-                 },
                  "ec2.schedule.state_ttl" : "hours=2",
                  "ec2.schedule.base_points" : 1000,
                  "ec2.schedule.scaleout.disable,Stable": {
@@ -233,6 +214,18 @@ is enabled, from an instance type distribution PoV.
                  "ec2.schedule.bounce.instances_with_issue_grace_period": "minutes=5",
                  "ec2.schedule.draining.instance_cooldown": "minutes=2",
                  "ec2.schedule.start.warmup_delay": "minutes=2",
+                 "ec2.schedule.burstable_instance.max_cpu_crediting_instances,Stable" : {
+                     "DefaultValue" : "50%",
+                     "Format"       : "IntegerOrPercentage",
+                     "Description"  : """Maximum number of instances that could be in the CPU crediting state at the same time.
+
+Setting this parameter to 100% could lead to fleet availability issues and so is not recommended. Under scaleout stress
+condition, CloneSquad will automatically stop and restart instances in CPU Crediting state but it may take time (up to 3 mins). 
+                     
+    If you need to increase this value, it may mean that your burstable instance types are too 
+    small for your workload. Consider upgrading instance types instead.
+                     """
+                 },
                  "ec2.schedule.burstable_instance.preserve_accrued_cpu_credit,Stable": {
                          "DefaultValue": 1,
                          "Format"      : "Bool",
@@ -259,7 +252,7 @@ This parameter is a safety guard to avoid a burstable instance with a faulty hig
 over spending for ever.
                         """
                  },
-                 "ec2.schedule.burstable_instances.min_cpu_credit_required,Stable": {
+                 "ec2.schedule.burstable_instance.min_cpu_credit_required,Stable": {
                          "DefaultValue" : "30%",
                          "Format"       : "IntegerOrPercentage",
                          "Description"  : """The minimun amount CPU Credit that a burstable instance should have before to be shutdown.
@@ -845,7 +838,7 @@ parameter should NOT be modified by user.
            return False
 
        max_earned_credits      = self.cpu_credits[instance_type][1]
-       min_cpu_credit_required = Cfg.get_abs_or_percent("ec2.schedule.min_cpu_credit_required", -1, max_earned_credits)
+       min_cpu_credit_required = Cfg.get_abs_or_percent("ec2.schedule.burstable_instance.min_cpu_credit_required", -1, max_earned_credits)
        cpu_credit              = self.ec2.get_cpu_creditbalance(i)
        if cpu_credit == -1: 
            log.info("Waiting CPU Credit balance metric for instance %s..." % (instance_id))
@@ -874,7 +867,7 @@ parameter should NOT be modified by user.
 
         nb_cpu_crediting               = 0
         non_burstable_instances        = self.non_burstable_instances
-        max_number_crediting_instances = Cfg.get_abs_or_percent("ec2.schedule.max_cpu_crediting_instances", -1, 
+        max_number_crediting_instances = Cfg.get_abs_or_percent("ec2.schedule.burstable_instance.max_cpu_crediting_instances", -1, 
                 len(self.instances_wo_excluded))
         max_startable_stopped_instances= self.filter_stopped_instance_candidates("stop_drained_instances", len(self.useable_instances))
         # To avoid availability issues, we do not allow more cpu crediting instances than startable instances
