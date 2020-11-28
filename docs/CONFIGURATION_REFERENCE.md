@@ -575,6 +575,17 @@ This flag enables an automatic wakeup of stopped instances before the one-week l
 
 
 
+### ec2.schedule.burstable_instance.assume_exhausted_cpu_credit_as_unhealthy
+Default Value: `1`   
+Format       :  [Bool](#Bool)
+
+Assume burstable instance cpu credit exhausted condition as unhealthy status.
+
+Set to 1, t3/t4 burstable instances that exhausted their CPU credits will be assumed as faulty meaning that they will be replaced
+soon by scaling algorithms.
+
+
+
 ### ec2.schedule.burstable_instance.max_cpucrediting_time
 Default Value: `hours=12`   
 Format       :  [Duration](#Duration)
@@ -587,7 +598,7 @@ over spending for ever.
 
 
 
-### ec2.schedule.min_cpu_credit_required
+### ec2.schedule.burstable_instances.min_cpu_credit_required
 Default Value: `30%`   
 Format       :  [IntegerOrPercentage](#IntegerOrPercentage)
 

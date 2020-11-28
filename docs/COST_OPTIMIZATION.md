@@ -7,6 +7,8 @@
 CloneSquad implements a dedicated strategy to manage burstable instances and avoid unexpected costs 
 linked to the [unlimited bursting](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/burstable-performance-instances-unlimited-mode.html).
 
+> Tip: The 'CPU Crediting' feature can be disabled with `ec2.schedule.burstable_instance.preserve_accrued_cpu_credit` configuration key.
+
 The `CPUCreditBalance` metric of each burstable instances under management is monitored and marked 'unhealthy' 
 when they exhaust their `CPUCreditBalance`.
 
