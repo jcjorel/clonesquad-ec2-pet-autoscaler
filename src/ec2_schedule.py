@@ -242,6 +242,14 @@ This flag enables an automatic wakeup of stopped instances before the one-week l
                          """
                  },
                  "ec2.schedule.burstable_instance.max_time_stopped": "days=6,hours=12",
+                 "ec2.schedule.burstable_instance.assume_exhausted_cpu_credit_as_unhealthy,Stable": {
+                     "DefaultValue": "1",
+                     "Format"      : "Bool",
+                     "Description" : """Assume burstable instance cpu credit exhausted condition as unhealthy status.
+
+Set to 1, t3/t4 burstable instances that exhausted their CPU credits will be assumed as faulty meaning that they will be replaced
+soon by scaling algorithms."""
+                 },
                  "ec2.schedule.burstable_instance.max_cpucrediting_time,Stable": {
                          "DefaultValue": "hours=12",
                          "Format"      : "Duration",
@@ -251,8 +259,7 @@ This parameter is a safety guard to avoid a burstable instance with a faulty hig
 over spending for ever.
                         """
                  },
-                 "ec2.schedule.metrics.time_resolution": "60",
-                 "ec2.schedule.min_cpu_credit_required,Stable": {
+                 "ec2.schedule.burstable_instances.min_cpu_credit_required,Stable": {
                          "DefaultValue" : "30%",
                          "Format"       : "IntegerOrPercentage",
                          "Description"  : """The minimun amount CPU Credit that a burstable instance should have before to be shutdown.
@@ -266,6 +273,7 @@ When specified in percentage, 100% represents the ['Maximum earned credits than 
 
                          """
                  },
+                 "ec2.schedule.metrics.time_resolution": "60",
                  "ec2.schedule.spot.min_stop_period": {
                          "DefaultValue": "minutes=4",
                          "Format"      : "Duration",
@@ -537,6 +545,8 @@ parameter should NOT be modified by user.
                 initializing_only=initializing_only))
 
     def get_cpu_exhausted_instances(self, threshold=1):
+        if not Cfg.get_int("ec2.schedule.burstable_instance.assume_exhausted_cpu_credit_as_unhealthy"):
+            return []
         instances = []
         for i in self.running_instances_wo_excluded: # ec2.get_instances(State="running", ScalingState="-excluded"):
             instance_type           = i["InstanceType"]
@@ -943,7 +953,6 @@ parameter should NOT be modified by user.
         """
         Start burstable instances that are stopped for a long time and could lose their CPU Credits soon.
         """
-        pdb.set_trace()
         if not Cfg.get_int("ec2.schedule.burstable_instance.preserve_accrued_cpu_credit"):
             log.log(log.NOTICE, "Burstable instance CPU Credit preservation disabled (ec2.schedule.burstable_instance.preserve_accrued_cpu_credit=0).")
             return
