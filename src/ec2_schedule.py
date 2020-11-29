@@ -539,10 +539,13 @@ parameter should NOT be modified by user.
                 initializing_only=initializing_only))
 
     def get_cpu_exhausted_instances(self, threshold=1):
-        max_issues                    = Cfg.get_int("ec2.schedule.burstable_instance.max_cpu_credit_unhealthy_instances")
+        max_cpu_credit_unhealthy      = Cfg.get_int("ec2.schedule.burstable_instance.max_cpu_credit_unhealthy_instances")
+        # When not enough stopped instances are available, we do not mark unhealthy burstable instances to avoid fleet size exhaustion and a DDoS
+        stopped_instance_margin       = max(0, len(self.stopped_instances_wo_excluded_error) - self.get_min_instance_count())
+        max_issues                    = min(max_cpu_credit_unhealthy, stopped_instance_margin)
         instances_unhealthy           = []
         instances_should_be_unhealthy = []
-        for i in self.running_instances_wo_excluded: 
+        for i in self.pending_running_instances_wo_excluded_draining_error: 
             instance_type           = i["InstanceType"]
             cpu_credit = self.ec2.get_cpu_creditbalance(i)
             if cpu_credit >= 0 and cpu_credit <= threshold:
@@ -551,8 +554,10 @@ parameter should NOT be modified by user.
                 else:
                     instances_should_be_unhealthy.append(i)
         if len(instances_unhealthy) + len(instances_should_be_unhealthy):
-            info = ("Instances %s should also be set unhealthy but ec2.schedule.burstable_instance.max_cpu_credit_unhealthy_instances is "
-                    "shapping to '%d' unhealthy instance count." % (self.ec2.get_instance_ids(instances_should_be_unhealthy), max_issues))
+            info = ("Instances %s should also be set unhealthy but max unhealthy instance count is shapped to '%s' "
+                    "[=min(ec2.schedule.burstable_instance.max_cpu_credit_unhealthy_instances=%s, stopped_instance_count-min_instance_count=%s)]"
+                    % (self.ec2.get_instance_ids(instances_should_be_unhealthy), max_issues, 
+                        max_cpu_credit_unhealthy, stopped_instance_margin))
             log.info("Burstable instances %s considered as unhealthy due to CPU Credit Balance exhausted. %s" %
                 (self.ec2.get_instance_ids(instances_unhealthy), info if len(instances_should_be_unhealthy) else "")) 
         return instances_unhealthy
