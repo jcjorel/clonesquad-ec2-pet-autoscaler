@@ -557,6 +557,8 @@ Maximum number of instances that could be considered, at a given time, as unheal
 
 * Setting this parameter to `100%` will indicate that all burstable instances could marked as unhealthy at the same time.
 * Setting this parameter to `0` will completely disable the ability to consider burstable instances as unhealthy. 
+
+> To prevent a DDoS, burstable instances with exhausted CPU Credit balance are NOT marked as unhealthy when len(stopped_instance) - (ec2.scheduler.min_instance_count) <= 0.
                      
 
 
