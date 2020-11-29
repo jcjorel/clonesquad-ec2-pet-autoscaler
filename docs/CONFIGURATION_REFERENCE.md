@@ -549,6 +549,18 @@ is enabled, from an instance type distribution PoV.
 
 
 
+### ec2.schedule.burstable_instance.max_cpu_credit_unhealthy_instances
+Default Value: `1`   
+Format       :  [IntegerOrPercentage](#IntegerOrPercentage)
+
+Maximum number of instances that could be considered, at a given time, as unhealthy because their CPU credit is exhausted.
+
+* Setting this parameter to `100%` will indicate that all burstable instances could marked as unhealthy at the same time.
+* Setting this parameter to `0` will completely disable the ability to consider burstable instances as unhealthy. 
+                     
+
+
+
 ### ec2.schedule.burstable_instance.max_cpu_crediting_instances
 Default Value: `50%`   
 Format       :  [IntegerOrPercentage](#IntegerOrPercentage)
@@ -572,17 +584,6 @@ Enable the weekly wakeup of burstable instances ["t3","t4"]
 
 This flag enables an automatic wakeup of stopped instances before the one-week limit meaning accrued CPU Credit loss.
                          
-
-
-
-### ec2.schedule.burstable_instance.assume_exhausted_cpu_credit_as_unhealthy
-Default Value: `1`   
-Format       :  [Bool](#Bool)
-
-Assume burstable instance cpu credit exhausted condition as unhealthy status.
-
-Set to 1, t3/t4 burstable instances that exhausted their CPU credits will be assumed as faulty meaning that they will be replaced
-soon by scaling algorithms.
 
 
 

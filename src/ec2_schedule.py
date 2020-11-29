@@ -214,6 +214,15 @@ is enabled, from an instance type distribution PoV.
                  "ec2.schedule.bounce.instances_with_issue_grace_period": "minutes=5",
                  "ec2.schedule.draining.instance_cooldown": "minutes=2",
                  "ec2.schedule.start.warmup_delay": "minutes=2",
+                 "ec2.schedule.burstable_instance.max_cpu_credit_unhealthy_instances,Stable" : {
+                     "DefaultValue" : "1",
+                     "Format"       : "IntegerOrPercentage",
+                     "Description"  : """Maximum number of instances that could be considered, at a given time, as unhealthy because their CPU credit is exhausted.
+
+* Setting this parameter to `100%` will indicate that all burstable instances could marked as unhealthy at the same time.
+* Setting this parameter to `0` will completely disable the ability to consider burstable instances as unhealthy. 
+                     """
+                 },
                  "ec2.schedule.burstable_instance.max_cpu_crediting_instances,Stable" : {
                      "DefaultValue" : "50%",
                      "Format"       : "IntegerOrPercentage",
@@ -235,14 +244,6 @@ This flag enables an automatic wakeup of stopped instances before the one-week l
                          """
                  },
                  "ec2.schedule.burstable_instance.max_time_stopped": "days=6,hours=12",
-                 "ec2.schedule.burstable_instance.assume_exhausted_cpu_credit_as_unhealthy,Stable": {
-                     "DefaultValue": "1",
-                     "Format"      : "Bool",
-                     "Description" : """Assume burstable instance cpu credit exhausted condition as unhealthy status.
-
-Set to 1, t3/t4 burstable instances that exhausted their CPU credits will be assumed as faulty meaning that they will be replaced
-soon by scaling algorithms."""
-                 },
                  "ec2.schedule.burstable_instance.max_cpucrediting_time,Stable": {
                          "DefaultValue": "hours=12",
                          "Format"      : "Duration",
@@ -538,15 +539,23 @@ parameter should NOT be modified by user.
                 initializing_only=initializing_only))
 
     def get_cpu_exhausted_instances(self, threshold=1):
-        if not Cfg.get_int("ec2.schedule.burstable_instance.assume_exhausted_cpu_credit_as_unhealthy"):
-            return []
-        instances = []
-        for i in self.running_instances_wo_excluded: # ec2.get_instances(State="running", ScalingState="-excluded"):
+        max_issues                    = Cfg.get_int("ec2.schedule.burstable_instance.max_cpu_credit_unhealthy_instances")
+        instances_unhealthy           = []
+        instances_should_be_unhealthy = []
+        for i in self.running_instances_wo_excluded: 
             instance_type           = i["InstanceType"]
             cpu_credit = self.ec2.get_cpu_creditbalance(i)
             if cpu_credit >= 0 and cpu_credit <= threshold:
-                instances.append(i)
-        return instances
+                if len(instances_unhealthy) < max_issues:
+                    instances_unhealthy.append(i)
+                else:
+                    instances_should_be_unhealthy.append(i)
+        if len(instances_unhealthy) + len(instances_should_be_unhealthy):
+            info = ("Instances %s should also be set unhealthy but ec2.schedule.burstable_instance.max_cpu_credit_unhealthy_instances is "
+                    "shapping to '%d' unhealthy instance count." % (self.ec2.get_instance_ids(instances_should_be_unhealthy), max_issues))
+            log.info("Burstable instances %s considered as unhealthy due to CPU Credit Balance exhausted. %s" %
+                (self.ec2.get_instance_ids(instances_unhealthy), info if len(instances_should_be_unhealthy) else "")) 
+        return instances_unhealthy
 
     def get_young_instance_ids(self):
         now                     = self.context["now"]
