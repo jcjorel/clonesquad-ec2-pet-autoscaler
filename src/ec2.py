@@ -615,6 +615,15 @@ without any TargetGroup but another external health instance source exists).
         return next(filter(lambda instance: instance['InstanceId'] == id, self.instances), None)
 
     def get_cpu_creditbalance(self, instance):
+        debug_state_key           = "ec2.debug.instance.%s.cpu_credit_balance" % instance["InstanceId"]
+        forced_cpu_credit_balance = self.get_state(debug_state_key)
+        if forced_cpu_credit_balance is not None:
+            try:
+                log.warn("Forcing CPU Credit Balance with state key '%s'!" % debug_state_key)
+                return int(forced_cpu_credit_balance)
+            except Exception as e:
+                log.exception("Failed to convert '%s' as a int()!" % debug_state_key)
+
         if "_Metrics" not in instance:
             return -1
         metrics = instance["_Metrics"]
