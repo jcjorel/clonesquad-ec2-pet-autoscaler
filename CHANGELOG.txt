@@ -1,9 +1,12 @@
 v0.4.0:
-- (Improvment/Minor) Added ec2.schedule.burstable_instance.max_cpu_credit_unhealthy_instances to control the maximum amount of burstable instances w/ exhausted CPU Credit Balance that could be considered as unhealthy at a given time.
 - (Improvment/Major) BACKWARD COMPATIBILITY BREAK: Renamed ec2.schedule.max_cpu_crediting_instances in ec2.schedule.burstable_instance.max_cpu_crediting_instances
-- (Improvment/Minor) Introduced ec2.schedule.burstable_instance.preserve_accrued_cpu_credit configuration key.
-- (Improvment/Minor) Added comments to the sample CPUUtilization Metric definition src/resources/ec2.scaleup.alarm-cpu-gt-75pc.yaml
+- (Bug/Major) In some circumstances (ex: all LH instances in error), the whole Fleet was erroneously started.
 - (Improvment/Minor) Warn when the user specifies a wellknown Cloudwatch limitation in cron format. (Day-of-the-Week and Day-of-the-Month mutually exclusive)
+- (Improvment/Minor) Introduced ec2.schedule.burstable_instance.preserve_accrued_cpu_credit configuration key.
+- (Improvment/Minor) Introduced ec2.schedule.burstable_instance.max_cpu_credit_unhealthy_instances to control the maximum amount of burstable instances w/ exhausted CPU Credit Balance that could be considered as unhealthy at a given time.
+- (Improvment/Minor) Added comments to the sample CPUUtilization Metric definition src/resources/ec2.scaleup.alarm-cpu-gt-75pc.yaml
+- (Bug/Minor) Do not throw exception when 'Value' column is missing in a DynamoDB Config record.
+- (Improvment/Debug) Enable a capacity to inject CPU Credit Balance with State table key ("ec2.debug.instance.%s.cpu_credit_balance" % instance["InstanceId"])
 
 v0.3.0:
 - (Improvment/Major) 'template.yaml' is no more generated. 'template-latest.yaml' and 'template-<version>.yaml is the new standard.
