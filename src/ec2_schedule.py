@@ -860,6 +860,12 @@ parameter should NOT be modified by user.
            log.info("Waiting CPU Credit balance metric for instance %s..." % (instance_id))
            return True
 
+       if self.ec2.get_state("ec2.schedule.debug.instance.%s.force_out_of_cpu_crediting" % instance_id) in ["True", "true"]:
+           log.warn("Forced instance %s out of CPU Crediting state! (ec2.schedule.instance.%s.force_out_of_cpu_crediting=True)" % 
+                   (instance_id, instance_id))
+           self.set_state("ec2.schedule.debug.instance.%s.force_out_of_cpu_crediting" % instance_id, "False")
+           return False
+
        if cpu_credit >= 0 and cpu_credit < min_cpu_credit_required:
            log.info("'%s' is CPU crediting... (is_static_fleet_instance=%s, current_credit=%.2f, minimum_required_credit=%s, maximum_possible_credit=%s, %s)" % 
                    (instance_id, self.ec2.is_static_subfleet_instance(instance_id), cpu_credit, min_cpu_credit_required, max_earned_credits, instance_type))
@@ -1258,6 +1264,10 @@ parameter should NOT be modified by user.
             lighthouse_disabled = True
         else:
             lighthouse_need = max(amount_of_lh - len(running_lh_ids), 0)
+
+        if caller in ["shelve"]:
+            lighthouse_only = True
+
         if caller in ["scale_bounce"]:
             # Bounce algorithm wants a new instance!
             if len(non_lighthouse_instances) == 0:
