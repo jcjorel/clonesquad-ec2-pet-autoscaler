@@ -57,6 +57,7 @@ def _record_call(prefix, need_shortterm_record, is_success_func, f, *args, **kwa
                 "Stackstrace": traceback.extract_stack(),
                 "Reason": json.dumps(e, default=str)
             }
+        log.exception("Notify handler captured exception:")
     xray_recorder.end_subsegment()
 
     if managed_exception is not None:
