@@ -80,7 +80,11 @@ class KVTable():
                 table_cache.append(record)
                 continue
             key       = record["Key"]
+            if "Value" not in record:
+                log.warn("Key '%s' specified but missing 'Value' column in configuration record: %s" % (key, record))
+                continue
             value     = record["Value"]
+
             aggregate = next(filter(lambda a: key == a["Prefix"], self.aggregates), None)
             if aggregate is not None:
                 agg = []
