@@ -1,5 +1,5 @@
 
-# Step #2: 'Performance and non-regression activities' Quick-Win 
+# Step #2: 'Performance and non-regression activities' 
 
 ## Additional context:
 
@@ -7,12 +7,12 @@ Even not a recommended best-practice, a reduced set of shared environments is us
 * For performance testings, the goal is ensure that the application can sustain the load for the peak.
 * For integration non-regression testings, all components are deployed but these tests are generating a fraction of the load of the Performance use-case.
 
-These environments runs all time as the tests are queued by an orchestrator and many application configurations are tested in sequence in a continuous
-way to be able to detect low occurence and rare bugs.
+These environments run all time as the tests are queued by an orchestrator and many application configurations are tested in sequence in a continuous
+way to detect low occurence and rare bugs.
 
-> ACME would like a mean to easily scale the number of EC2 resources based on the use-case (Performance or non-regression)
+> ACME would like a way to easily scale the number of EC2 resources based on the use-case (Performance or non-regression)
 
-## Proposed improvment using CloneSquad
+## Proposed QwickWin improvment using CloneSquad
 
 For this use-case, the proposal is to use an on-demand imperative scaling depending on the kind of activities. Prior to launch of a new
 activity, the ACME test orchestrator will ask the CloneSquad API to scale (=starting or stopping EC2 instances) based on a pre-defined resource usage plan.
@@ -36,9 +36,9 @@ awscurl -X POST -d ${SCALE_FOR_FRONTEND} https://<frontend_api_gw_id>.execute-ap
 awscurl -X POST -d ${SCALE_FOR_BACKEND} https://<backend_api_gw_id>.execute-api.eu-west-1.amazonaws.com/v1/configuration/ec2.scheduler.desired_instance_count
 ```
 
-* In the orchestrator, before each test run, call the previous oscript with expected size of frontend and backend instance fleet as first and second arguments.
+* In the orchestrator, before each test run, call the previous script with expected size of frontend and backend instance fleet as first and second arguments.
 * Poll the API GW 'fleet/status' to know when the scaling is ready with `.["EC2.Schedule""]["ServingFleet_vs_MaximumFleetSizePourcentage"] (See [API documentation](INTERACTING.md#api-fleetstatus))
-* Start test when the fleet is at the target capacity.
+* Start the test when the fleet is at the target capacity.
 
 
 

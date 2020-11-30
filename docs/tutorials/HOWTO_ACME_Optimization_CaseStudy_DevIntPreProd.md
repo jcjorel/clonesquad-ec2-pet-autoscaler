@@ -1,19 +1,19 @@
-# Step #1: 'Integration/Development and Pre-production optimization' Quick-Win 
+# Step #1: 'Integration/Development and Pre-production optimization' 
 
 ## Additional context:
 
-ACME is using many small development environments associated to each developper using `t3` burstable instances and *Aurora for PostgreSQL* database.
+ACME is using many small development environments associated to each developper, compound of `t3` burstable instances and *Aurora for PostgreSQL* database.
 ACME would like to optimize these environments by requesting the environment owners (developpers) to explicilty start them when they needed it
-(for instance, when arriving at work in the morning) and that all these development environments be automatically stopped at 8PM each day. 
+(for instance, when arriving at work in the morning) and also, have all these development environments automatically stopped at 8PM each day. 
 
-The application has some dependencies between Tiered layers that are not yet removed so the database needs to be started 2 minutes before the Backend instances and the Frontend instances have to be started 2 minutes after the backend ones.
+The application has some dependencies between Tiered layers that are not yet removed so the database needs to be started 2 minutes before the Backend instances and the Frontend instances have to be started 2 minutes after the Backend ones.
 When stopping a whole environment, the sequence must be the opposite.
 
 > ACME is expecting at least a 40% cost reduction this way in AWS resources linked to Development activities.
 
-## Proposed improvment using CloneSquad
+## Proposed QwickWin improvment using CloneSquad
 
-For this "ON/OFF" like use-case, the autoscaling feature is not needed and the proposition will only use the 'static-subfleet', the API Gateway and the builtin scheduler features.
+For this "ON/OFF" like use-case, the autoscaling feature is not needed and the proposal is only to use the 'static-subfleet', the API Gateway and the builtin scheduler features.
 
 * Find a naming convention for each environment (ex: dev-user1, dev-user2, dev-user3 etc...)
 * Deploy a CloneSquad CloudFormation template for each environment name (specify the environment name in the `GroupName` template variable)
@@ -58,4 +58,29 @@ awscurl -X POST -d @cronfile.yaml https://abcdefghij.execute-api.eu-west-1.amazo
 	- Notice that, if the 't3' instances were recently launched, they do not stop immediatly but enter the '[CPU Crediting](../COST_OPTIMIZATION.md#clonesquad-cpu-crediting)' mode. They will stop automatically after they accrued 30% of their maximum CPU Credit. It helps to avoid [unlimited bursting](../COST_OPTIMIZATION.md#clonesquad-cpu-crediting) fees. See the metric 'NbOfCPUCreditingInstances' on the CloudWatch dashboard to identify this situation (Note: This behavior can be disabled if not expected).
 
 > Tip: A very similar optimization method can be applied for Pre-Production workload.
+
+# Advanced optimization (requiring more work)
+
+Major additional cost optimization is possible using Spot instances instead of On-Demand ones.
+
+Generic process to convert EC2 On-Demand instance to Spot model:
+* Shutdown the EC2 On-Demand instance,
+* Create an AMI of the On-Demand instance,
+* Describe and Keep instance details (safety step):
+```bash
+#!/bin/bash
+ONDEMAND_INSTANCE_ID=i-0-56fa81b39cc341e3e
+aws ec2 describe-instances --instance-ids ${ONDEMAND_INSTANCE_ID} | tee instance-details-${ONDEMAND_INSTANCE_ID}.json
+```
+* Prepare to clone:
+	- Go to AWS Console > EC2
+	- Select the instance to clone,
+	- Select `Action` > `Image and templates` > `Launch more like this`,
+	- Select `Previous` to refine details up to `Step 3: Configure Instance Details`
+		- Select `Purchasing option: Request Spot instances`
+		- Fillin IP address(es) of Instance to clone in `Network interfaces` sections.
+	- Select `Review and Launch` **DO NOT LAUNCH THE INSTANCE NOW**
+* Open a new browser tab and, in the AWS Console > EC2 screen, terminate the cloned EC2 instance (**/!\ Risk of data loss! Double check that the AMI for this instance was successfully created before!**)
+* Go back to the tab `Review and Launch` and launch the cloned instance.
+
 
