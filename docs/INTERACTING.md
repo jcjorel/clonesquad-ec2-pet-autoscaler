@@ -288,6 +288,8 @@ This API dumps (or upload) the whole CloneSquad configuration in JSON format by 
 	# awscurl -X POST -d @configfile.yaml https://pq264fab39.execute-api.eu-west-3.amazonaws.com/v1/configuration?format=yaml
 	Ok (12 key(s) processed)
 
+> Tip: **Setting a configuration key with an empty string value will delete the underlying DynamodDB table entry it it exists.**
+
 
 ## API `configuration/(.*)`
 
@@ -305,6 +307,7 @@ This API dumps and updates configuration on a per key basis.
 	# awscurl -X POST -d 3 https://pq264fab39.execute-api.eu-west-3.amazonaws.com/v1/configuration/ec2.schedule.min_instance_count
 	3
 
+> Tip: **Setting a configuration key with an empty string value will delete the underlying DynamodDB table entry it it exists.**
 
 
 ## API `scheduler`
