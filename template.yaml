@@ -76,6 +76,7 @@ Conditions:
     HasCustomizationZipParameters: !Not [ !Equals [ !Ref CustomizationZipParameters, ""]]
     HasApiGWEndpointConfiguration: !Not [ !Equals [ !Ref ApiGWEndpointConfiguration, ""]]
     HasECSDeploymentConfiguration: !Not [ !Equals [ !Ref ECSDeploymentConfiguration, ""]]
+    HasNotECSDeploymentConfiguration:     !Equals [ !Ref ECSDeploymentConfiguration, ""] 
 
 
 Resources:
