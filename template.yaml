@@ -61,6 +61,11 @@ Parameters:
     Default: ""
     Description: "(Optional) DynamodDB configuration. Format: Comma separated list of <TableName>=<ReadCapacityUnits>:<WriteCapacityUnits>"
 
+  ECSDeploymentConfiguration:
+    Type: String
+    Default: ""
+    Description: "(Optional) Parameter for ECS Deployment of Main (instead of a Lambda). Required when a large amount of instances (>50) are managed in AutoScaling."
+
   XRayDiagnosis:
     Type: String
     Default: 1
@@ -70,6 +75,7 @@ Parameters:
 Conditions:
     HasCustomizationZipParameters: !Not [ !Equals [ !Ref CustomizationZipParameters, ""]]
     HasApiGWEndpointConfiguration: !Not [ !Equals [ !Ref ApiGWEndpointConfiguration, ""]]
+    HasECSDeploymentConfiguration: !Not [ !Equals [ !Ref ECSDeploymentConfiguration, ""]]
 
 
 Resources:
@@ -573,6 +579,31 @@ Resources:
             Value: !Join ['', [!Ref "AWS::StackName", "-APIGWEndpointSecurityGroup" ]]
           
 
+    MainRole:  # TODO: Far too wide permissions!
+      Type: 'AWS::IAM::Role'
+      Properties:
+        RoleName: !Sub "CloneSquad-${GroupName}-MainRole"
+        AssumeRolePolicyDocument:
+          Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                - ec2.amazonaws.com
+                - lambda.amazonaws.com
+                - ecs-tasks.amazonaws.com
+              Action:
+                - 'sts:AssumeRole'
+        Path: /
+        Policies: 
+          - PolicyName: root
+            PolicyDocument:
+              Version: 2012-10-17
+              Statement:
+                - Effect: Allow
+                  Action: '*'
+                  Resource: '*'
+
     MainFunction:
             Type: AWS::Serverless::Function 
             Properties:
@@ -587,8 +618,7 @@ Resources:
               Timeout: 300
               ReservedConcurrentExecutions: 1
               Tracing: Active
-              Policies:
-              - AdministratorAccess
+              Role: !GetAtt MainRole.Arn
               Environment:
                 Variables:
                   PYTHONPATH:                                 "/opt:/opt/site-packages"
@@ -821,6 +851,86 @@ Resources:
                 Principal: "events.amazonaws.com"
                 SourceArn: !Sub "arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:rule/CS-Cron-${GroupName}-*"
 
+    ECSParameters:
+            Type: "Custom::CustomResourceFunction"
+            Condition: HasECSDeploymentConfiguration
+            Properties:
+              ServiceToken: !GetAtt CustomResourceFunction.Arn
+              Helper: ECSParameters
+              AccountId: !Ref AWS::AccountId
+              Region: !Ref AWS::Region
+              ECSDeploymentConfiguration: !Ref ECSDeploymentConfiguration
+
+    ECSMainTask:
+        Type: AWS::ECS::TaskDefinition
+        Condition: HasECSDeploymentConfiguration
+        Properties: 
+          ContainerDefinitions: 
+                - Command: "scripts/start-ecs-container-loop"
+                  Environment: 
+                    - "Name":  PYTHONPATH
+                      "Value": "/opt:/opt/site-packages"
+                    - "Name":  MainSQSQueue
+                      "Value": !Ref MainQueue
+                    - "Name":  UserNotificationArns
+                      "Value": !Ref UserNotificationArns
+                    - "Name":  InteractLambdaArn
+                      "Value": !GetAtt InteractFunction.Arn
+                    - "Name":  InteractSQSUrl
+                      "Value": !Ref InteractQueue
+                    - "Name":  GroupName
+                      "Value": !Ref GroupName
+                    - "Name":  GenericOkActions_SNSTopicArn
+                      "Value": !Ref SNSOk
+                    - "Name":  ScaleUp_SNSTopicArn
+                      "Value": !Ref SNSScaleUp
+                    - "Name":  GenericInsufficientDataActions_SNSTopicArn
+                      "Value": !Ref SNSInsufficientData
+                    - "Name":  CloudWatchEventRoleArn
+                      "Value": !GetAtt CloudWatchEventRole.Arn
+                    - "Name":  ConfigurationTable
+                      "Value": !Ref ConfigTable
+                    - "Name":  AlarmStateEC2Table
+                      "Value": !Ref AlarmStateEC2Table
+                    - "Name":  StateTable
+                      "Value": !Ref StateTable
+                    - "Name":  EventTable
+                      "Value": !Ref EventTable
+                    - "Name":  SchedulerTable
+                      "Value": !Ref SchedulerTable
+                    - "Name":  LongTermEventTable
+                      "Value": !Ref LongTermEventTable
+                    - "Name":  ConfigurationURLs
+                      "Value": !Ref ConfigurationURLs
+                    - "Name":  LoggingS3Path
+                      "Value": !Ref LoggingS3Path
+                    - "Name":  AWS_XRAY_SDK_ENABLED
+                      "Value": !Ref XRayDiagnosis
+                  HealthCheck: 
+                    Command: 
+                      - "scripts/check-ecs-health"
+                    Interval: 5
+                    Retries: 2
+                    StartPeriod: 20
+                    Timeout: 5
+                  Image: ECSParameters.Task.Image
+                  Name: !Sub "CloneSquad-${GroupName}-Main"
+                  StartTimeout: ECSParameters.Task.StartTimeout
+                  StopTimeout: ECSParameters.Task.StopTimeout
+                  WorkingDirectory: "/clonesquad"
+          ExecutionRoleArn: !GetAtt MainRole.Arn
+          TaskRoleArn: !GetAtt MainRole.Arn
+          Family: "CloneSquad-Main-Task"
+          Cpu: ECSParameters.Task.Cpu
+          Memory: ECSParameters.Task.Memory
+          NetworkMode: ECSParameters.Task.NetworkMode
+          ProxyConfiguration: ECSParameters.Task.ProxyConfiguration
+          RequiresCompatibilities: ["EC2", "FARGATE"]
+          Tags: 
+            - Key: "clonesquad:group-name"
+              Value: !Ref GroupName
+
+
 Outputs:
   MainFunction:
     Description: "MainFunction Lambda Function ARN"
@@ -835,8 +945,8 @@ Outputs:
     Description: "CloneSquad Lambda layer (dependencies)"
     Value: !Ref CloneSquadDependencyLayer
   MainFunctionIamRole:
-    Description: "Implicit IAM Role created for MainRole function"
-    Value: !GetAtt MainFunctionRole.Arn
+    Description: "IAM Role created for MainRole function"
+    Value: !GetAtt MainRole.Arn
   InternalERRORMainAlarm:
     Description: "Alarm that triggers when an ERROR is encountered by Main Lambda function"
     Value: !GetAtt InternalERRORMainAlarm.Arn
