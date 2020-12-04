@@ -235,8 +235,9 @@ class ManagedTargetGroup:
         # List instances that are running and not yet in the TargetGroup
         instance_ids_to_add = []
         for instance in running_instances:
-            instance_id = instance["InstanceId"]
-            if self.ec2.get_scaling_state(instance_id) in ["draining", "bounced", "error"]:
+            instance_id    = instance["InstanceId"]
+            instance_state = instance["State"]["Name"]
+            if instance_state != "running" or self.ec2.get_scaling_state(instance_id) in ["draining", "bounced", "error"]:
                 continue
 
             target_instance = self.is_instance_registered(targetgroup, instance_id)
@@ -244,18 +245,8 @@ class ManagedTargetGroup:
                 instance_ids_to_add.append({'Id':instance_id})
                 self.set_instance_state(instance_id, targetgroup, "None")
 
-
-        if len(instance_ids_to_add) > 0:
-            log.debug("Registering instance(s) in TargetGroup: %s" % instance_ids_to_add)
-            for instance_id in instance_ids_to_add:
-                try:
-                    response = R(lambda args, kwargs, r: r["ResponseMetadata"]["HTTPStatusCode"] == 200,
-                        self.client_elbv2.register_targets, TargetGroupArn=targetgroup, Targets=[instance_id] 
-                    )
-                except Exception as e:
-                    log.exception("Failed to register target '%s' in targetgroup '%s'!' : %s" % 
-                            (instance_id, targetgroup["TargetGroupArn"], e))
-            self.state_changed = True
+        # Register selected targets in the target group
+        self.register_targets(targetgroup, instance_ids_to_add)
 
         if self.state_changed:
             return
@@ -294,10 +285,61 @@ class ManagedTargetGroup:
             log.info("Slow deregister mode: Instance '%s' is waiting deregister for %d seconds... (targetgroup.slow_deregister_timeout=%s + jitter...)" % 
                     (i["InstanceId"], i["Gap"], slow_deregister_timeout))
 
+        # Deregister targets
+        self.deregister_targets(targetgroup, instance_ids_to_delete)
 
-        if len(instance_ids_to_delete) > 0:
+    def deregister_targets(self, targetgroup, instance_ids_to_delete):
+        ids = instance_ids_to_delete
+        while len(ids):
             log.debug("Deregistering instance(s) in TargetGroup: %s" % instance_ids_to_delete)
-            response = R(lambda args, kwargs, r: r["ResponseMetadata"]["HTTPStatusCode"] == 200,
-                self.client_elbv2.deregister_targets, TargetGroupArn=targetgroup, Targets=instance_ids_to_delete
-            )
-            self.state_changed = True
+            to_delete = ids[:100] # Limit the number of instances to deregister at eahc API call
+            ids       = ids[100:]
+            try:
+                response = R(lambda args, kwargs, r: r["ResponseMetadata"]["HTTPStatusCode"] == 200,
+                    self.client_elbv2.deregister_targets, TargetGroupArn=targetgroup, Targets=to_delete
+                )
+                self.state_changed = True
+            except Exception as e:
+                log.exception("Failed to deregister targets '%s' in targetgroup '%s'!' : %s" % 
+                        (to_delete, targetgroup["TargetGroupArn"], e))
+                # Try to remove them one by one to avoid the case where a single problematic instance could avoid
+                #   all others to register properly.
+                for i in to_delete:
+                    try:
+                        response = R(lambda args, kwargs, r: r["ResponseMetadata"]["HTTPStatusCode"] == 200,
+                            self.client_elbv2.deregister_targets, TargetGroupArn=targetgroup, Targets=[i]
+                        )
+                        self.state_changed = True
+                    except Exception as e:
+                        log.exception("Failed to deregister target '%s' in targetgroup '%s'!' : %s" % 
+                                (i, targetgroup["TargetGroupArn"], e))
+
+    def register_targets(self, targetgroup, instance_ids_to_add):
+        log.debug("Registering instance(s) in TargetGroup: %s" % instance_ids_to_add)
+        ids = instance_ids_to_add
+        while len(ids):
+            to_add = ids[:100] # Limit the number of instances that we add in a single API call
+            ids    = ids[100:]
+            try:
+                response = R(lambda args, kwargs, r: r["ResponseMetadata"]["HTTPStatusCode"] == 200,
+                    self.client_elbv2.register_targets, TargetGroupArn=targetgroup, Targets=to_add
+                )
+                self.state_changed = True
+            except Exception as e:
+                log.exception("Failed to register targets '%s' in targetgroup '%s'!' : %s" % 
+                        (to_add, targetgroup["TargetGroupArn"], e))
+                # Try to add them one by one to avoid the case where a single problematic instance could avoid
+                #   all others to register properly.
+                for i in to_add:
+                    try:
+                        response = R(lambda args, kwargs, r: r["ResponseMetadata"]["HTTPStatusCode"] == 200,
+                            self.client_elbv2.register_targets, TargetGroupArn=targetgroup, Targets=[i]
+                        )
+                        self.state_changed = True
+                    except Exception as e:
+                        log.exception("Failed to register target '%s' in targetgroup '%s'!' : %s" % 
+                                (i, targetgroup["TargetGroupArn"], e))
+
+
+
+

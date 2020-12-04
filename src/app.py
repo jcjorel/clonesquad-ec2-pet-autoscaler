@@ -201,15 +201,22 @@ def main_handler_entrypoint(event, context):
 
     # Perform actions:
     log.debug("Main processing.")
+    log.debug("Main - manage_targetgroup()")
     ctx["o_targetgroup"].manage_targetgroup()
+    log.debug("Main - schedule_instances()")
     ctx["o_ec2_schedule"].schedule_instances()
+    log.debug("Main - stop_drained_instances()")
     ctx["o_ec2_schedule"].stop_drained_instances()
+    log.debug("Main - configure_alarms()")
     ctx["o_cloudwatch"].configure_alarms()
+    log.debug("Main - RDS - manage_subfleet()")
     ctx["o_rds"].manage_subfleet()
+    log.debug("Main - TransferFamily - manage_subfleet()")
     ctx["o_transferfamily"].manage_subfleet()
+    log.debug("Main - metrics()")
     ctx["o_ec2_schedule"].prepare_metrics()
-
     ctx["o_cloudwatch"].send_metrics()
+
     ctx["o_cloudwatch"].configure_dashboard()
     ctx["o_interact"].pregenerate_interact_data()
 

@@ -33,6 +33,7 @@ class EC2:
         self.ec2_status_override_url = ""
         self.ec2_status_override     = {}
         self.state_table             = None
+        self.scaling_state_cache     = {}
 
         Cfg.register({
                  "ec2.describe_instances.max_results" : "500",
@@ -74,6 +75,8 @@ forcing their immediate replacement in healthy AZs in the region.
                  "ec2.state.default_ttl": "days=1",
                  "ec2.state.error_ttl" : "minutes=5",
                  "ec2.state.status_ttl" : "days=40",
+                 "ec2.instance.max_start_instance_at_once": "50",
+                 "ec2.instance.max_stop_instance_at_once": "50",
                  "ec2.instance.spot.event.interrupted_at_ttl" : "minutes=10",
                  "ec2.instance.spot.event.rebalance_recommended_at_ttl" : "minutes=15",
                  "ec2.state.error_instance_ids": "",
@@ -155,6 +158,12 @@ without any TargetGroup but another external health instance source exists).
 
         self.instances    = non_terminated_instances
         self.instance_ids = [ i["InstanceId"] for i in self.instances]
+
+        # Enrich instance list with additional data
+        for i in self.instances:
+            instance_id = i["InstanceId"]
+            last_start_attempt = self.get_state_date("ec2.instance.last_start_attempt_date.%s" % instance_id)
+            i["_LastStartAttemptTime"] = last_start_attempt if last_start_attempt is not None else i["LaunchTime"]
 
         # Enrich describe_instances output with instance type details
         if Cfg.get_int("ec2.describe_instance_types.enabled"):
@@ -292,15 +301,9 @@ without any TargetGroup but another external health instance source exists).
     def get_timesorted_instances(self, instances=None):
         if instances is None: instances=self.instances
         # Sort instance list starting from the oldest launch to the newest
-        def _compare_start_date(i):
-            instance_id = i["InstanceId"]
-            last_start_attempt = self.get_state_date("ec2.instance.last_start_attempt_date.%s" % instance_id)
-            if last_start_attempt is not None and last_start_attempt > i["LaunchTime"]:
-                return last_start_attempt
-            return i["LaunchTime"]
-        return sorted(instances, key=_compare_start_date)
+        return sorted(instances, key=lambda i: i["_LastStartAttemptTime"])
 
-    def get_instances(self, instances=None, State=None, ScalingState=None, details=None, max_results=-1, azs_filtered_out=None):
+    def get_instances(self, instances=None, State=None, ScalingState=None, details=None, max_results=-1, azs_filtered_out=None, cache=None):
         if details is None: details = {}
         details.update({
             "state" : {"filtered-in": [],
@@ -309,13 +312,21 @@ without any TargetGroup but another external health instance source exists).
                 "filtered-out": []},
             })
 
+        # Optimize by providing a cache if possible
+        scaling_state_cache = None
+        if cache is not None:
+            if "ScalingState" not in cache:
+                cache["ScalingState"] = defaultdict(dict)
+            scaling_state_cache = cache["ScalingState"]
+
+
         ref_instances = self.instances if instances is None else instances
         instances = []
         for instance in ref_instances:
            state_test        = self._match_instance(details["state"], instance, State, 
                    lambda i, value: i["State"]["Name"] in value.split(","))
            scalingstate_test = self._match_instance(details["scalingstate"], instance, ScalingState, 
-                   lambda i, value: self.get_scaling_state(i["InstanceId"], do_not_return_excluded=True) in value.split(",") or self.get_scaling_state(i["InstanceId"]) in value.split(","))
+                   lambda i, value: self.get_scaling_state(i["InstanceId"], do_not_return_excluded=True, cache=scaling_state_cache) in value.split(",") or self.get_scaling_state(i["InstanceId"], cache=scaling_state_cache) in value.split(","))
            if state_test and scalingstate_test:
                instances.append(instance)
 
@@ -338,37 +349,10 @@ without any TargetGroup but another external health instance source exists).
             return 
         now = self.context["now"]
 
-        client = self.context["ec2.client"]
-        for i in instance_ids_to_start: 
-            if max_started_instances == 0:
-                break
-            self.set_state("ec2.instance.last_start_attempt_date.%s" % i, now,
-                    TTL=Cfg.get_duration_secs("ec2.schedule.state_ttl"))
-
-            log.info("Starting instance %s..." % i)
-            response = None
-            try:
-                response = R(lambda args, kwargs, r: r["ResponseMetadata"]["HTTPStatusCode"] == 200,
-                    client.start_instances, InstanceIds=[i]
-                )
-            except Exception as e:
-                log.exception("Got Exception while trying to start instance '%s' : %s" % (i, e))
-                # Mark the instance in error only if the status is not 'running'
-                #   With Spot instances, from time-to-time, we catch an 'InsufficientCapacityError' even the
-                #   instance succeeded to start. We issue a describe_instances to check the real state of this
-                #   instance to confirm/infirm the status
-                if response is not None:
-                    response = R(lambda args, kwargs, r: "Reservations" in r and len(response["Reservations"]["Instances"]),
-                        client.describe_instances, InstanceIds=[i]
-                    )
-                if (response is None or "Reservations" not in response
-                        or len(response["Reservations"][0]["Instances"]) == 0 
-                        or response["Reservations"][0]["Instances"][0]["State"]["Name"] not in ["pending", "running"]):
-                    self.set_scaling_state(i, "error", ttl=Cfg.get_duration_secs("ec2.state.error_ttl"))
-                    continue
-            if response is not None: log.debug(Dbg.pprint(response))
-
-            # Remember when we started these instances
+        max_startable_instances = max_started_instances
+        def _check_response():
+            nonlocal max_startable_instances
+            log.debug(Dbg.pprint(response))
             metadata = response["ResponseMetadata"]
             if metadata["HTTPStatusCode"] == 200:
                 s = response["StartingInstances"]
@@ -379,7 +363,7 @@ without any TargetGroup but another external health instance source exists).
                     if current_state["Name"] in ["pending", "running"]:
                         self.set_state("ec2.instance.last_start_date.%s" % instance_id, now,
                                 TTL=Cfg.get_duration_secs("ec2.state.status_ttl"))
-                        max_started_instances -= 1
+                        max_startable_instances -= 1
                     else:
                         log.error("Failed to start instance '%s'! Blacklist it for a while... (pre/current status=%s/%s)" %
                                 (instance_id, previous_state["Name"], current_state["Name"]))
@@ -389,13 +373,64 @@ without any TargetGroup but another external health instance source exists).
             else:
                 log.error("Failed to call start_instances: %s" % i)
 
-    def stop_instances(self, instance_ids_to_stop):
-        now    = self.context["now"]
         client = self.context["ec2.client"]
-        for instance_id in instance_ids_to_stop:
+        ids    = instance_ids_to_start
+        while len(ids):
+            max_start = max(0, min(max_startable_instances, Cfg.get_int("ec2.instance.max_start_instance_at_once")))
+            if max_start == 0:
+                break
+            to_start  = ids[:max_start]
+            ids       = ids[max_start:]
+
+            for i in to_start:
+                self.set_state("ec2.instance.last_start_attempt_date.%s" % i, now,
+                    TTL=Cfg.get_duration_secs("ec2.schedule.state_ttl"))
+
+            log.info("Starting instances %s..." % to_start)
+            response = None
             try:
                 response = R(lambda args, kwargs, r: r["ResponseMetadata"]["HTTPStatusCode"] == 200,
-                        client.stop_instances, InstanceIds=[instance_id]
+                    client.start_instances, InstanceIds=to_start
+                )
+                _check_response()
+            except Exception as e:
+                log.warning("Got Exception while trying to start instance(s) '%s' : %s" % (to_start, e))
+                # We failed to start all instances at once. Try one by one...
+                for i in to_start:
+                    try:
+                        response = R(lambda args, kwargs, r: r["ResponseMetadata"]["HTTPStatusCode"] == 200,
+                            client.start_instances, InstanceIds=[i]
+                        )
+                        _check_response()
+                    except Exception as e:
+                        log.warning("Got Exception while trying to start instance '%s' : %s" % (i, e))
+                        self.set_scaling_state(i, "error", ttl=Cfg.get_duration_secs("ec2.state.error_ttl"))
+                # Mark the instance in error only if the status is not 'running'
+                #   With Spot instances, from time-to-time, we catch an 'InsufficientCapacityError' even the
+                #   instance succeeded to start. We issue a describe_instances to check the real state of this
+                #   instance to confirm/infirm the status
+                #if response is not None:
+                #    response = R(lambda args, kwargs, r: "Reservations" in r and len(response["Reservations"]["Instances"]),
+                #        client.describe_instances, InstanceIds=[i]
+                #    )
+                #if (response is None or "Reservations" not in response
+                #        or len(response["Reservations"][0]["Instances"]) == 0 
+                #        or response["Reservations"][0]["Instances"][0]["State"]["Name"] not in ["pending", "running"]):
+                #    self.set_scaling_state(i, "error", ttl=Cfg.get_duration_secs("ec2.state.error_ttl"))
+                #    continue
+
+
+    def stop_instances(self, instance_ids_to_stop):
+        now      = self.context["now"]
+        client   = self.context["ec2.client"]
+        ids      = instance_ids_to_stop
+        max_stop = Cfg.get_int("ec2.instance.max_stop_instance_at_once")
+        while len(ids):
+            to_stop = ids[:max_stop]
+            ids     = ids[max_stop:]
+            try:
+                response = R(lambda args, kwargs, r: r["ResponseMetadata"]["HTTPStatusCode"] == 200,
+                        client.stop_instances, InstanceIds=to_stop
                    )
                 if response is not None and "StoppingInstances" in response:
                     for i in response["StoppingInstances"]:
@@ -405,7 +440,22 @@ without any TargetGroup but another external health instance source exists).
                                 TTL=Cfg.get_duration_secs("ec2.state.status_ttl"))
                 log.debug(response)
             except Exception as e:
-                log.warning("Failed to stop_instance '%s' : %s" % (instance_id, e))
+                log.warning("Failed to stop_instance(s) '%s' : %s" % (to_stop, e))
+                # Failed to stop all instances at once. Try one by one...
+                for i in to_stop:
+                    try:
+                        response = R(lambda args, kwargs, r: r["ResponseMetadata"]["HTTPStatusCode"] == 200,
+                                client.stop_instances, InstanceIds=[i]
+                           )
+                        if response is not None and "StoppingInstances" in response:
+                            for i in response["StoppingInstances"]:
+                                instance_id = i["InstanceId"]
+                                self.set_scaling_state(instance_id, "")
+                                self.set_state("ec2.schedule.instance.last_stop_date.%s" % instance_id, now, 
+                                        TTL=Cfg.get_duration_secs("ec2.state.status_ttl"))
+                        log.debug(response)
+                    except Exception as e:
+                        log.warning("Failed to stop_instance '%s' : %s" % (i, e))
 
     def instance_last_stop_date(self, instance_id, default=misc.epoch()):
         return self.get_state_date("ec2.schedule.instance.last_stop_date.%s" % instance_id, default=default)
@@ -642,14 +692,18 @@ without any TargetGroup but another external health instance source exists).
             r[state].append(instance_id)
         return dict(r)
 
-    def get_scaling_state(self, instance_id, default=None, meta=None, default_date=None, do_not_return_excluded=False):
+    def get_scaling_state(self, instance_id, default=None, meta=None, default_date=None, do_not_return_excluded=False, cache=None):
         if meta is not None:
             for i in ["action", "draining", "error", "bounced"]:
                 meta["last_%s_date" % i] = misc.str2utc(self.get_state("ec2.instance.scaling.last_%s_date.%s" %
                         (i, instance_id), default=self.context["now"]))
-        r = self.get_state("ec2.instance.scaling.state.%s" % instance_id, default=default)
+        key       = "ec2.instance.scaling.state.%s" % instance_id
+        if cache is not None and do_not_return_excluded in cache[key]:
+            return cache[key][do_not_return_excluded]
+
+        r   = self.get_state(key, default=default)
         #Special case for 'excluded': We test it here so tags will override the value
-        i = self.get_instance_by_id(instance_id)
+        i   = self.get_instance_by_id(instance_id)
         excluded_instances = Cfg.get_list("ec2.state.excluded_instance_ids", default=[])
         if (i is not None and not do_not_return_excluded and (
                 self.instance_has_tag(i, "clonesquad:excluded", value=["1", "True", "true"])
@@ -660,9 +714,11 @@ without any TargetGroup but another external health instance source exists).
         error_instance_ids = Cfg.get_list("ec2.state.error_instance_ids", default=[]) 
         if instance_id in error_instance_ids:
             r = "error"
+        if cache is not None: 
+            cache[key][do_not_return_excluded] = r
         return r
 
-    def set_scaling_state(self, instance_id, value, ttl=None, meta=None, default_date=None):
+    def set_scaling_state(self, instance_id, value, ttl=None, meta=None, default_date=None, cache=None):
         if ttl is None: ttl = Cfg.get_duration_secs("ec2.state.default_ttl") 
         if default_date is None: default_date = self.context["now"]
 
@@ -672,7 +728,10 @@ without any TargetGroup but another external health instance source exists).
         self.set_state("ec2.instance.scaling.last_action_date.%s" % instance_id, date, ttl)
         self.set_state("ec2.instance.scaling.last_%s_date.%s" % (value, instance_id), date, ttl)
         previous_value = self.get_scaling_state(instance_id, meta=meta)
-        return self.set_state("ec2.instance.scaling.state.%s" % instance_id, value, ttl)
+        key            = "ec2.instance.scaling.state.%s" % instance_id
+        if cache is not None:
+            del cache[key]
+        return self.set_state(key, value, ttl)
 
     def list_states(self, prefix="ec2.instance.scaling_state.", not_matching_instances=None):
         r = self.state_table.get_keys(prefix) 

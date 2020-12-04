@@ -66,8 +66,8 @@ A typical usage for this key is to set it to `100%` to temporarily force all the
 at its maximum size in a stable manner (i.e. even if there are impaired/unhealthy instances in the fleet, they won't be restarted automatically).
                      """
                  },
-                 "ec2.schedule.max_instance_start_at_a_time" : 5,
-                 "ec2.schedule.max_instance_stop_at_a_time" : 4,
+                 "ec2.schedule.max_instance_start_at_a_time" : 10,
+                 "ec2.schedule.max_instance_stop_at_a_time" : 5,
                  "ec2.schedule.state_ttl" : "hours=2",
                  "ec2.schedule.base_points" : 1000,
                  "ec2.schedule.scaleout.disable,Stable": {
@@ -381,17 +381,19 @@ parameter should NOT be modified by user.
         #   available to all algorithms.
         # Library of filtered/sorted lists excluding the 'excluded' instances
         xray_recorder.begin_subsegment("prerequisites:prepare_instance_lists")
-        self.instances_wo_excluded                                = self.ec2.get_instances(ScalingState="-excluded")
-        self.instances_wo_excluded_error                          = self.ec2.get_instances(instances=self.instances_wo_excluded, ScalingState="-error")
-        self.running_instances_wo_excluded                        = self.ec2.get_instances(instances=self.instances_wo_excluded, State="running")
-        self.pending_instances_wo_draining_excluded               = self.ec2.get_instances(instances=self.instances_wo_excluded, State="pending", ScalingState="-draining")
-        self.stopped_instances_wo_excluded                        = self.ec2.get_instances(instances=self.instances_wo_excluded, State="stopped")
-        self.stopped_instances_wo_excluded_error                  = self.ec2.get_instances(instances=self.instances_wo_excluded, State="stopped", ScalingState="-error")
-        self.stopping_instances_wo_excluded                       = self.ec2.get_instances(instances=self.instances_wo_excluded, State="stopping")
-        self.pending_running_instances_draining_wo_excluded       = self.ec2.get_instances(instances=self.instances_wo_excluded, State="pending,running", ScalingState="draining")
-        self.pending_running_instances_bounced_wo_excluded        = self.ec2.get_instances(instances=self.instances_wo_excluded, State="pending,running", ScalingState="bounced")
-        self.pending_running_instances_wo_excluded                = self.ec2.get_instances(instances=self.instances_wo_excluded, State="pending,running")
-        self.pending_running_instances_wo_excluded_draining_error = self.ec2.get_instances(instances=self.instances_wo_excluded, State="pending,running", ScalingState="-draining,error")
+        log.debug("Computing all instance lists needed for scheduling")
+        cache = {} # Avoid to compute many times the same thing by providing a cache 
+        self.instances_wo_excluded                                = self.ec2.get_instances(cache=cache, ScalingState="-excluded")
+        self.instances_wo_excluded_error                          = self.ec2.get_instances(cache=cache, instances=self.instances_wo_excluded, ScalingState="-error")
+        self.running_instances_wo_excluded                        = self.ec2.get_instances(cache=cache, instances=self.instances_wo_excluded, State="running")
+        self.pending_instances_wo_draining_excluded               = self.ec2.get_instances(cache=cache, instances=self.instances_wo_excluded, State="pending", ScalingState="-draining")
+        self.stopped_instances_wo_excluded                        = self.ec2.get_instances(cache=cache, instances=self.instances_wo_excluded, State="stopped")
+        self.stopped_instances_wo_excluded_error                  = self.ec2.get_instances(cache=cache, instances=self.instances_wo_excluded, State="stopped", ScalingState="-error")
+        self.stopping_instances_wo_excluded                       = self.ec2.get_instances(cache=cache, instances=self.instances_wo_excluded, State="stopping")
+        self.pending_running_instances_draining_wo_excluded       = self.ec2.get_instances(cache=cache, instances=self.instances_wo_excluded, State="pending,running", ScalingState="draining")
+        self.pending_running_instances_bounced_wo_excluded        = self.ec2.get_instances(cache=cache, instances=self.instances_wo_excluded, State="pending,running", ScalingState="bounced")
+        self.pending_running_instances_wo_excluded                = self.ec2.get_instances(cache=cache, instances=self.instances_wo_excluded, State="pending,running")
+        self.pending_running_instances_wo_excluded_draining_error = self.ec2.get_instances(cache=cache, instances=self.instances_wo_excluded, State="pending,running", ScalingState="-draining,error")
 
         # Useable and serving instances
         self.compute_spot_exclusion_lists()
@@ -412,17 +414,18 @@ parameter should NOT be modified by user.
         self.lh_stopped_instances_wo_excluded_error   = self.get_lighthouse_instance_ids(instances=self.stopped_instances_wo_excluded_error)
 
         # Other filtered/sorted lists
-        self.stopped_instances_wo_excluded_error    = self.ec2.get_instances(State="stopped", ScalingState="-excluded,error")
-        self.pending_running_instances_draining     = self.ec2.get_instances(State="pending,running", ScalingState="draining")
-        self.excluded_instances                     = self.ec2.get_instances(ScalingState="excluded")
-        self.error_instances                        = self.ec2.get_instances(ScalingState="error")
+        self.stopped_instances_wo_excluded_error    = self.ec2.get_instances(cache=cache, State="stopped", ScalingState="-excluded,error")
+        self.pending_running_instances_draining     = self.ec2.get_instances(cache=cache, State="pending,running", ScalingState="draining")
+        self.excluded_instances                     = self.ec2.get_instances(cache=cache, ScalingState="excluded")
+        self.error_instances                        = self.ec2.get_instances(cache=cache, ScalingState="error")
         self.non_burstable_instances                = self.ec2.get_non_burstable_instances()
-        self.stopped_instances_bounced_draining     = self.ec2.get_instances(State="stopped", ScalingState="bounced,draining")
+        self.stopped_instances_bounced_draining     = self.ec2.get_instances(cache=cache, State="stopped", ScalingState="bounced,draining")
 
         # Static fleet
         self.static_subfleet_instances              = self.ec2.get_static_subfleet_instances()
-        self.running_static_subfleet_instances      = self.ec2.get_instances(instances=self.static_subfleet_instances, State="running")
-        self.draining_static_subfleet_instances     = self.ec2.get_instances(instances=self.static_subfleet_instances, ScalingState="draining")
+        self.running_static_subfleet_instances      = self.ec2.get_instances(cache=cache, instances=self.static_subfleet_instances, State="running")
+        self.draining_static_subfleet_instances     = self.ec2.get_instances(cache=cache, instances=self.static_subfleet_instances, ScalingState="draining")
+        log.debug("End of instance list computation.")
         xray_recorder.end_subsegment()
 
 
@@ -758,7 +761,8 @@ parameter should NOT be modified by user.
             log.debug("[INFO] instance_action (%d) from '%s'... " % (delta_instance_count, caller))
 
         if delta_instance_count > 0:
-            c = min(delta_instance_count, Cfg.get_int("ec2.schedule.max_instance_start_at_a_time"))
+            max_instance_start_at_a_time = Cfg.get_int("ec2.schedule.max_instance_start_at_a_time")
+            c = min(delta_instance_count, max_instance_start_at_a_time)
 
             stopped_instances = self.filter_stopped_instance_candidates(caller, expected_instance_count, target_for_dispatch=target_for_dispatch)
             
@@ -766,7 +770,8 @@ parameter should NOT be modified by user.
 
             # Start selected instances
             if len(instance_ids_to_start) > 0:
-                log.info("Starting up to %s (shaped to %d) instances..." % (delta_instance_count, c))
+                log.info("Starting up to %s (shaped to %d. See ec2.schedule.max_instance_start_at_a_time setting) instances..." % 
+                        (delta_instance_count, c))
 
                 self.ec2.start_instances(instance_ids_to_start, max_started_instances=c)
                 self.scaling_state_changed = True
@@ -1565,10 +1570,11 @@ parameter should NOT be modified by user.
                 oldest_metric_secs = max(oldest_metric_secs, (now - metric_date).total_seconds())
 
 
-        all_points    = defaultdict(dict)
-        sum_of_deltas = 1 
+        all_points       = defaultdict(dict)
+        sum_of_deltas    = 1 
         sum_of_unkwnown_divider_delta_time = 1
-        scores        = []
+        scores           = []
+        no_metric_alarms = []
         for alarm_name in all_alarm_names:
             alarm_def           = self.cloudwatch.get_alarm_configuration_by_name(alarm_name)
             if alarm_def is None: 
@@ -1595,7 +1601,7 @@ parameter should NOT be modified by user.
 
             metric_data        = self.cloudwatch.get_alarm_data_by_name(alarm_name)
             if "MetricDetails" not in metric_data or len(metric_data["MetricDetails"]["Values"]) == 0:
-                log.log(log.NOTICE, "No metric available yet for '%s'..." % alarm_name)
+                no_metric_alarms.append(alarm_name)
                 continue
 
             latest_metric_value= float(metric_data["MetricDetails"]["Values"][0])
@@ -1630,6 +1636,8 @@ parameter should NOT be modified by user.
             if not "Divider" in s: 
                 sum_of_unkwnown_divider_delta_time += s["DividerWeight"]
             scores.append(s)
+
+        log.log(log.NOTICE, "No metric available yet for '%s'..." % no_metric_alarms)
 
         for s in scores:
             # Determine the divider to use (default is the amount of useable instances)
