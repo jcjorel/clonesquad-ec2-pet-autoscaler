@@ -1,0 +1,20 @@
+#!/bin/bash
+set -e
+
+if [ -z "$CLONESQUAD_DIR" ]; then
+	echo "Please define CLONESQUAD_DIR variable!" ; exit 1
+fi
+source ${CLONESQUAD_DIR}/scripts/_source-me.sh
+
+export PYTHONPATH=$PWD/src/
+export AWS_SAM_LOCAL=true
+export LAMBDA_TASK_ROOT=.
+export CLONESQUAD_LOGLEVELS="kvtable=INFO,notify=INFO,targetgroup=INFO"
+while true; do
+	if [ -e .venv/bin/python3 ] ;then
+		.venv/bin/python3 src/daemon.py $*
+	else
+		python3 src/daemon.py $*
+	fi
+done
+

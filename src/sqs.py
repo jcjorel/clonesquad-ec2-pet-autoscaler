@@ -59,23 +59,18 @@ def call_me_back_send(delay=None):
                         "LambdaFunction": ctx["FunctionName"]
                     }}))
 
-@xray_recorder.capture()
-def read_all_sqs_messages():
-    messages   = []
+def read_sqs_messages(timeout=0):
     sqs_client = ctx["sqs.client"]
-    while True:
-        response = sqs_client.receive_message(
-                QueueUrl=ctx["MainSQSQueue"],
-                AttributeNames=['All'],
-                MaxNumberOfMessages=10,
-                VisibilityTimeout=Cfg.get_int("app.run_period"),
-                WaitTimeSeconds=0
-           )
-        if "Messages" in response:
-            messages.extend(response["Messages"])
-        else:
-            break
-    return messages
+    response = sqs_client.receive_message(
+            QueueUrl=ctx["MainSQSQueue"],
+            AttributeNames=['All'],
+            MaxNumberOfMessages=10,
+            WaitTimeSeconds=timeout
+       )
+    log.debug(response)
+    if "Messages" not in response:
+        return []
+    return response["Messages"]
 
 @xray_recorder.capture()
 def process_sqs_records(ctx, event, function=None, function_arg=None):

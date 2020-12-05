@@ -341,13 +341,6 @@ class Interact:
                 response["body"] = value
         return True
 
-    def scheduler_json(self, context, event, response, cacheddata):
-        scheduler_table = kvtable.KVTable(self.context, self.context["SchedulerTable"])
-        scheduler_table.reread_table()
-        response["statusCode"] = 200
-        response["body"]       = Dbg.pprint(scheduler_table.get_dict())
-        return True
-
     def scheduler_dump(self, context, event, response, cacheddata):
         scheduler_table = kvtable.KVTable(self.context, self.context["SchedulerTable"])
         scheduler_table.reread_table()
