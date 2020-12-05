@@ -59,6 +59,14 @@ def call_me_back_send(delay=None):
                         "LambdaFunction": ctx["FunctionName"]
                     }}))
 
+def get_queue_attributes():
+    sqs_client = ctx["sqs.client"]
+    response = sqs_client.get_queue_attributes(
+            QueueUrl=ctx['MainSQSQueue'],
+            AttributeNames=['All']
+    )
+    return response["Attributes"]
+
 def read_sqs_messages(timeout=0):
     sqs_client = ctx["sqs.client"]
     response = sqs_client.receive_message(

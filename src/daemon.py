@@ -23,7 +23,10 @@ log.debug("Starting daemon...")
 import app
 
 def eventloop():
+    queue_attributes = sqs.get_queue_attributes()
+
     last_call = None
+    event     = None
     max_iter  = 100 # We do not want to run for ever in case of memory leaks
     while max_iter:
         max_iter -= 1
@@ -36,21 +39,29 @@ def eventloop():
                 log.exception("Failed to parse 'app.run_period'")
 
         now   = misc.utc_now()
-        if last_call is None or (now - last_call) > timedelta(seconds=period):
-            event = None
+        if event is not None or last_call is None or (now - last_call) > timedelta(seconds=period):
             try: 
                 app.main_handler(event, None)
             except Exception as e:
-                log.exception("Got Exception while calling app.main_hanlder()! %s" % messages)
+                log.exception("Got Exception while calling app.main_hanlder()! %s" % event)
             execution_time = (misc.utc_now() - now).total_seconds()
             log.info("main_handler() took %s seconds" % execution_time)
             if execution_time >= period:
                 log.warn("main_handler() execution time exceeds configured 'app.run_period' (=%s)! Consider increase this value!" % period)
             last_call = now
+            event = None
         # Poll for SQS events
         messages = sqs.read_sqs_messages(timeout=2)
-        if len(messages): pdb.set_trace()
-        log.debug(messages)
+        if len(messages): 
+            # Simulate a Lambda event structure for SQS
+            log.log(log.NOTICE, "Received SQS messages : %s" % messages)
+            for r in messages:
+                r.update({
+                    "eventSource":   "aws:sqs",
+                    "eventSourceARN": queue_attributes["QueueArn"],
+                    "receiptHandle":  r["ReceiptHandle"]
+                    })
+            event = { "Records": messages }
 
 
 if __name__ == '__main__':
