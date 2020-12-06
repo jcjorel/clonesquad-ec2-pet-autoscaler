@@ -28,7 +28,7 @@ def seconds_since_last_call():
 
 def next_call_delay():
     global ctx
-    expected_delay  = Cfg.get_duration_secs("app.run_period")
+    expected_delay  = max(0, Cfg.get_duration_secs("app.run_period"))
     last_call_delay = seconds_since_last_call()
     delta           = expected_delay - last_call_delay
     if delta < 0:

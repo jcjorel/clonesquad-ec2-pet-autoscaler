@@ -9,7 +9,7 @@ source ${CLONESQUAD_DIR}/scripts/_source-me.sh
 export PYTHONPATH=$PWD/src/
 export AWS_SAM_LOCAL=true
 export LAMBDA_TASK_ROOT=.
-export CLONESQUAD_LOGLEVELS="kvtable=INFO,notify=INFO,targetgroup=INFO"
+export CLONESQUAD_LOGLEVELS="config=INFO,kvtable=INFO,notify=INFO,targetgroup=INFO"
 while true; do
 	if [ -e .venv/bin/python3 ] ;then
 		.venv/bin/python3 src/daemon.py $*

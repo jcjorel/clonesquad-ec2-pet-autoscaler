@@ -339,7 +339,7 @@ def interact_handler_entrypoint(event, context):
 
 def is_called_too_early():
     global ctx
-    delay = Cfg.get_duration_secs("app.run_period")
+    delay = max(0, Cfg.get_duration_secs("app.run_period"))
     delta = sqs.seconds_since_last_call()
     if delta != -1 and delta < delay:
         if misc.is_sam_local():

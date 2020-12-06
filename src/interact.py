@@ -61,7 +61,7 @@ class QueryCache:
 
     def save_cached_data(self, data):
         d = misc.encode_json(data, compress=True)
-        self.context["o_state"].set_state("interact.precomputed", d, TTL=(Cfg.get_duration_secs("app.run_period") * 2))
+        self.context["o_state"].set_state("interact.precomputed", d, TTL=max(Cfg.get_duration_secs("app.run_period") * 2, 240))
 
 # We set a global object that will survive multiple Lambda invocation to build a simple in-memory cache
 query_cache = None
