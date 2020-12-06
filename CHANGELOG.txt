@@ -1,3 +1,6 @@
+v0.5.0:
+- (Improvment/Major) Optimization of autoscaler instance list to save processing time when a large amount of instances (>50) is undermanagement.
+
 v0.4.0:
 - (Improvment/Major) BACKWARD COMPATIBILITY BREAK: Renamed ec2.schedule.max_cpu_crediting_instances in ec2.schedule.burstable_instance.max_cpu_crediting_instances
 - (Bug/Major) In some circumstances (ex: all LH instances in error), the whole Fleet was erroneously started.
