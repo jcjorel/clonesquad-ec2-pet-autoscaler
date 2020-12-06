@@ -37,6 +37,9 @@ def next_call_delay():
 
 @xray_recorder.capture()
 def call_me_back_send(delay=None):
+    if misc.is_container_runtime():
+        return
+
     delay  = delay if delay is not None else max(next_call_delay() + 1, 2)
     client = ctx["sqs.client"]
 

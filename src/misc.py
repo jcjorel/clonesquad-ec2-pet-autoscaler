@@ -32,6 +32,9 @@ patch_all()
 def is_sam_local():
     return "AWS_SAM_LOCAL" in os.environ and os.environ["AWS_SAM_LOCAL"] == "true"
 
+def is_container_runtime():
+    return "IS_CONTAINER_RUNTIME" in os.environ and os.environ["IS_CONTAINER_RUNTIME"] == "true"
+
 import cslog
 log = cslog.logger(__name__)
 
