@@ -6,48 +6,6 @@ if [ -z "$CLONESQUAD_DIR" ]; then
 fi
 source ${CLONESQUAD_DIR}/scripts/_source-me.sh
 
-if ! [ -e $CLONESQUAD_PARAMETER_DIR/samconfig.toml ] ; then
-	HERE=$PWD
-cat <<EOT
-The purpose is to create a S3 Bucket for use by SAM AWS tool. 
-Note: It is expected that the deployment will fail at the end.
-
-Example with mandatory items to fillin:
-
-Configuring SAM deploy
-======================
-
-        Looking for config file [samconfig.toml] :  Not found
-
-        Setting default arguments for 'sam deploy'
-        =========================================
-        Stack Name [sam-app]:
-        AWS Region [us-east-1]: eu-west-1
-        Parameter GroupName []:
-        Parameter CustomizationRepositoryS3BucketName []:
-        Parameter CustomizationRepositoryS3Prefix []:
-        Parameter ConfigurationURL []:
-        Parameter LambdaMemorySize [512]:
-        Parameter LogRetentionDuration [14]:
-        Parameter UserNotificationArns []:
-        Parameter LoggingS3Path []:
-        Parameter OperationTimeout [300]:
-        Parameter XRayDiagnosis [1]:
-        #Shows you resources changes to be deployed and require a 'Y' to initiate deploy
-        Confirm changes before deploy [y/N]: y
-        #SAM needs permission to be able to create roles to connect to the resources in your template
-        Allow SAM CLI IAM role creation [Y/n]: Y
-        InteractFunction may not have authorization defined, Is this okay? [y/N]: y
-        Save arguments to configuration file [Y/n]: Y
-        SAM configuration file [samconfig.toml]:
-        SAM configuration environment [default]:
-
-        Looking for resources needed for deployment: Found!
-EOT
-	echo "Please run once '(sam deploy --guided ; mv samconfig.toml $CLONESQUAD_PARAMETER_DIR)' like described above!"
-	exit 1
-fi
-
 export $(grep -v '\[' $CLONESQUAD_PARAMETER_DIR/samconfig.toml | sed 's/ = /=/g' | xargs)
 if ! [ -z "$1" ]; then
 	export STACK_NAME=$1
@@ -65,8 +23,10 @@ build_and_deploy()
 {
 	set -x
 	set -e
+	get_parameters
+	params=$(get_parameters) GroupName=$STACK_NAME
 	sam build && 
-	sam deploy --no-confirm-changeset --parameter-overrides "$(get_parameters)GroupName=$STACK_NAME" \
+	sam deploy --no-confirm-changeset --parameter-overrides "$params" \
 		--stack-name=CloneSquad-$STACK_NAME \
 		--s3-bucket=$s3_bucket --s3-prefix=$s3_prefix --region=$region \
 		--capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM

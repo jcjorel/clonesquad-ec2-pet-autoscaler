@@ -80,6 +80,17 @@ def generate_igress_sg_rule(trusted_clients):
         rule.append(sg_spec)
     return rule
     
+def get_subnets(vpc_id):
+    client   = boto3.client("ec2")
+    response = client.describe_subnets(
+        Filters=[
+           {"Name": "vpc-id",
+           "Values": [ vpc_id ]}
+           ]
+        )
+    if not len(response["Subnets"]):
+        raise ValueError("Specified VPC '%s' doesn't contain any subnet!" % vpc_id)
+    return [s["SubnetId"] for s in response["Subnets"]]
 
 def ApiGWVpcEndpointParameters_CreateOrUpdate(data, AccountId=None, Region=None, ApiGWId=None,
         ApiGWConfiguration=None, ApiGWEndpointConfiguration=None, DefaultGWVpcEndpointPolicyURL=None):
@@ -104,16 +115,7 @@ def ApiGWVpcEndpointParameters_CreateOrUpdate(data, AccountId=None, Region=None,
         del edp["SubnetIds"]
     else:
         # Fetch all Subnets of the VPC
-        client   = boto3.client("ec2")
-        response = client.describe_subnets(
-            Filters=[
-               {"Name": "vpc-id",
-               "Values": [ data["VpcId"] ]}
-               ]
-            )
-        if not len(response["Subnets"]):
-            raise ValueError("Specified VPC '%s' doesn't contain any subnet!" % data["VpcId"])
-        subnet_ids = [s["SubnetId"] for s in response["Subnets"]]
+        subnet_ids = get_subnets(data["VpcId"])
     log.info("SubnetIds=%s" % subnet_ids)
     data["SubnetIds"] = subnet_ids
 
@@ -184,6 +186,44 @@ def DynamoDBParameters_CreateOrUpdate(data, AccountId=None, Region=None,
                     }
             except Exception as e:
                 raise ValueError("Failed to parse DynamoDBParameters keyword '%s' with value '%s'!" % (c, config[0][c]))
+
+def ECSParameters_CreateOrUpdate(data, ECSDeploymentConfiguration=None):
+    try:
+        config = json.loads(ECSDeploymentConfiguration.replace("'",'"')) # For debug reasons, we accept simple quotes
+    except Exception as e:
+        raise ValueError("Failed to parse ECSDeploymentConfiguration (%s)! %s" % (ECSDeploymentConfiguration, e))
+
+    reference = {
+            "VpcId": None,
+            "Service.Cluster": None,
+            "Service.LaunchType": "FARGATE",
+            "Service.NetworkConfiguration": {
+                "AwsVpcConfiguration": {
+                    "AssignPublicIp": "DISABLED",
+                    "Subnets": None
+                    }
+                },
+            "Task.Image": "docker.io/clonesquad/runtime:latest",
+            "Task.StartTimeout": 60,
+            "Task.StopTimeout": 30,
+            "Task.Cpu": 256,
+            "Task.Memory": 512,
+            "Task.NetworkMode": "awsvpc"
+        }
+
+    for item in config:
+        if item not in reference:
+            raise ValueError("Do not know keyword '%s' specified in ECSDeploymentConfiguration!" % item)
+        reference[item] = config[item]
+
+    for item in reference:
+        if reference[item] is None:
+            raise ValueError("Missing mandatory '%s' keyword! in ECSDeploymentConfiguration!" % item)
+
+    netconfig = reference["Service.NetworkConfiguration"]
+    if "AwsVpcConfiguration" in netconfig and ("Subnets" not in netconfig or netconfig["Subnets"] is None):
+        netconfig["Subnets"] = get_subnets(reference["VpcId"])
+    data.update(reference)
 
 def call(event, context):
     parameters    = event["ResourceProperties"].copy()

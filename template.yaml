@@ -115,7 +115,7 @@ Resources:
               Condition:  
                 ArnLike: 
                   aws:SourceArn:
-                  - !GetAtt MainFunction.Arn
+                  - !If [ HasNotECSDeploymentConfiguration, !GetAtt MainFunction.Arn, !Ref AWS::NoValue ]
                   - !GetAtt SNSMgrFunction.Arn
             - Sid: "CloneSquad-Main-SQS-policy"
               Action: 
@@ -125,7 +125,7 @@ Resources:
               Condition:  
                 ArnLike: 
                   aws:SourceArn:
-                  - !GetAtt MainFunction.Arn
+                  - !If [ HasNotECSDeploymentConfiguration, !GetAtt MainFunction.Arn, !Ref AWS::NoValue ]
 
     DynamoDBParameters:
             Type: "Custom::CustomResourceFunction"
@@ -466,30 +466,26 @@ Resources:
 
     MainFunctionLogGroup:
             Type: "AWS::Logs::LogGroup"
-            DependsOn: MainFunction
             Properties:
-              LogGroupName: !Join ["", ["/aws/lambda/", !Ref "MainFunction"]]
+              LogGroupName: !Sub "/aws/lambda/CloneSquad-Main-${GroupName}"
               RetentionInDays: !Ref LogRetentionDuration
 
     InteractFunctionLogGroup:
             Type: "AWS::Logs::LogGroup"
-            DependsOn: InteractFunction
             Properties:
-              LogGroupName: !Join ["", ["/aws/lambda/", !Ref "InteractFunction"]]
+              LogGroupName: !Sub "/aws/lambda/CloneSquad-Interact-${GroupName}"
               RetentionInDays: !Ref LogRetentionDuration
 
     SNSMgrFunctionLogGroup:
             Type: "AWS::Logs::LogGroup"
-            DependsOn: SNSMgrFunction
             Properties:
-              LogGroupName: !Join ["", ["/aws/lambda/", !Ref "SNSMgrFunction"]]
+              LogGroupName: !Sub "/aws/lambda/CloneSquad-SNSMgr-${GroupName}"
               RetentionInDays: !Ref LogRetentionDuration
 
     SNSDiscoveryFunctionLogGroup:
             Type: "AWS::Logs::LogGroup"
-            DependsOn: DiscoveryFunction
             Properties:
-              LogGroupName: !Join ["", ["/aws/lambda/", !Ref "DiscoveryFunction"]]
+              LogGroupName: !Sub "/aws/lambda/CloneSquad-Discovery-${GroupName}"
               RetentionInDays: !Ref LogRetentionDuration
 
     CustomResourceFunction:
@@ -607,6 +603,8 @@ Resources:
 
     MainFunction:
             Type: AWS::Serverless::Function 
+            Condition: HasNotECSDeploymentConfiguration
+            DependsOn: MainFunctionLogGroup
             Properties:
               Handler: app.main_handler
               Runtime: python3.7
@@ -666,6 +664,7 @@ Resources:
 
     SNSMgrFunction:
             Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+            DependsOn: SNSMgrFunctionLogGroup
             Properties:
               Handler: app.sns_handler
               Runtime: python3.7
@@ -713,6 +712,7 @@ Resources:
 
     DiscoveryFunction:
             Type: AWS::Serverless::Function 
+            DependsOn: SNSDiscoveryFunctionLogGroup
             Properties:
               Handler: app.discovery_handler
               Runtime: python3.7
@@ -748,6 +748,7 @@ Resources:
 
     InteractFunction:
             Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+            DependsOn: InteractFunctionLogGroup
             Properties:
               Handler: app.interact_handler
               Runtime: python3.7
@@ -858,19 +859,34 @@ Resources:
             Properties:
               ServiceToken: !GetAtt CustomResourceFunction.Arn
               Helper: ECSParameters
-              AccountId: !Ref AWS::AccountId
-              Region: !Ref AWS::Region
               ECSDeploymentConfiguration: !Ref ECSDeploymentConfiguration
+
+    ECSService:
+        Type: AWS::ECS::Service
+        Condition: HasECSDeploymentConfiguration
+        Properties: 
+          Cluster:              !GetAtt ECSParameters.Service.Cluster
+          DesiredCount:         1
+          EnableECSManagedTags: True
+          HealthCheckGracePeriodSeconds: 20
+          LaunchType:           !GetAtt ECSParameters.Service.LaunchType
+          NetworkConfiguration: !GetAtt ECSParameters.Service.NetworkConfiguration 
+          PropagateTags:        True
+          Role:                 !GetAtt MainRole.Arn
+          SchedulingStrategy:   DAEMON
+          ServiceName:          !Sub "CloneSquad-${GroupName}"
+          TaskDefinition:       !Ref ECSMainTask
+          Tags: 
+            - Key: "clonesquad:group-name"
+              Value: !Ref GroupName
 
     ECSMainTask:
         Type: AWS::ECS::TaskDefinition
         Condition: HasECSDeploymentConfiguration
         Properties: 
           ContainerDefinitions: 
-                - Command: "scripts/start-ecs-container-loop"
+                - Command: ["scripts/run-main-daemon"]
                   Environment: 
-                    - "Name":  PYTHONPATH
-                      "Value": "/opt:/opt/site-packages"
                     - "Name":  MainSQSQueue
                       "Value": !Ref MainQueue
                     - "Name":  UserNotificationArns
@@ -907,25 +923,17 @@ Resources:
                       "Value": !Ref LoggingS3Path
                     - "Name":  AWS_XRAY_SDK_ENABLED
                       "Value": !Ref XRayDiagnosis
-                  HealthCheck: 
-                    Command: 
-                      - "scripts/check-ecs-health"
-                    Interval: 5
-                    Retries: 2
-                    StartPeriod: 20
-                    Timeout: 5
-                  Image: ECSParameters.Task.Image
-                  Name: !Sub "CloneSquad-${GroupName}-Main"
-                  StartTimeout: ECSParameters.Task.StartTimeout
-                  StopTimeout: ECSParameters.Task.StopTimeout
+                  Image:        !GetAtt ECSParameters.Task.Image
+                  Name:         !Sub "CloneSquad-${GroupName}-Main"
+                  StartTimeout: !GetAtt ECSParameters.Task.StartTimeout
+                  StopTimeout:  !GetAtt ECSParameters.Task.StopTimeout
                   WorkingDirectory: "/clonesquad"
-          ExecutionRoleArn: !GetAtt MainRole.Arn
-          TaskRoleArn: !GetAtt MainRole.Arn
-          Family: "CloneSquad-Main-Task"
-          Cpu: ECSParameters.Task.Cpu
-          Memory: ECSParameters.Task.Memory
-          NetworkMode: ECSParameters.Task.NetworkMode
-          ProxyConfiguration: ECSParameters.Task.ProxyConfiguration
+          ExecutionRoleArn:     !GetAtt MainRole.Arn
+          TaskRoleArn:          !GetAtt MainRole.Arn
+          Family:               "CloneSquad-Main-Task"
+          Cpu:                  !GetAtt ECSParameters.Task.Cpu
+          Memory:               !GetAtt ECSParameters.Task.Memory
+          NetworkMode:          !GetAtt ECSParameters.Task.NetworkMode
           RequiresCompatibilities: ["EC2", "FARGATE"]
           Tags: 
             - Key: "clonesquad:group-name"
@@ -934,6 +942,7 @@ Resources:
 
 Outputs:
   MainFunction:
+    Condition: HasNotECSDeploymentConfiguration
     Description: "MainFunction Lambda Function ARN"
     Value: !GetAtt MainFunction.Arn
   InteractFunction:

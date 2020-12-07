@@ -8,7 +8,7 @@ source scripts/_source-me.sh
 
 if [ "$1" == "build" ] ; then
 	export DOCKER_BUILDKIT=1
-	docker build -f build/Dockerfile.runtime-debug -t clonesquad/runtime:debug . 
+	docker build -f build/Dockerfile.runtime-debug -t clonesquad/runtime:latest . 
 	exit 0
 fi
 
