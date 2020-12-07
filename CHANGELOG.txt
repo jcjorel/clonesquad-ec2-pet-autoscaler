@@ -1,3 +1,7 @@
+v0.6.0:
+- (Improvment/Major) BACKWARD COMPATIBILITY BREAK: Reworked semantic of API Gateway methods /metadata, /fleet/status and /fleet/metadata for better coherency and ease of handling at client side. Added subfleet informations to /fleet/status.
+- (Improvment/Minor) Provide CPU alarm templates for 25%/33%/50%/90% thresholds.
+
 v0.5.0:
 - (Improvment/Major) Optimization of autoscaler instance list to save processing time when a large amount of instances (>50) is undermanagement.
 
