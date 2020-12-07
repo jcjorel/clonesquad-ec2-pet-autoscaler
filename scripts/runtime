@@ -1,3 +1,20 @@
 #!/bin/bash -e
 
-docker build -f build/Dockerfile.runtime-debug -t clonesquad/runtime:debug . 
+if [ -z "${CLONESQUAD_DIR}" ]; then
+	echo "Please define CLONESQUAD_DIR!" ; exit 1
+fi
+cd $CLONESQUAD_DIR
+source scripts/_source-me.sh
+
+if [ "$1" == "build" ] ; then
+	docker build -f build/Dockerfile.runtime-debug -t clonesquad/runtime:debug . 
+	exit 0
+fi
+
+if [ "$1" == "run" ] ; then
+	docker run -it clonesquad/runtime:debug
+	exit 0
+fi
+
+echo "Usage: $0 <build|run>"
+exit 1

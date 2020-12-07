@@ -3,7 +3,7 @@ MAINTAINER jeancharlesjorel@gmail.com
 
 RUN yum upgrade -y && yum install -y aws-cli curl jq python3 unzip && \
       bash -c "curl https://bootstrap.pypa.io/get-pip.py | python3" && \ 
-      pip install aws-xray-sdk  && \
+      pip3 install aws-xray-sdk  && \
       yum install -y shadow-utils && \
       groupadd -g 1000 ec2-user && adduser -u 1000 -g 1000 ec2-user && \
       mkdir -p /var/task && chown -R ec2-user.ec2-user /var/task && \
