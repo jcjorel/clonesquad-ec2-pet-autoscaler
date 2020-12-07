@@ -125,26 +125,21 @@ By default, this API returns status related to the calling EC2 instance.
 
 **Return value:**
 
-	* `AvailabilityZone`: Calling instance AvailabilityZone name 
-	* `LocatedInAZWithIssues`: Boolean indicating if this EC2 instance is located in an AZ signaled with issues (either manually or via the describe_availability_zones() EC2 API).
-	* `InstanceId`: Instance Id of the calling EC2 instance.
-	* `State`: Can be any of ["`pending`", "`running`", "`error`", "`bounced`", "`draining`"]
-		* `pending`, `running` value comes from describe_instance EC2 API call and response field `["State"]["Name"]`
-		* `error`is a CloneSquad specific value indicating that this instance failed to perform a critical operation requested by CloneSquad
+* `AvailabilityZone`: Calling instance AvailabilityZone name 
+* `LocatedInAZWithIssues`: Boolean indicating if this EC2 instance is located in an AZ signaled with issues (either manually or via the describe_availability_zones() EC2 API).
+* `InstanceId`: Instance Id of the calling EC2 instance.
+* `State`: Can be any of ["`pending`", "`running`", "`error`", "`bounced`", "`draining`"]
+	* `pending`, `running` value comes from describe_instance EC2 API call and response field `["State"]["Name"]`
+	* `error`is a CloneSquad specific value indicating that this instance failed to perform a critical operation requested by CloneSquad
 (ex: a failed start_instance or other EC2 API call). This status indicates that this instance will be unmanaged during a period of time (5 minutes by default). For a running instance, this status doesn't prelude the fact the instance is removed from any TargetGroup; it only means that CloneSquad won't attempt start/stop for a while
 with the assumption the issue was transient.
-		* `bounced` value means that this instance has been selected to be bounced as considered too aged by the bouncing algorithm. This instance is a synonym of `running`and is an advance advisory that the instance will be put in `draining` soon. The instance remains part of any participating TargetGroup so serving normally until formaly drained.
-	* `Status`: Can be any of ["`ok`", "`impaired`", "`insufficient-data`", "`not-applicable`", "`initializing`", "`unhealthy`", "`az_evicted`"]
-		These field comes from describe_instance_status() EC2 API and retirn the `["InstanceState"]["Name"]` response field for the instance.
-		A special value `az_evicted` is added by CloneSquad to indicate that this instance is going to be evicted very soon as it is 
-		running in an AZ with issues.
-	* `SubfleetName`: 'null' or name of the subfleet the instance belongs to.
-	* `Tags`: The describe_instance() EC2 API reponse field named `["Tags"]` for this instance.
-			"SpotInstance": true,
-			"SpotDetails": {
-		            "InterruptedAt": "None",
-                            "RebalanceRecommendedAt": "2020-11-21 20:40:06.748674+00:00"
-			}
+	* `bounced` value means that this instance has been selected to be bounced as considered too aged by the bouncing algorithm. This instance is a synonym of `running`and is an advance advisory that the instance will be put in `draining` soon. The instance remains part of any participating TargetGroup so serving normally until formaly drained.
+* `Status`: Can be any of ["`ok`", "`impaired`", "`insufficient-data`", "`not-applicable`", "`initializing`", "`unhealthy`", "`az_evicted`"]
+	These field comes from describe_instance_status() EC2 API and retirn the `["InstanceState"]["Name"]` response field for the instance.
+	A special value `az_evicted` is added by CloneSquad to indicate that this instance is going to be evicted very soon as it is 
+	running in an AZ with issues.
+* `SubfleetName`: 'null' or name of the subfleet the instance belongs to.
+* `Tags`: The describe_instance() EC2 API reponse field named `["Tags"]` for this instance.
 
 ## API `fleet/metadata`
 
