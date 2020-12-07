@@ -124,6 +124,7 @@ By default, this API returns status related to the calling EC2 instance.
 	}
 
 **Return value:**
+
 	* `AvailabilityZone`: Calling instance AvailabilityZone name 
 	* `LocatedInAZWithIssues`: Boolean indicating if this EC2 instance is located in an AZ signaled with issues (either manually or via the describe_availability_zones() EC2 API).
 	* `InstanceId`: Instance Id of the calling EC2 instance.
