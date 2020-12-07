@@ -14,6 +14,22 @@ All other parameters can be left with their respective defaults.
 The CloneSquad deployment is looking for resources with a `clonesquad:group-name` tag containing this value.
 CloneSquad uses this tag/value to know which resources (EC2, RDS...) belongs to its duty.
 
+## `LambdaMemorySize`
+
+**Required: No**   
+**Format: Integer**
+
+Memory (MBytes) allocated to Main and Interact Lambda functions. 
+
+* Minimum: 512 
+* Maximum: 1792
+
+As the Main Lambda function is mostly CPU bound, increasing memory to 1792 MBytes will ensure allocation of one full vCPU providing
+the maximum possible compute power the Lambda functions. 
+
+> **It is useless to give more memory than 1792 MBytes as the Main Lambda function is purely mono-threaded.**
+
+
 ## `ApiGWConfiguration`
 
 **Required: No**   
