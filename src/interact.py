@@ -203,8 +203,7 @@ class Interact:
 
     def fleet_status_prepare(self):
         return {
-            "EC2.Scheduler" : self.context["o_ec2_schedule"].get_synthetic_metrics(),
-            "EC2" : self.context["o_ec2"].get_synthetic_metrics()
+            "EC2" : self.context["o_ec2_schedule"].get_synthetic_metrics(),
         }
 
     def fleet_status(self, context, event, response, cacheddata):
@@ -221,26 +220,7 @@ class Interact:
         return True
 
     def metadata_prepare(self):
-        data = {}
-        ec2  = self.context["o_ec2"]
-        az_with_issues = ec2.get_azs_with_issues()
-        for i in self.context["o_ec2"].get_instances(State="pending,running"):
-            instance_id    = i["InstanceId"]
-            az             = i["Placement"]["AvailabilityZone"]
-            located_in_az_with_issues = az in az_with_issues
-            instance_state = ec2.get_scaling_state(instance_id)
-            statuses       = [state for state in ec2.INSTANCE_STATES if ec2.is_instance_state(instance_id, [state])]
-            status         = statuses[0] if len(statuses) else "unknown"
-            data[instance_id] = {
-                "LocatedInAZWithIssues" : located_in_az_with_issues,
-                "Instance": {
-                    "AvailabilityZone": az,
-                    "Tags"     : i["Tags"],
-                    "Status"   : status,
-                    "State"    : instance_state if instance_state is not None else i["State"]["Name"]
-                }
-            }
-        return data
+        return self.context["o_ec2"].get_synthetic_metrics()
 
     def metadata(self, context, event, response, cacheddata):
         if "requestContext" not in event or "identity" not in event["requestContext"]:
@@ -261,14 +241,14 @@ class Interact:
             response["body"] = "Can't process metadata caller '%s'!" % caller
             return False
 
-        if instance_id not in cacheddata:
+        if "instanceid" in event: instance_id = event["instanceid"] # Override from query string
+        d        = next(filter(lambda d: d["InstanceId"] == instance_id, cacheddata), None)
+        if d is None:
             response["statusCode"] = 400
             response["body"]       = "No information for instance id '%s'!" % instance_id
             return False
 
         response["statusCode"] = 200
-        d                      = cacheddata[instance_id].copy()
-        d["InstanceId"]        = instance_id
         response["body"]       = Dbg.pprint(d)
         return True
 

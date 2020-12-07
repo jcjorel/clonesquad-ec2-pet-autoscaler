@@ -80,18 +80,29 @@ Thanks to IAM policies, users can implement fined-grained access control to the 
 
 * Callable from : `API Gateway`
 
-> Notice: **This API is only callable from autoscaled EC2 instances.**
+> Notice: **This API is only callable from a CloneSquad managed EC2 instance.**
 
-This API returned status related to the calling EC2 instances.
+By default, this API returns status related to the calling EC2 instance.
+
+**Argument:**
+
+* `instanceid`: (Optional) Do not guess the calling EC2 instance id and use the supplied one instead.
 
 **Synopsis:**
 
 	# awscurl https://pq264fab39.execute-api.eu-west-3.amazonaws.com/v1/metadata
 	{
-	    "Instance": {
 		"AvailabilityZone": "eu-west-3a",
+		"LocatedInAZWithIssues": false,
+		"InstanceId": "i-0618fa840ca325b61",
 		"State": "running",
 		"Status": "ok",
+		"SubfleetName": null,
+		"SpotInstance": true,
+		"SpotDetails": {
+		    "InterruptedAt": null,
+		    "RebalanceRecommendedAt": "2020-11-21 20:40:06.748674+00:00"
+		}
 		"Tags": [
 		    {
 			"Key": "Name",
@@ -103,23 +114,19 @@ This API returned status related to the calling EC2 instances.
 		    },
 		    {
 			"Key": "aws:ec2launchtemplate:id",
-			"Value": "lt-0618fa840ca325b61"
+			"Value": "lt-00000000000000000"
 		    },
 		    {
 			"Key": "clonesquad:group-name",
 			"Value": "test"
 		    }
 		]
-	    },
-	    "InstanceId": "i-0cf5683a31b52e9c1",
-	    "LocatedInAZWithIssues": false
 	}
 
 **Return value:**
-* `InstanceId`: Instance Id of the calling EC2 instance.
-* `LocatedInAZWithIssues`: Boolean indicating if this EC2 instance is located in an AZ signaled with issues (either manually or via the describe_availability_zones() EC2 API).
-* **"Instance"**:
 	* `AvailabilityZone`: Calling instance AvailabilityZone name 
+	* `LocatedInAZWithIssues`: Boolean indicating if this EC2 instance is located in an AZ signaled with issues (either manually or via the describe_availability_zones() EC2 API).
+	* `InstanceId`: Instance Id of the calling EC2 instance.
 	* `State`: Can be any of ["`pending`", "`running`", "`error`", "`bounced`", "`draining`"]
 		* `pending`, `running` value comes from describe_instance EC2 API call and response field `["State"]["Name"]`
 		* `error`is a CloneSquad specific value indicating that this instance failed to perform a critical operation requested by CloneSquad
@@ -130,7 +137,13 @@ with the assumption the issue was transient.
 		These field comes from describe_instance_status() EC2 API and retirn the `["InstanceState"]["Name"]` response field for the instance.
 		A special value `az_evicted` is added by CloneSquad to indicate that this instance is going to be evicted very soon as it is 
 		running in an AZ with issues.
+	* `SubfleetName`: 'null' or name of the subfleet the instance belongs to.
 	* `Tags`: The describe_instance() EC2 API reponse field named `["Tags"]` for this instance.
+			"SpotInstance": true,
+			"SpotDetails": {
+		            "InterruptedAt": "None",
+                            "RebalanceRecommendedAt": "2020-11-21 20:40:06.748674+00:00"
+			}
 
 ## API `fleet/metadata`
 
@@ -160,17 +173,6 @@ This API can be polled to know when the whole fleet is started (`RunningFleetSiz
 	# awscurl https://pq264fab39.execute-api.eu-west-3.amazonaws.com/v1/fleet/status
 	{
 		"EC2": {
-		    "i-0cf5683a31b52e9c1": {
-			"SpotInstance": true,
-			"SpotDetails": {
-		            "InterruptedAt": "None",
-                            "RebalanceRecommendedAt": "2020-11-21 20:40:06.748674+00:00"
-			}
-		    }
-		    ...
-                    ...
-		},
-		"EC2.Schedule": {
 		    "AutoscaledFleet": {
 			"UnhealthyFleetSize": 0,
 			"ManagedFleetSize": 20,
@@ -179,14 +181,29 @@ This API can be polled to know when the whole fleet is started (`RunningFleetSiz
 			"ServingFleetSize": 17,
 			"ServingFleet_vs_ManagedFleetSizePourcentage": 85,
 			"ServingFleet_vs_MaximumFleetSizePourcentage": 85
-		    }
+		    },
+		    "StaticSubfleets": [
+		        {
+		    	"Name": "MyStaticSubfleetFleet",
+			"RunningInstanceCount": 0,
+			"RunningInstances": [],
+			"StoppedInstanceCount": 2,
+			"StoppedInstances": [
+			    "i-0aaaaaaaaaaaaaaaa",
+			    "i-0bbbbbbbbbbbbbbbb"
+			],
+			"SubfleetSize": 2
+		    },
+                    ...
+                    ...
+		    ]
 		}
 	}
 
 **Return value:**
 
 * **"AutoscaledFleet"**:
-	* `FaultyFleetSize`: Number of instances that are reporting an unhealthy status. Note: Only instances in the autoscaled fleet are counted ; especially, static subfleet instances are not part of this indicator.
+	* `UnhealtyFleetSize`: Number of instances that are reporting an unhealthy status. Note: Only instances in the autoscaled fleet are counted ; especially, static subfleet instances are not part of this indicator.
 	* `ManagedFleetSize`: Number of instances with the matching 'clonesquad:group-name' tag.
 	* `MaximumFleetSize`: Maximum number of instances that can be running at this moment (This number excludes instances that CloneSquad
 knows that it can't start now. Ex: Instance in `error`or `spot interrupted`).
@@ -194,6 +211,13 @@ knows that it can't start now. Ex: Instance in `error`or `spot interrupted`).
 	* `ServingFleetSize`: Number of instances that are running AND have passed all HealthChecks (either EC2 System or TargetGroup health check).
 	* `ServingFleet_vs_ManagedFleetSizePourcentage`: int(100 * ServingFleetSize / MaximumFleetSize),
 	* `ServingFleet_vs_MaximumFleetSizePourcentage`: int(100 * ServingFleetSize / ManagedFleetSize)
+* **"StaticSubfleets"**: List of subfleet structure
+	* `Name`: Name of the static subfleet,
+	* `RunningInstances`: List of Instance Id member in 'pending' or 'running' state
+	* `RunningInstanceCount`: length(`RunningInstances`)
+	* `StoppedInstance`: Number of instances in 'stopped' state
+	* `StoppedInstanceCount`: length(`StoppedInstances`)
+	* `SubfleetSize`: Number of instances in the subfleet
 
 
 ## API `discovery`

@@ -697,8 +697,31 @@ parameter should NOT be modified by user.
                 "RunningFleetSize"                            : running_fleet_size,
                 "ServingFleet_vs_MaximumFleetSizePourcentage" : servingfleetpercentage_maximumfleetsize,
                 "ServingFleet_vs_ManagedFleetSizePourcentage" : servingfleetpercentage_managedfleetsize
-            }
+            },
+            "StaticSubfleets" : []
         }
+        subfleet_stats = s_metrics["StaticSubfleets"]
+        for subfleet in self.ec2.get_static_subfleet_names():
+            stats = {
+                    "Name": subfleet,
+                    "RunningInstances": [],
+                    "RunningInstanceCount": 0,
+                    "StoppedInstances": [],
+                    "StoppedInstanceCount": 0,
+                    "SubfleetSize": 0
+                }
+            fleet = self.ec2.get_static_subfleet_instances(subfleet_name=subfleet)
+            for i in fleet:
+                instance_id    = i["InstanceId"]
+                instance_state = i["State"]["Name"]
+                if instance_state in ["pending", "running"]:
+                    stats["RunningInstances"].append(instance_id)
+                if instance_state in ["stopped"]:
+                    stats["StoppedInstances"].append(instance_id)
+            stats["RunningInstanceCount"] = len(stats["RunningInstances"])
+            stats["StoppedInstanceCount"] = len(stats["StoppedInstances"])
+            stats["SubfleetSize"]         = len(fleet)
+            subfleet_stats.append(stats)
         self.synthetic_metrics = s_metrics
 
     def get_synthetic_metrics(self):

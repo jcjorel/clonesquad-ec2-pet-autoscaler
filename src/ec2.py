@@ -183,9 +183,10 @@ without any TargetGroup but another external health instance source exists).
             q = { "InstanceIds": i_ids[:100] }
             while response is None or "NextToken" in response:
                 if response is not None and "NextToken" in response: q["NextToken"] = response["NextToken"]
-                response = client.describe_instance_status(**q)
+                response = client.describe_instance_status(**q) #TODO: Understand why this API do not always returned all requested data...
                 instance_statuses.extend(response["InstanceStatuses"])
-            i_ids = i_ids[100:]
+            response = None
+            i_ids    = i_ids[100:]
         self.instance_statuses = instance_statuses
 
         # Get AZ status
@@ -291,7 +292,8 @@ without any TargetGroup but another external health instance source exists).
         return names
 
     def get_static_subfleet_name_for_instance(self, i):
-        return self.get_instance_tags(i)["clonesquad:static-subfleet-name"]
+        tags = self.get_instance_tags(i)
+        return tags["clonesquad:static-subfleet-name"] if "clonesquad:static-subfleet-name" in tags else None
 
     def is_static_subfleet_instance(self, instance_id, subfleet_name=None):
         instances    = self.get_static_subfleet_instances(subfleet_name=subfleet_name)
@@ -837,23 +839,37 @@ without any TargetGroup but another external health instance source exists).
         return recs
 
     def get_synthetic_metrics(self):
-        s_metrics = {}
+        s_metrics      = []
+        az_with_issues = self.get_azs_with_issues()
         for i in self.instances:
-            instance_id   = i["InstanceId"]
-            is_spot       = self.is_spot_instance(i)
-            instance_tags = self.get_instance_tags(i)
-            instance_name = instance_tags["Name"] if "Name" in instance_tags else None
-            s_metrics[instance_id] = {
+            instance_id    = i["InstanceId"]
+            is_spot        = self.is_spot_instance(i)
+            instance_tags  = self.get_instance_tags(i)
+            instance_name  = instance_tags["Name"] if "Name" in instance_tags else None
+            subfleet_name  = self.get_static_subfleet_name_for_instance(i)
+            az             = i["Placement"]["AvailabilityZone"]
+            located_in_az_with_issues = az in az_with_issues
+            instance_state = self.get_scaling_state(instance_id, do_not_return_excluded=True)
+            statuses       = [state for state in EC2.INSTANCE_STATES if self.is_instance_state(instance_id, [state])]
+            status         = statuses[0] if len(statuses) else "unknown"
+            stat = {
+                "LocatedInAZWithIssues" : located_in_az_with_issues,
                 "InstanceName": instance_name,
                 "InstanceType": i["InstanceType"],
-                "Tags": i["Tags"],
-                "SpotInstance": is_spot
+                "Tags"        : i["Tags"],
+                "InstanceId"  : instance_id,
+                "SpotInstance": is_spot,
+                "SubfleetName": subfleet_name,
+                "AvailabilityZone": az,
+                "Status"      : status,
+                "State"       : instance_state if instance_state is not None else i["State"]["Name"]
             }
             if is_spot:
-                s_metrics[instance_id]["SpotDetails"] = {
+                stat["SpotDetails"] = {
                         "InterruptedAt" : EC2.get_spot_event(self.context, instance_id, "interrupted"),
                         "RebalanceRecommendedAt" : EC2.get_spot_event(self.context, instance_id, "rebalance_recommended")
                 }
+            s_metrics.append(stat)
         return s_metrics
 
 
