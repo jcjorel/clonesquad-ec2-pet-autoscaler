@@ -131,8 +131,8 @@ By default, this API returns status related to the calling EC2 instance.
 * `State`: Can be any of ["`pending`", "`running`", "`error`", "`bounced`", "`draining`"]
 	* `pending`, `running` value comes from describe_instance EC2 API call and response field `["State"]["Name"]`
 	* `error`is a CloneSquad specific value indicating that this instance failed to perform a critical operation requested by CloneSquad
-(ex: a failed start_instance or other EC2 API call). This status indicates that this instance will be unmanaged during a period of time (5 minutes by default). For a running instance, this status doesn't prelude the fact the instance is removed from any TargetGroup; it only means that CloneSquad won't attempt start/stop for a while
-with the assumption the issue was transient.
+(ex: a failed start_instance or other EC2 API call). This status indicates that this instance will be unmanaged during a period of time (5 minutes by default). For a running instance, this status doesn't prelude the fact that the instance is removed from any TargetGroup; it only means that CloneSquad won't attempt to start/stop it for a while
+with the assumption the issue is transient.
 	* `bounced` value means that this instance has been selected to be bounced as considered too aged by the bouncing algorithm. This instance is a synonym of `running`and is an advance advisory that the instance will be put in `draining` soon. The instance remains part of any participating TargetGroup so serving normally until formaly drained.
 * `Status`: Can be any of ["`ok`", "`impaired`", "`insufficient-data`", "`not-applicable`", "`initializing`", "`unhealthy`", "`az_evicted`"]
 	These field comes from describe_instance_status() EC2 API and retirn the `["InstanceState"]["Name"]` response field for the instance.
