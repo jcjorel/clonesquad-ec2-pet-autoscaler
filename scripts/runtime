@@ -7,12 +7,14 @@ cd $CLONESQUAD_DIR
 source scripts/_source-me.sh
 
 if [ "$1" == "build" ] ; then
+	export DOCKER_BUILDKIT=1
 	docker build -f build/Dockerfile.runtime-debug -t clonesquad/runtime:debug . 
 	exit 0
 fi
 
 if [ "$1" == "run" ] ; then
-	docker run -it clonesquad/runtime:debug
+	shift
+	docker run -it -e GroupName=$GroupName -e AWS_SAM_LOCAL=true clonesquad/runtime:debug $*
 	exit 0
 fi
 

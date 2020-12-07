@@ -64,10 +64,12 @@ def fix_sam_bugs():
         ctx["ScaleUp_SNSTopicArn"] =  "arn:aws:sns:%s:%s:CloneSquad-CloudWatchAlarm-ScaleUp-%s" % (ctx["AWS_DEFAULT_REGION"], account_id, ctx["GroupName"])
         ctx["InteractLambdaArn"]  = "arn:aws:lambda:%s:%s:function:CloneSquad-Interact-%s" % (ctx["AWS_DEFAULT_REGION"], account_id, ctx["GroupName"])
         ctx["AWS_LAMBDA_LOG_GROUP_NAME"] = "/aws/lambda/CloneSquad-Main-%s" % ctx["GroupName"]
+        if "LoggingS3Path"        not in ctx: ctx["LoggingS3Path"]        = ""
+        if "UserNotificationArns" not in ctx: ctx["UserNotificationArns"] = ""
 
 
 # Special treatment while started from SMA invoke loval
-if misc.is_sam_local() or __name__ == '__main__':
+if misc.is_sam_local() or misc.is_container_runtime() or __name__ == '__main__':
     fix_sam_bugs()
     print("SAM Local Environment:")
     for env in os.environ:

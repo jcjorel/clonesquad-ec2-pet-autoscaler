@@ -6,15 +6,16 @@ if [ -z "$CLONESQUAD_DIR" ]; then
 fi
 source ${CLONESQUAD_DIR}/scripts/_source-me.sh
 
-export PYTHONPATH="$PYTHONPATH:$PWD/src/"
 export LAMBDA_TASK_ROOT=.
 export CLONESQUAD_LOGLEVELS="config=INFO,kvtable=INFO,notify=INFO,targetgroup=INFO"
 while true; do
 	if [ -e .venv/bin/python3 ] ;then
 		export AWS_SAM_LOCAL=true
+		export PYTHONPATH="$PYTHONPATH:$PWD/src/"
 		.venv/bin/python3 $CLONESQUAD_DIR/src/daemon.py $*
 	else
 		# Inside the container... 
+		export PYTHONPATH="/opt/:/opt/site-packages/"
 		python3 $CLONESQUAD_DIR/daemon.py $*
 	fi
 done
