@@ -23,7 +23,6 @@ build_and_deploy()
 {
 	set -x
 	set -e
-	get_parameters
 	params=$(get_parameters) GroupName=$STACK_NAME
 	sam build && 
 	sam deploy --no-confirm-changeset --parameter-overrides "$params" \
