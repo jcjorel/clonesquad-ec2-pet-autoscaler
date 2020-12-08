@@ -1,6 +1,8 @@
 #!/bin/bash
 set -e
 
+. 'SOURCE-ME!!.sh'
+
 if [ -z "${CLONESQUAD_DEVKIT_IMAGE}" ] ;then
 	echo "Please define CLONESQUAD_DEVKIT_IMAGE environment variable" ; exit 1
 fi
@@ -24,7 +26,10 @@ if [ "$ACTION" = "build" ] ; then
 		scripts/update-python-requirements
 	fi
 	tools/cs-format-documentation docs/tpl/CONFIGURATION_REFERENCE.md >docs/CONFIGURATION_REFERENCE.md
-	docker build -t ${CLONESQUAD_DEVKIT_IMAGE}:$VERSION -t clonesquad/devkit:latest -f build/Dockerfile.devkit .
+	export DOCKER_BUILDKIT=1
+	docker pull amazonlinux:2
+	docker build -t ${CLONESQUAD_DEVKIT_IMAGE}:$VERSION -f build/Dockerfile.devkit .
+	docker build -t clonesquad/devkit:latest -f build/Dockerfile.devkit .
 fi
 if [ "$ACTION" = "run" ]; then
 

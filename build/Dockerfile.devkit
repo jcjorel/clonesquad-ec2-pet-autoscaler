@@ -1,14 +1,13 @@
 FROM amazonlinux:2
 MAINTAINER jeancharlesjorel@gmail.com
 
-RUN yum upgrade -y
-
-# Prepare for AWS SAM
-RUN yum install git curl wget python3 jq shadow-utils sudo tar which procps-ng vim httpd-tools \
-	mtr iputils bind-utils time dialog uuid -y 
+ADD VERSION.txt /
+RUN yum upgrade -y && \
+    yum install git curl wget python3 jq shadow-utils sudo tar which procps-ng vim httpd-tools \
+	mtr iputils bind-utils time dialog uuid -y && \
+	yum clean all && rm -rf /var/cache/yum
 RUN bash -c "curl https://bootstrap.pypa.io/get-pip.py | python3" && \
-	/usr/local/bin/pip3 install jinja2 awscli awscurl==0.17 pythondialog && \
-	yum update -y 
+	/usr/local/bin/pip3 install jinja2 awscli awscurl pythondialog 
 RUN groupadd -g 1000 ec2-user && adduser -u 1000 -g 1000 ec2-user
 ENV HOME=/home/ec2-user
 COPY build/bashrc /etc/bashrc.clonesquad
