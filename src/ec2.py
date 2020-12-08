@@ -348,10 +348,11 @@ without any TargetGroup but another external health instance source exists).
         # Remember when we tried to start all these instances. Used to detect instances with issues
         #    by placing them at end of get_instances() generated list
         if instance_ids_to_start is None or len(instance_ids_to_start) == 0:
+            log.log(log.NOTICE, "No instance to start...")
             return 
         now = self.context["now"]
 
-        max_startable_instances = max_started_instances
+        max_startable_instances = max_started_instances if max_started_instances != -1 else len(instance_ids_to_start)
         def _check_response():
             nonlocal max_startable_instances
             log.debug(Dbg.pprint(response))

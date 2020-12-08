@@ -1017,7 +1017,8 @@ parameter should NOT be modified by user.
     def manage_static_subfleets(self):
         """Manage start/stop actions for static subfleet instances
         """
-        instances = self.static_subfleet_instances
+        instances          = self.static_subfleet_instances
+        instances_to_start = []
         for i in instances:
             instance_id    = i["InstanceId"]
             subfleet_name  = self.ec2.get_static_subfleet_name_for_instance(i)
@@ -1043,13 +1044,15 @@ parameter should NOT be modified by user.
                 if len(valid_spot) == 0:
                     log.log(log.NOTICE, "Instance '%s' is a Spot one that can't be started yet..." % instance_id)
                     continue
-                log.info("Starting static fleet instance '%s'..." % instance_id)
-                self.ec2.start_instances([instance_id])
-                self.scaling_state_changed = True
+                instances_to_start.append(instance_id)
             if (expected_state == "stopped" and i["State"]["Name"] == "running" 
                     and self.ec2.get_scaling_state(instance_id, do_not_return_excluded=True) != "draining"):
                 log.info("Draining static fleet instance '%s'..." % instance_id)
                 self.ec2.set_scaling_state(instance_id, "draining")
+        if len(instances_to_start):
+            log.info("Starting static fleet instance(s) '%s'..." % instances_to_start)
+            self.ec2.start_instances(instances_to_start)
+            self.scaling_state_changed = True
 
 
     ###############################################
