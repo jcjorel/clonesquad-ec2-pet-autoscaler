@@ -1603,7 +1603,7 @@ parameter should NOT be modified by user.
             if metric is not None:
                 metric_date = misc.str2utc(metric["_SamplingTime"])
                 oldest_metric_secs = max(oldest_metric_secs, (now - metric_date).total_seconds())
-        oldest_metric_secs   = max(1, oldest_metric_secs)
+        oldest_metric_secs   = max(0.001, oldest_metric_secs) # Avoid DIV#0 later in the algorithm
 
 
         all_points       = defaultdict(dict)
