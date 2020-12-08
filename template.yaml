@@ -883,6 +883,7 @@ Resources:
     ECSMainTask:
         Type: AWS::ECS::TaskDefinition
         Condition: HasECSDeploymentConfiguration
+        DependsOn: MainFunctionLogGroup
         Properties: 
           ContainerDefinitions: 
                 - Command: ["scripts/run-main-daemon"]
@@ -927,10 +928,16 @@ Resources:
                   Name:         !Sub "CloneSquad-${GroupName}-Main"
                   StartTimeout: !GetAtt ECSParameters.Task.StartTimeout
                   StopTimeout:  !GetAtt ECSParameters.Task.StopTimeout
-                  WorkingDirectory: "/clonesquad"
+                  WorkingDirectory: "/var/task"
+                  LogConfiguration:
+                     LogDriver: "awslogs"
+                     Options:
+                       awslogs-group: !Sub "CloneSquad-Main-${GroupName}"
+                       awslogs-region: !Ref AWS::Region
+                       awslogs-stream-prefix: "/aws/lambda/" # We use the same log prefix than the Main Lambda function
           ExecutionRoleArn:     !GetAtt MainRole.Arn
           TaskRoleArn:          !GetAtt MainRole.Arn
-          Family:               "CloneSquad-Main-Task"
+          Family:               !Sub "CloneSquad-Main-${GroupName}-Task"
           Cpu:                  !GetAtt ECSParameters.Task.Cpu
           Memory:               !GetAtt ECSParameters.Task.Memory
           NetworkMode:          !GetAtt ECSParameters.Task.NetworkMode
