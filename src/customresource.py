@@ -197,9 +197,10 @@ def ECSParameters_CreateOrUpdate(data, ECSDeploymentConfiguration=None):
             "VpcId": None,
             "Service.Cluster": None,
             "Service.LaunchType": "FARGATE",
+            "Service.NetworkConfiguration.AwsVpcConfiguration.AssignPublicIp": "ENABLED", # Enabled by default to reach a registry
             "Service.NetworkConfiguration": {
                 "AwsVpcConfiguration": {
-                    "AssignPublicIp": "DISABLED",
+                    "AssignPublicIp": None,
                     "Subnets": None
                     }
                 },
@@ -221,8 +222,11 @@ def ECSParameters_CreateOrUpdate(data, ECSDeploymentConfiguration=None):
             raise ValueError("Missing mandatory '%s' keyword! in ECSDeploymentConfiguration!" % item)
 
     netconfig = reference["Service.NetworkConfiguration"]
-    if "AwsVpcConfiguration" in netconfig and ("Subnets" not in netconfig or netconfig["Subnets"] is None):
-        netconfig["Subnets"] = get_subnets(reference["VpcId"])
+    if "AwsVpcConfiguration" in netconfig:
+        if "AssignPublicIp" in netconfig and netconfig["AssignPublicIp"] == None:
+            netconfig["AssignPublicIp"] = reference["Service.NetworkConfiguration.AwsVpcConfiguration.AssignPublicIp"]
+        if "Subnets" not in netconfig or netconfig["Subnets"] is None:
+            netconfig["Subnets"] = get_subnets(reference["VpcId"])
     data.update(reference)
 
 def call(event, context):

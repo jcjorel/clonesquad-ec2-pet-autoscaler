@@ -886,7 +886,7 @@ Resources:
         DependsOn: MainFunctionLogGroup
         Properties: 
           ContainerDefinitions: 
-                - Command: ["scripts/run-main-daemon"]
+                - Command: ["/opt/scripts/run-main-daemon"]
                   Environment: 
                     - "Name":  MainSQSQueue
                       "Value": !Ref MainQueue
@@ -932,9 +932,11 @@ Resources:
                   LogConfiguration:
                      LogDriver: "awslogs"
                      Options:
-                       awslogs-group: !Sub "CloneSquad-Main-${GroupName}"
+                       awslogs-group: !Sub "/aws/lambda/CloneSquad-Main-${GroupName}" # We use the same Log Group than the Main Lambda function
                        awslogs-region: !Ref AWS::Region
-                       awslogs-stream-prefix: "/aws/lambda/" # We use the same log prefix than the Main Lambda function
+                       awslogs-stream-prefix: "ecs" 
+                       mode: non-blocking
+                       max-buffer-size: 100m
           ExecutionRoleArn:     !GetAtt MainRole.Arn
           TaskRoleArn:          !GetAtt MainRole.Arn
           Family:               !Sub "CloneSquad-Main-${GroupName}-Task"
