@@ -19,7 +19,7 @@ Example:
 	##
 	# YAML file declaring an Alarm (load it with cs-kvtable tool or reference it as an ConfigurationURL)
 	#
-	cloudwatch.ec2.alarm00.configuration_url: internal:ec2.scaleup.alarm-cpu-gt-75pc.yaml,Points=1001,BaselineThreshold=30.0
+	cloudwatch.ec2.alarm00.configuration_url: internal:ec2.scaleup.alarm-cpu-gt-75pc.yaml,Points=1001,BaselineThreshold=0.0
 
 This example declares the Alarm #00 using alarm specification described in internal file [ec2.scaleup.alarm-cpu-gt-75pc.yaml](../src/resources/ec2.scaleup.alarm-cpu-gt-75pc.yaml). Note: This file is part of the CloneSquad delivery inside the Main Lambda filesystem.   
 
@@ -27,7 +27,7 @@ The Alarm specification file uses a YAML format and will be passed directly to t
 
 This example specifies also 2 meta information:
 * **Points=1001**            : Override default points associated to an alarm (by default, 1000),
-* **BaselineThreshold=10.0** : Specify a baseline threshold to allow CloneSquad works in analogous mode instead of relying only on Alarm triggering. In this example, it defines a baseline threshold of 10.0 (float). The alarm specification [ec2.scaleup.alarm-cpu-gt-75pc.yaml](../src/resources/ec2.scaleup.alarm-cpu-gt-75pc.yaml) defines a main Threshold of 75.0 (meaning 75 percent). CloneSquad will poll Cloudwatch underlying metric (i.e. CPU utilization) and generate points using the below formula:
+* **BaselineThreshold=0.0** : Specify a baseline threshold to allow CloneSquad works in analogous mode instead of relying only on Alarm triggering. In this example, it defines a baseline threshold of 0.0 (float). The alarm specification [ec2.scaleup.alarm-cpu-gt-75pc.yaml](../src/resources/ec2.scaleup.alarm-cpu-gt-75pc.yaml) defines a main Threshold of 75.0 (meaning 75 percent). CloneSquad will poll Cloudwatch underlying metric (i.e. CPU utilization) and generate points using the below formula:
 > Tip: Even optional, it is strongly advised to always define a `BaselineThreshold` to avoid a jerky behavior of the autoscaler. 
 
 Baselined point calculation:
