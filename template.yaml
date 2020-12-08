@@ -923,7 +923,7 @@ Resources:
                     - "Name":  LoggingS3Path
                       "Value": !Ref LoggingS3Path
                     - "Name":  AWS_XRAY_SDK_ENABLED
-                      "Value": !Ref XRayDiagnosis
+                      "Value": False
                   Image:        !GetAtt ECSParameters.Task.Image
                   Name:         !Sub "CloneSquad-${GroupName}-Main"
                   StartTimeout: !GetAtt ECSParameters.Task.StartTimeout

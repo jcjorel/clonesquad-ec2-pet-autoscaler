@@ -669,7 +669,7 @@ without any TargetGroup but another external health instance source exists).
         forced_cpu_credit_balance = self.get_state(debug_state_key)
         if forced_cpu_credit_balance is not None:
             try:
-                log.warn("Forcing CPU Credit Balance with state key '%s'!" % debug_state_key)
+                log.warning("Forcing CPU Credit Balance with state key '%s'!" % debug_state_key)
                 return int(forced_cpu_credit_balance)
             except Exception as e:
                 log.exception("Failed to convert '%s' as a int()!" % debug_state_key)

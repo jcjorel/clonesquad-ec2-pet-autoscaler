@@ -866,7 +866,7 @@ parameter should NOT be modified by user.
            return True
 
        if self.ec2.get_state("ec2.schedule.debug.instance.%s.force_out_of_cpu_crediting" % instance_id) in ["True", "true"]:
-           log.warn("Forced instance %s out of CPU Crediting state! (ec2.schedule.instance.%s.force_out_of_cpu_crediting=True)" % 
+           log.warning("Forced instance %s out of CPU Crediting state! (ec2.schedule.instance.%s.force_out_of_cpu_crediting=True)" % 
                    (instance_id, instance_id))
            self.set_state("ec2.schedule.debug.instance.%s.force_out_of_cpu_crediting" % instance_id, "False")
            return False

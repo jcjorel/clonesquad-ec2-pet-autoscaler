@@ -207,8 +207,8 @@ def ECSParameters_CreateOrUpdate(data, ECSDeploymentConfiguration=None):
             "Task.Image": "docker.io/clonesquad/runtime:latest",
             "Task.StartTimeout": 60,
             "Task.StopTimeout": 30,
-            "Task.Cpu": 256,
-            "Task.Memory": 512,
+            "Task.Cpu": 1024,
+            "Task.Memory": 2048,
             "Task.NetworkMode": "awsvpc"
         }
 

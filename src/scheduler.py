@@ -76,11 +76,11 @@ class Scheduler:
                 if schedule_expression.startswith("cron("):
                     expr = [ i for i in schedule_expression.replace("(", " ").replace(")"," ").split(" ") if i != ""]
                     if len(expr) != 7:
-                        log.warn("Schedule rule '%s' has an invalid cron expression '%s' (too short cron syntax)! Ignore it..." % 
+                        log.warning("Schedule rule '%s' has an invalid cron expression '%s' (too short cron syntax)! Ignore it..." % 
                                 (rule_def["EventName"], schedule_expression))
                         continue
                     if (expr[5] != '?' and not expr[3] == '?') or (expr[3] != '?' and not expr[5] == '?'):
-                        log.warn("Schedule rule '%s' has an invalid cron expression '%s'. " 
+                        log.warning("Schedule rule '%s' has an invalid cron expression '%s'. " 
                         "You can't specify the Day-of-month and Day-of-week fields in the same cron expression. If you specify a value (or a *) in one of the fields, you must use a ? (question mark) in the other. """ %  (rule_def["EventName"], schedule_expression))
                         continue
 

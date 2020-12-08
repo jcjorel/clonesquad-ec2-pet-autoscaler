@@ -53,7 +53,7 @@ def eventloop():
                 execution_time   = (misc.utc_now() - now).total_seconds()
                 log.info("main_handler() took %s seconds" % execution_time)
                 if execution_time >= period:
-                    log.warn("main_handler() execution time exceeds configured 'app.run_period' (=%s)! Consider increase this value!" % period)
+                    log.warning("main_handler() execution time exceeds configured 'app.run_period' (=%s)! Consider increase this value!" % period)
             except Exception as e:
                 log.exception("Got Exception while calling app.main_hanlder()! %s" % event)
 

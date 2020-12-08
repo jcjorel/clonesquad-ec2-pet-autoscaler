@@ -485,7 +485,7 @@ class Interact:
         else:
             cmd = self.commands[command]
             if "sqs" not in cmd["interface"]:
-                log.warn("Command '%s' not available through SQS queue!" % command)
+                log.warning("Command '%s' not available through SQS queue!" % command)
                 return True
             cacheddata = None
             if "prepare" in cmd:

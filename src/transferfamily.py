@@ -102,7 +102,7 @@ Disabled by default to save Main Lambda execution time. This flag activates supp
             arn = server["Arn"]
             subfleet_name  = self.get_subfleet_name(arn)
             if subfleet_name is None:
-                log.warn("Missing tag 'clonesquad:static-subfleet-name' on resource %s!" % arn)
+                log.warning("Missing tag 'clonesquad:static-subfleet-name' on resource %s!" % arn)
                 continue
             forbidden_chars = "[ .]"
             if re.match(forbidden_chars, subfleet_name):
@@ -110,7 +110,7 @@ Disabled by default to save Main Lambda execution time. This flag activates supp
                 continue
             expected_state = Cfg.get("staticfleet.%s.state" % subfleet_name, none_on_failure=True)
             if expected_state is None:
-                log.warn("Encountered a static fleet TransferFamily server (%s) without matching state directive. Please set 'staticfleet.%s.state' configuration key..." % 
+                log.warning("Encountered a static fleet TransferFamily server (%s) without matching state directive. Please set 'staticfleet.%s.state' configuration key..." % 
                         (arn, subfleet_name))
                 continue
             if expected_state == "running":
@@ -120,7 +120,7 @@ Disabled by default to save Main Lambda execution time. This flag activates supp
             elif expected_state in ["", "undefined"]:
                 continue # Nothing to do
             else:
-                log.warn("Can't understand 'staticfleet.%s.state' configuration key value! Valid values are [running, stopped, undefined]" % expected_state)
+                log.warning("Can't understand 'staticfleet.%s.state' configuration key value! Valid values are [running, stopped, undefined]" % expected_state)
                 continue
 
             current_state  = server["State"]

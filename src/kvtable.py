@@ -81,7 +81,7 @@ class KVTable():
                 continue
             key       = record["Key"]
             if "Value" not in record:
-                log.warn("Key '%s' specified but missing 'Value' column in configuration record: %s" % (key, record))
+                log.warning("Key '%s' specified but missing 'Value' column in configuration record: %s" % (key, record))
                 continue
             value     = record["Value"]
 
