@@ -1597,17 +1597,18 @@ parameter should NOT be modified by user.
         #   will reach 1.0 (so scaling) before invidual alarms are close to trig.
         unknown_divider_target = min(1.0, max(0.1, Cfg.get_float("ec2.schedule.horizontalscale.unknown_divider_target")))
 
-        oldest_metric_secs = 1
+        oldest_metric_secs   = 0
         for a in alarm_with_metrics:
             metric = self.cloudwatch.get_metric_by_id(a)
             if metric is not None:
                 metric_date = misc.str2utc(metric["_SamplingTime"])
                 oldest_metric_secs = max(oldest_metric_secs, (now - metric_date).total_seconds())
+        oldest_metric_secs   = max(1, oldest_metric_secs)
 
 
         all_points       = defaultdict(dict)
         sum_of_deltas    = 1 
-        sum_of_unkwnown_divider_delta_time = 1
+        sum_of_unkwnown_divider_delta_time = 0
         scores           = []
         no_metric_alarms = []
         for alarm_name in all_alarm_names:
@@ -1630,11 +1631,11 @@ parameter should NOT be modified by user.
                 except:
                     log.exception("[WARNING] Failed to process 'Points' metadata for alarm %s! (%s)" % (alarm_name, meta["Points"]))
 
-            if alarm_name in alarm_in_ALARM:
+            metric_data        = self.cloudwatch.get_alarm_data_by_name(alarm_name)
+            if alarm_name in alarm_in_ALARM or (metric_data is not None and metric_data["StateValue"] == "ALARM"):
                 # Alarm that are in ALARM state are directly earning their points
                 all_points[k][alarm_name] = int(alarm_points)
 
-            metric_data        = self.cloudwatch.get_alarm_data_by_name(alarm_name)
             if "MetricDetails" not in metric_data or len(metric_data["MetricDetails"]["Values"]) == 0:
                 no_metric_alarms.append(alarm_name)
                 continue
@@ -1654,15 +1655,16 @@ parameter should NOT be modified by user.
             gap       = abs(alarm_threshold - baseline_threshold)
             if gap == 0: continue
             gap_ratio = (latest_metric_value - baseline_threshold) / gap 
+
+            # Extrapolation algorithm
+            #   Youngest metric data got 80% weight ; oldest get 20% 
+            pcent = 0.20 + (0.6 * (oldest_metric_secs - (now - misc.str2utc(metric_data["MetricDetails"]["_SamplingTime"])).total_seconds()) / oldest_metric_secs)
             s = {
                 "AlarmName": alarm_name,
                 "ResourceKey": k,
                 "GapRatio": gap_ratio,
-                # We favor metrics that are younger...
-                "DeltaWeight": 1 + oldest_metric_secs - (now - misc.str2utc(metric_data["MetricDetails"]["_SamplingTime"])).total_seconds()
+                "DividerWeight": pcent
                 }
-            # Younger metrics get a greater weight...
-            s["DividerWeight"] = s["DeltaWeight"] / oldest_metric_secs 
             try:
                 if "Divider" in meta:
                     s["Divider"] = float(meta["Divider"])
@@ -1677,11 +1679,13 @@ parameter should NOT be modified by user.
         for s in scores:
             # Determine the divider to use (default is the amount of useable instances)
             if "Divider" in s:
-                weight = 1 / s["Divider"]
+                weight    = 1 / s["Divider"]
+                gap_ratio = s["GapRatio"] 
             else:
-                weight = s["DividerWeight"] / float(sum_of_unkwnown_divider_delta_time) / unknown_divider_target
 
-            gap_ratio    = s["GapRatio"]
+                weight    = s["DividerWeight"] / float(sum_of_unkwnown_divider_delta_time) 
+                gap_ratio = s["GapRatio"] / unknown_divider_target
+
             score_points = alarm_points * gap_ratio * weight
 
             alarm_name   = s["AlarmName"]

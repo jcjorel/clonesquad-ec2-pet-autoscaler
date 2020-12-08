@@ -250,7 +250,7 @@ def sns_handler(event, context):
     log.log(log.NOTICE, "Handler start.")
     ctx["FunctionName"] = "SNS"
 
-    misc.initialize_clients(["ec2", "sqs", "dynamodb"], ctx)
+    misc.initialize_clients(["ec2", "elbv2", "sqs", "dynamodb"], ctx)
     init()
     misc.load_prerequisites(ctx, ["o_state", "o_notify", "o_targetgroup"])
 
