@@ -160,6 +160,7 @@ to let the autoscaler algorithm do its smoother job instead)
                  "ec2.schedule.scalein.threshold_ratio" : 0.66,
                  "ec2.schedule.to_scalein_state.cooldown_delay" : 120,
                  "ec2.schedule.to_scaleout_state.cooldown_delay" : 0,
+                 "ec2.schedule.horizontalscale.unknown_divider_target": "0.8",
                  "ec2.schedule.horizontalscale.integration_period": "minutes=5",
                  "ec2.schedule.horizontalscale.raw_integration_period": "minutes=10",
                  "ec2.schedule.verticalscale.instance_type_distribution,Stable": {
@@ -1588,6 +1589,14 @@ parameter should NOT be modified by user.
         all_alarm_names         = alarm_with_metrics.copy()
         all_alarm_names.extend(list(filter(lambda a: a not in alarm_with_metrics, alarm_in_ALARM)))
 
+        # Target for weighted unknown divider:
+        #   When a divider is not specified, the algorithm will divide the individual scores by the number of
+        #   instances. Without a margin, the compute overall score could reach 1.0 at the very moment where
+        #   almost all alarms will trig giving their full score and making the autoscaler scales aggresssively. 
+        #   In order to avoid such erratic behavior, we implement a margin that will ensure the scaling score
+        #   will reach 1.0 (so scaling) before invidual alarms are close to trig.
+        unknown_divider_target = min(1.0, max(0.1, Cfg.get_float("ec2.schedule.horizontalscale.unknown_divider_target")))
+
         oldest_metric_secs = 1
         for a in alarm_with_metrics:
             metric = self.cloudwatch.get_metric_by_id(a)
@@ -1670,7 +1679,7 @@ parameter should NOT be modified by user.
             if "Divider" in s:
                 weight = 1 / s["Divider"]
             else:
-                weight = s["DividerWeight"] / float(sum_of_unkwnown_divider_delta_time) 
+                weight = s["DividerWeight"] / float(sum_of_unkwnown_divider_delta_time) / unknown_divider_target
 
             gap_ratio    = s["GapRatio"]
             score_points = alarm_points * gap_ratio * weight
