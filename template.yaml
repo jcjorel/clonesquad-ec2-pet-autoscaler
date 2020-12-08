@@ -459,30 +459,26 @@ Resources:
 
     MainFunctionLogGroup:
             Type: "AWS::Logs::LogGroup"
-            DependsOn: MainFunction
             Properties:
-              LogGroupName: !Join ["", ["/aws/lambda/", !Ref "MainFunction"]]
+              LogGroupName: !Sub "/aws/lambda/CloneSquad-Main-${GroupName}"
               RetentionInDays: !Ref LogRetentionDuration
 
     InteractFunctionLogGroup:
             Type: "AWS::Logs::LogGroup"
-            DependsOn: InteractFunction
             Properties:
-              LogGroupName: !Join ["", ["/aws/lambda/", !Ref "InteractFunction"]]
+              LogGroupName: !Sub "/aws/lambda/CloneSquad-Interact-${GroupName}"
               RetentionInDays: !Ref LogRetentionDuration
 
     SNSMgrFunctionLogGroup:
             Type: "AWS::Logs::LogGroup"
-            DependsOn: SNSMgrFunction
             Properties:
-              LogGroupName: !Join ["", ["/aws/lambda/", !Ref "SNSMgrFunction"]]
+              LogGroupName: !Sub "/aws/lambda/CloneSquad-SNSMgr-${GroupName}"
               RetentionInDays: !Ref LogRetentionDuration
 
     SNSDiscoveryFunctionLogGroup:
             Type: "AWS::Logs::LogGroup"
-            DependsOn: DiscoveryFunction
             Properties:
-              LogGroupName: !Join ["", ["/aws/lambda/", !Ref "DiscoveryFunction"]]
+              LogGroupName: !Sub "/aws/lambda/CloneSquad-Discovery-${GroupName}"
               RetentionInDays: !Ref LogRetentionDuration
 
     CustomResourceFunction:
@@ -575,6 +571,7 @@ Resources:
 
     MainFunction:
             Type: AWS::Serverless::Function 
+            DependsOn: MainFunctionLogGroup
             Properties:
               Handler: app.main_handler
               Runtime: python3.7
@@ -635,6 +632,7 @@ Resources:
 
     SNSMgrFunction:
             Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+            DependsOn: SNSMgrFunctionLogGroup
             Properties:
               Handler: app.sns_handler
               Runtime: python3.7
@@ -682,6 +680,7 @@ Resources:
 
     DiscoveryFunction:
             Type: AWS::Serverless::Function 
+            DependsOn: SNSDiscoveryFunctionLogGroup
             Properties:
               Handler: app.discovery_handler
               Runtime: python3.7
@@ -717,6 +716,7 @@ Resources:
 
     InteractFunction:
             Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+            DependsOn: InteractFunctionLogGroup
             Properties:
               Handler: app.interact_handler
               Runtime: python3.7

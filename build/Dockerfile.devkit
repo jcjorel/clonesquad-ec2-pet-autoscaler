@@ -1,7 +1,9 @@
 FROM amazonlinux:2
 MAINTAINER jeancharlesjorel@gmail.com
 
-ADD VERSION.txt /
+# Force full rebuild on version change
+ADD VERSION.txt / 
+
 RUN yum upgrade -y && \
     yum install git curl wget python3 jq shadow-utils sudo tar which procps-ng vim httpd-tools \
 	mtr iputils bind-utils time dialog uuid -y && \

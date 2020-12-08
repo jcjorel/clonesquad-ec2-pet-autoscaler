@@ -1,3 +1,10 @@
+v0.6.2:
+- (Bug/Minor) Fixed dependency issues preventing proper deletion of Log groups on stack deletion.
+- (Improvment/Minor) Enforce a release process more robust (especially by downloading the latest amazon linux image.
+
+v0.6.1:
+- (Bug/Major) Fixed regression in subfleet instance start.
+
 v0.6.0:
 - (Improvment/Major) BACKWARD COMPATIBILITY BREAK: Reworked semantic of API Gateway methods /metadata, /fleet/status and /fleet/metadata for better coherency and ease of handling at client side. Added subfleet informations to /fleet/status.
 - (Improvment/Minor) Provide CPU alarm templates for 25%/33%/50%/90% thresholds.
