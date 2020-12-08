@@ -1,6 +1,11 @@
 #!/bin/bash
 set -e
 
+if [ -z "$CLONESQUAD_DIR" ]; then
+	echo "Please define CLONESQUAD_DIR variable!" ; exit 1
+fi
+source ${CLONESQUAD_DIR}/scripts/_source-me.sh
+
 S3_BUCKET=$1
 S3_PREFIX=$2
 VERSION=$3
