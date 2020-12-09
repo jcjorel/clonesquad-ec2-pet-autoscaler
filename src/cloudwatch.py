@@ -239,12 +239,12 @@ See [Alarm specification documentation](ALARMS_REFERENCE.md)  for more details.
                 CloudWatch._format_query(query, alarm_name, alarm)
 
         # Query Metric for Burstable instances
-        burstable_instances = self.ec2.get_burstable_instances(ScalingState="-error")
+        burstable_instances = self.ec2.get_burstable_instances(State="running", ScalingState="-error")
         last_collect_date   = self.ec2.get_state_date("cloudwatch.metrics.last_burstable_metric_collect_date")
         if last_collect_date is None or (now - last_collect_date) > timedelta(minutes=1):
             for i in burstable_instances:
                 instance_id         = i["InstanceId"]
-                if not self.ec2.is_instance_state(instance_id, ["draining"]):
+                if self.ec2.get_scaling_state(instance_id, raw=True) != "draining":
                     continue
                 CloudWatch._format_query(query, "%s/%s" % ("CPUCreditBalance", instance_id), {
                         "MetricName": "CPUCreditBalance",

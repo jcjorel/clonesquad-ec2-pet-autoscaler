@@ -695,7 +695,7 @@ without any TargetGroup but another external health instance source exists).
             r[state].append(instance_id)
         return dict(r)
 
-    def get_scaling_state(self, instance_id, default=None, meta=None, default_date=None, do_not_return_excluded=False, cache=None):
+    def get_scaling_state(self, instance_id, default=None, meta=None, default_date=None, do_not_return_excluded=False, raw=False, cache=None):
         if meta is not None:
             for i in ["action", "draining", "error", "bounced"]:
                 meta["last_%s_date" % i] = misc.str2utc(self.get_state("ec2.instance.scaling.last_%s_date.%s" %
@@ -705,6 +705,8 @@ without any TargetGroup but another external health instance source exists).
             return cache[key][do_not_return_excluded]
 
         r   = self.get_state(key, default=default)
+        if raw:
+            return r
         #Special case for 'excluded': We test it here so tags will override the value
         i   = self.get_instance_by_id(instance_id)
         excluded_instances = Cfg.get_list("ec2.state.excluded_instance_ids", default=[])
