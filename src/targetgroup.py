@@ -195,16 +195,17 @@ class ManagedTargetGroup:
         """
         Add and remove EC2 instances in optionally user supplied TargetGroup
         """
-        running_instances  = self.ec2.get_instances(State="running", ScalingState="-excluded")
+        cache = {}
+        running_instances  = self.ec2.get_instances(cache=cache, State="running", ScalingState="-excluded")
 
         # Add excluded instances explicitly marked for forced inclusion to targetgroups
-        excluded_instances = self.ec2.get_instances(State="running", ScalingState="excluded")
+        excluded_instances = self.ec2.get_instances(cache=cache, State="running", ScalingState="excluded")
         running_instances.extend(self.ec2.filter_instance_list_by_tag(excluded_instances, 
             "clonesquad:force-excluded-instance-in-targetgroups", value=["True", "true"]))
 
         transitions = []
         for target in self.targetgroups:
-            self._manage_targetgroup(target["TargetGroupArn"], running_instances, transitions)
+            self._manage_targetgroup(target["TargetGroupArn"], running_instances, transitions, cache)
 
         if len(transitions):
             R(None, self.targetgroup_transitions, Transitions=transitions)
@@ -212,12 +213,12 @@ class ManagedTargetGroup:
     def targetgroup_transitions(self, Transitions=None):
         return {}
 
-    def _manage_targetgroup(self, targetgroup, running_instances, transitions):
+    def _manage_targetgroup(self, targetgroup, running_instances, transitions, cache):
         now                = self.context["now"]
         registered_targets = self.get_registered_targets(targetgroup)[0]
 
         #  Generate events on instance state transition 
-        for instance in self.ec2.get_instances(ScalingState="-excluded"):
+        for instance in self.ec2.get_instances(cache=cache, ScalingState="-excluded"):
             instance_id    = instance["InstanceId"]
             previous_state = self.get_instance_state(instance_id, targetgroup)
             if previous_state is None: previous_state = "None"
@@ -237,7 +238,7 @@ class ManagedTargetGroup:
         for instance in running_instances:
             instance_id    = instance["InstanceId"]
             instance_state = instance["State"]["Name"]
-            if instance_state != "running" or self.ec2.get_scaling_state(instance_id) in ["draining", "bounced", "error"]:
+            if instance_state != "running" or self.ec2.get_scaling_state(instance_id, raw=True) in ["draining", "bounced", "error"]:
                 continue
 
             target_instance = self.is_instance_registered(targetgroup, instance_id)
@@ -258,7 +259,7 @@ class ManagedTargetGroup:
         # List instances that are no more running but still in the TargetGroup
         delayed_deregister_instance_ids = []
         instance_ids_to_delete          = []
-        draining_instances              = self.ec2.get_instances(ScalingState="excluded,draining,bounced,error")
+        draining_instances              = self.ec2.get_instances(cache=cache, ScalingState="excluded,draining,bounced,error")
         slow_deregister_timeout         = int(Cfg.get_duration_secs("targetgroup.slow_deregister_timeout"))
         for instance in registered_targets:
             instance_id = instance["Target"]["Id"]
