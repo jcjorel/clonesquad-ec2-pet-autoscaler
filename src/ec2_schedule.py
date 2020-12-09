@@ -41,6 +41,7 @@ class EC2_Schedule:
         self.spot_interrupted         = []
         self.excluded_spot_instance_types = []
         self.spot_excluded_instance_ids = []
+        self.letter_box_subfleet_to_stop_drained_instances = defaultdict(int)
         Cfg.register({
                  "ec2.schedule.min_instance_count,Stable" : {
                      "DefaultValue" : 0,
@@ -732,12 +733,7 @@ parameter should NOT be modified by user.
     #### LOW LEVEL INSTANCE HANDLING ##############
     ###############################################
 
-    def filter_stopped_instance_candidates(self, caller, expected_instance_count, target_for_dispatch=None):
-        disabled_azs     = self.get_disabled_azs()
-        active_instances = self.pending_running_instances_wo_excluded_draining_error # ec2.get_instances(State="pending,running", ScalingState="-excluded,draining,error")
-        # Get all stopped instances
-        stopped_instances = self.ec2.get_instances(State="stopped", azs_filtered_out=disabled_azs)
-
+    def filter_stopped_instance_candidates(self, active_instances, stopped_instances):
         # Filter out Spot instance types that we know under interruption or close to interruption
         candidate_instances = self.ec2.filter_spot_instances(stopped_instances, filter_out_instance_types=self.excluded_spot_instance_types)
         if len(candidate_instances) != len(stopped_instances):
@@ -757,12 +753,44 @@ parameter should NOT be modified by user.
         # Ensure we pick instances in a way that keep AZs balanced
         stopped_instances = self.ec2.sort_by_balanced_az(stopped_instances, active_instances, 
                 smallest_to_biggest_az=True, excluded_instance_ids=self.instances_with_issues)
+        return stopped_instances
+
+    def filter_autoscaled_stopped_instance_candidates(self, caller, expected_instance_count, target_for_dispatch=None):
+        """ Return a list of startable instances in the autoscaled fleet.
+        """
+        disabled_azs     = self.get_disabled_azs()
+        active_instances = self.pending_running_instances_wo_excluded_draining_error 
+        # Get all stopped instances
+        stopped_instances = self.ec2.get_instances(State="stopped", azs_filtered_out=disabled_azs)
+
+        # Get a list of startable instances
+        stopped_instances = self.filter_stopped_instance_candidates(active_instances, stopped_instances)
 
         # Let the scaleout algorithm influence the instance selection
         stopped_instances = self.scaleup_sort_instances(stopped_instances, 
                 target_for_dispatch if target_for_dispatch is not None else expected_instance_count, 
                 caller)
         return stopped_instances
+
+    def filter_running_instance_candidates(self, active_instances):
+        """ Return a list of stoppable instances in the autoscaled fleet.
+        """
+        # Ensure we picked instances in a way that we keep AZs balanced
+        active_instances = self.ec2.sort_by_balanced_az(active_instances, active_instances, smallest_to_biggest_az=False)
+
+        # If we have disabled AZs, we placed them in front to remove associated instances first
+        active_instances = self.ec2.sort_by_prefered_azs(active_instances, prefered_azs=self.get_disabled_azs()) 
+
+        # We place instance with unuseable status in front of the list
+        active_instances = self.ec2.sort_by_prefered_instance_ids(active_instances, prefered_ids=self.instances_with_issues) 
+
+        # Put interruped Spot instances as first candidates to stop
+        active_instances = self.ec2.filter_spot_instances(active_instances, EventType="+rebalance_recommended",
+                filter_in_instance_types=self.excluded_spot_instance_types, merge_matching_spot_first=True)
+        active_instances = self.ec2.filter_spot_instances(active_instances, EventType="+interrupted",
+                filter_in_instance_types=self.excluded_spot_instance_types, merge_matching_spot_first=True)
+        return active_instances
+
 
     @xray_recorder.capture()
     def instance_action(self, desired_instance_count, caller, reject_if_initial_in_progress=False, target_for_dispatch=None):
@@ -788,7 +816,7 @@ parameter should NOT be modified by user.
             max_instance_start_at_a_time = Cfg.get_int("ec2.schedule.max_instance_start_at_a_time")
             c = min(delta_instance_count, max_instance_start_at_a_time)
 
-            stopped_instances = self.filter_stopped_instance_candidates(caller, expected_instance_count, target_for_dispatch=target_for_dispatch)
+            stopped_instances = self.filter_autoscaled_stopped_instance_candidates(caller, expected_instance_count, target_for_dispatch=target_for_dispatch)
             
             instance_ids_to_start = self.ec2.get_instance_ids(stopped_instances)
 
@@ -813,22 +841,8 @@ parameter should NOT be modified by user.
             c = min(-delta_instance_count, Cfg.get_int("ec2.schedule.max_instance_stop_at_a_time"))
             log.info("Draining up to %s (shapped to %d) instances..." % (-delta_instance_count, c))
 
-            active_instances = self.pending_running_instances_wo_excluded_draining_error 
-
-            # Ensure we picked instances in a way that we keep AZs balanced
-            active_instances = self.ec2.sort_by_balanced_az(active_instances, active_instances, smallest_to_biggest_az=False)
-
-            # If we have disabled AZs, we placed them in front to remove associated instances first
-            active_instances = self.ec2.sort_by_prefered_azs(active_instances, prefered_azs=self.get_disabled_azs()) 
-
-            # We place instance with unuseable status in front of the list
-            active_instances = self.ec2.sort_by_prefered_instance_ids(active_instances, prefered_ids=self.instances_with_issues) 
-
-            # Put interruped Spot instances as first candidates to stop
-            active_instances = self.ec2.filter_spot_instances(active_instances, EventType="+rebalance_recommended",
-                    filter_in_instance_types=self.excluded_spot_instance_types, merge_matching_spot_first=True)
-            active_instances = self.ec2.filter_spot_instances(active_instances, EventType="+interrupted",
-                    filter_in_instance_types=self.excluded_spot_instance_types, merge_matching_spot_first=True)
+            # Retrieve a list of running instances candidates for stop
+            active_instances = self.filter_running_instance_candidates(self.pending_running_instances_wo_excluded_draining_error)
 
             # Take into account scaledown algorithm
             active_instances = self.scaledown_sort_instances(active_instances, 
@@ -920,7 +934,7 @@ parameter should NOT be modified by user.
         non_burstable_instances        = self.non_burstable_instances
         max_number_crediting_instances = Cfg.get_abs_or_percent("ec2.schedule.burstable_instance.max_cpu_crediting_instances", -1, 
                 len(self.instances_wo_excluded))
-        max_startable_stopped_instances= self.filter_stopped_instance_candidates("stop_drained_instances", len(self.useable_instances))
+        max_startable_stopped_instances= self.filter_autoscaled_stopped_instance_candidates("stop_drained_instances", len(self.useable_instances))
         # To avoid availability issues, we do not allow more cpu crediting instances than startable instances
         #    It ensures that burstable instances are still available *even CPU Exhausted* to the fleet.
         max_number_crediting_instances = min(max_number_crediting_instances, len(max_startable_stopped_instances) 
@@ -940,10 +954,13 @@ parameter should NOT be modified by user.
            #   to allow its restart ASAP
            is_static_subfleet_instance = False
            if self.ec2.is_static_subfleet_instance(instance_id):
-                subfleet_name  = self.ec2.get_static_subfleet_name_for_instance(i)
-                expected_state = Cfg.get("staticfleet.%s.state" % subfleet_name)
+                subfleet_name               = self.ec2.get_static_subfleet_name_for_instance(i)
                 is_static_subfleet_instance = True
-                need_stop_now  = expected_state == "running"
+                letter_box                  = self.letter_box_subfleet_to_stop_drained_instances
+                # Did we receive a letter from subfleet management method?
+                if letter_box[subfleet_name]:
+                    need_stop_now              = True
+                    letter_box[subfleet_name] -= 1
            
            if Cfg.get("ec2.schedule.desired_instance_count") == "100%":
                need_stop_now = True
@@ -1018,8 +1035,8 @@ parameter should NOT be modified by user.
     def manage_static_subfleets(self):
         """Manage start/stop actions for static subfleet instances
         """
-        instances          = self.static_subfleet_instances
-        instances_to_start = []
+        instances = self.static_subfleet_instances
+        subfleets = defaultdict(list)
         for i in instances:
             instance_id    = i["InstanceId"]
             subfleet_name  = self.ec2.get_static_subfleet_name_for_instance(i)
@@ -1039,21 +1056,43 @@ parameter should NOT be modified by user.
                 log.warning("Expected state '%s' for static subfleet '%s' is not valid : (not in %s!)" % (expected_state, subfleet_name, allowed_expected_states))
                 continue
 
-            if expected_state == "running" and i["State"]["Name"] == "stopped":
-                # Filter out Spot instances recently stopped as we can't technically restart them before some time
-                valid_spot = self.ec2.filter_instance_recently_stopped([i], Cfg.get_duration_secs("ec2.schedule.spot.min_stop_period"), filter_only_spot=True)
-                if len(valid_spot) == 0:
-                    log.log(log.NOTICE, "Instance '%s' is a Spot one that can't be started yet..." % instance_id)
-                    continue
-                instances_to_start.append(instance_id)
+            if expected_state == "running":
+                subfleets[subfleet_name].append(i)
+
             if (expected_state == "stopped" and i["State"]["Name"] == "running" 
                     and self.ec2.get_scaling_state(instance_id, do_not_return_excluded=True) != "draining"):
                 log.info("Draining static fleet instance '%s'..." % instance_id)
                 self.ec2.set_scaling_state(instance_id, "draining")
-        if len(instances_to_start):
-            log.info("Starting static fleet instance(s) '%s'..." % instances_to_start)
-            self.ec2.start_instances(instances_to_start)
-            self.scaling_state_changed = True
+
+        # Manage start/stop of 'running' subfleet
+        cache = {}
+        for subfleet in subfleets:
+            fleet_instances        = subfleets[subfleet]
+            desired_instance_count = max(0, Cfg.get_abs_or_percent("staticfleet.%s.ec2.desired_instance_count" % subfleet, 
+                len(fleet_instances), len(fleet_instances)))
+            running_instances      = self.ec2.get_instances(cache=cache, instances=fleet_instances, 
+                    State="pending,running", ScalingState="-error,draining,bounced")
+            stopped_instances      = self.ec2.get_instances(cache=cache, instances=fleet_instances, State="stopped")
+            delta                  = desired_instance_count - len(running_instances)
+            if delta > 0:
+                stopped_instances = self.filter_stopped_instance_candidates(running_instances, stopped_instances)
+                if len(stopped_instances):
+                    instances_to_start = [ i["InstanceId"] for i in stopped_instances ]
+                    if delta > len(instances_to_start):
+                        # If we can't start the request number of instances, we set a letter box variable
+                        #   to ask stop_drained_instances() to release immediatly this amount of 'draining' 
+                        #   instances if possible
+                        self.letter_box_subfleet_to_stop_drained_instances[subfleet] = delta - len(instances_to_start)
+                    log.info("Starting up to %d static fleet instance(s) (fleet=%s)..." % (len(instances_to_start), subfleet))
+                    self.ec2.start_instances(instances_to_start, max_started_instances=desired_instance_count)
+                    self.scaling_state_changed = True
+            if delta < 0:
+                running_instances = self.filter_running_instance_candidates(running_instances)
+                if len(running_instances):
+                    instances_to_stop = [i["InstanceId"] for i in running_instances][:-delta]
+                    log.info("Draining static fleet instance(s) '%s'..." % instances_to_stop)
+                    for instance_id in instances_to_stop:
+                        self.ec2.set_scaling_state(instance_id, "draining")
 
 
     ###############################################

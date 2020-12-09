@@ -20,7 +20,7 @@ import math
 parser = argparse.ArgumentParser(description="LoadBalancer load generator")
 parser.add_argument('loadbalancer_url', help="LoadBalancer URL", type=str, nargs=1)
 parser.add_argument('--period', help="Duration", type=str, default="hours=2")
-parser.add_argument('--max-concurrency', help="Connection concurrency to load balancer", type=int, default=35)
+parser.add_argument('--max-concurrency', help="Connection concurrency to load balancer", type=int, default=30)
 
 args = parser.parse_args()
 args_dict = {}

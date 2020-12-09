@@ -229,9 +229,10 @@ without any TargetGroup but another external health instance source exists).
         for static_fleet in static_subfleet_names:
             key = "staticfleet.%s.state" % static_fleet
             if not Cfg.is_builtin_key_exist(key):
-                Cfg.register({
-                    key : ""
-                    })
+                Cfg.register({ key : "" })
+            key = "staticfleet.%s.ec2.desired_instance_count" % static_fleet
+            if not Cfg.is_builtin_key_exist(key):
+                Cfg.register({ key : "" })
         log.log(log.NOTICE, "Detected following static subfleet names across EC2 resources: %s" % static_subfleet_names)
 
         # Load EC2 status override URL content
