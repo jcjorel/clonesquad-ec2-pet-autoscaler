@@ -244,7 +244,7 @@ See [Alarm specification documentation](ALARMS_REFERENCE.md)  for more details.
         if last_collect_date is None or (now - last_collect_date) > timedelta(minutes=1):
             for i in burstable_instances:
                 instance_id         = i["InstanceId"]
-                if not self.ec2.is_static_subfleet_instance(instance_id) and self.ec2.get_scaling_state(instance_id) == "excluded":
+                if not self.ec2.is_instance_state(instance_id, ["draining"]):
                     continue
                 CloudWatch._format_query(query, "%s/%s" % ("CPUCreditBalance", instance_id), {
                         "MetricName": "CPUCreditBalance",
