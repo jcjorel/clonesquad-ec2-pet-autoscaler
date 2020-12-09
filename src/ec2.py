@@ -90,6 +90,36 @@ forcing their immediate replacement in healthy AZs in the region.
                      with value 'True'.
                      """
                  },
+                 "staticfleet.<subfleetname>.state,Stable": {
+                         "DefaultValue": "undefined",
+                         "Format": "String",
+                         "Description": """Define the status of the subfleet named <subfleetname>.
+
+Can be one the following values ['`stopped`', '`undefined`', '`running`'].
+
+A subfleet can contain EC2 instances but also RDS and TransferFamilies tagged instances.
+                 """},
+                 "staticfleet.<subfleetname>.ec2.schedule.desired_instance_count,Stable": {
+                         "DefaultValue": "100%",
+                         "Format": "IntegerOrPercentage",
+                         "Description": """Define the number of EC2 instances to start when a subfleet is in a 'running' state.
+
+> This parameter has no effect if [`staticfleet.<subfleetname>.state`](#staticfleetsubfleetnamestate) is set to a value different than `running`.
+                 """},
+                 "staticfleet.<subfleetname>.ec2.schedule.metrics.enable,Stable": {
+                         "DefaultValue": "0",
+                         "Format": "Bool",
+                         "Description": """Enable detailed metrics for the subfleet <subfleetname>.
+
+The following additional metrics are generated:
+* StaticFleet.EC2.Size,
+* StaticFleet.EC2.RunningInstances,
+* StaticFleet.EC2.DrainingInstances.
+
+These metrics are associated to a dimension specifying the subfleet name and are so different from the metrics with similar names from
+the autoscaled fleet.
+
+                 """},
                  "ec2.debug.availability_zones_impaired": "",
                  "ec2.instance.status.override_url,Stable": {
                     "DefaultValue": "",
@@ -227,12 +257,10 @@ without any TargetGroup but another external health instance source exists).
         #   when the user is going to set it
         static_subfleet_names = self.get_static_subfleet_names()
         for static_fleet in static_subfleet_names:
-            key = "staticfleet.%s.state" % static_fleet
-            if not Cfg.is_builtin_key_exist(key):
-                Cfg.register({ key : "" })
-            key = "staticfleet.%s.ec2.desired_instance_count" % static_fleet
-            if not Cfg.is_builtin_key_exist(key):
-                Cfg.register({ key : "" })
+            for k in Cfg.keys():
+                key = k.replace("<subfleetname>", static_fleet)
+                if k.startswith("staticfleet.<subfleetname>.") and not Cfg.is_builtin_key_exist(key):
+                    Cfg.register({ key : Cfg.get(k) })
         log.log(log.NOTICE, "Detected following static subfleet names across EC2 resources: %s" % static_subfleet_names)
 
         # Load EC2 status override URL content

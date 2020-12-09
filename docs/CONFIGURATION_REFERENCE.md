@@ -199,6 +199,48 @@ forcing their immediate replacement in healthy AZs in the region.
 
 
 
+### staticfleet.<subfleetname>.state
+Default Value: `undefined`   
+Format       :  [String](#String)
+
+Define the status of the subfleet named <subfleetname>.
+
+Can be one the following values ['`stopped`', '`undefined`', '`running`'].
+
+A subfleet can contain EC2 instances but also RDS and TransferFamilies tagged instances.
+                 
+
+
+
+### staticfleet.<subfleetname>.ec2.schedule.desired_instance_count
+Default Value: `100%`   
+Format       :  [IntegerOrPercentage](#IntegerOrPercentage)
+
+Define the number of EC2 instances to start when a subfleet is in a 'running' state.
+
+> This parameter has no effect if [`staticfleet.<subfleetname>.state`](#staticfleetsubfleetnamestate) is set to a value different than `running`.
+                 
+
+
+
+### staticfleet.<subfleetname>.ec2.schedule.metrics.enable
+Default Value: `0`   
+Format       :  [Bool](#Bool)
+
+Enable detailed metrics for the subfleet <subfleetname>.
+
+The following additional metrics are generated:
+* StaticFleet.EC2.Size,
+* StaticFleet.EC2.RunningInstances,
+* StaticFleet.EC2.DrainingInstances.
+
+These metrics are associated to a dimension specifying the subfleet name and are so different from the metrics with similar names from
+the autoscaled fleet.
+
+                 
+
+
+
 ### ec2.instance.status.override_url
 Default Value: ``   
 Format       :  [String](#String)
@@ -615,6 +657,19 @@ When specified in percentage, 100% represents the ['Maximum earned credits than 
     Ex: `30%` for a t3.medium means a minimum cpu credit of `0.3 * 576 = 172`
 
                          
+
+
+
+### cloudwatch.staticfleet.use_dashboard
+Default Value: `1`   
+Format       :  [Bool](#Bool)
+
+Enable or disabled the dashboard dedicated to Subfleets.
+
+By default, the dashboard is enabled.
+
+> Note: The dashboard is configured only if there is at least one Subfleet with detailed metrics.
+                 
 
 
 

@@ -478,19 +478,23 @@ See [Alarm specification documentation](ALARMS_REFERENCE.md)  for more details.
         return self.metrics
 
     def set_metric(self, name, value, dimensions=None):
-        for m in self.metrics:
-            if m["MetricName"] == name:
-                m["Value"]     = float(value) if value is not None else None
-                m["Timestamp"] = self.context["now"]
-                m["Dimensions"] = [{
-                        "Name": "GroupName",
-                        "Value": self.context["GroupName"]
-                        }]
-                if dimensions is not None:
-                    m["Dimensions"].update(dimensions)
-                log.log(log.NOTICE, "Metric[%s] = %s" % (name, value))
-                return
-        raise Exception("Unknown metric set '%s'"  % name)
+        metric = None
+        if dimensions is None:
+            m = next(filter(lambda m: m["MetricName"] == name and "Dimensions" not in m, self.metrics), None)
+        else:
+            m = next(filter(lambda m: m["MetricName"] == name and "Dimensions" in m and m["Dimensions"] == dimensions, self.metrics), None)
+        if m is None:
+            raise Exception("Unknown metric set '%s' (Dimensions=%s)"  % (name, dimensions))
+
+        m["Value"]     = float(value) if value is not None else None
+        m["Timestamp"] = self.context["now"]
+        m["Dimensions"] = [{
+                "Name": "GroupName",
+                "Value": self.context["GroupName"]
+                }]
+        if dimensions is not None:
+            m["Dimensions"].extend(dimensions)
+        log.log(log.NOTICE, "Metric[%s] = %s (Dimensions=%s)" % (name, value, dimensions))
 
     @xray_recorder.capture()
     def send_metrics(self):
@@ -521,7 +525,7 @@ See [Alarm specification documentation](ALARMS_REFERENCE.md)  for more details.
             try:
                 response = client.put_metric_data(Namespace=namespace, MetricData=metrics[:20])
             except:
-                log.Exception("Failed to send metrics to CloudWatch : %s" % metrics[:20])
+                log.exception("Failed to send metrics to CloudWatch : %s" % metrics[:20])
             metrics = metrics[20:]
 
 

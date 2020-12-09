@@ -281,88 +281,98 @@ A very recently stopped persistent Spot instance can not be restarted immediatly
 parameter should NOT be modified by user.
                          """
                  },
+                 "cloudwatch.staticfleet.use_dashboard,Stable": {
+                         "DefaultValue": "1",
+                         "Format": "Bool",
+                         "Description": """Enable or disabled the dashboard dedicated to Subfleets.
+
+By default, the dashboard is enabled.
+
+> Note: The dashboard is configured only if there is at least one Subfleet with detailed metrics.
+                 """},
                  "ec2.schedule.verticalscale.disable_instance_type_plannning": 0
         })
 
         self.state_ttl = Cfg.get_duration_secs("ec2.schedule.state_ttl")
 
-        metric_time_resolution = Cfg.get_int("ec2.schedule.metrics.time_resolution")
-        if metric_time_resolution < 60: metric_time_resolution = 1 # Switch to highest resolution
+        self.metric_time_resolution = Cfg.get_int("ec2.schedule.metrics.time_resolution")
+        if self.metric_time_resolution < 60: metric_time_resolution = 1 # Switch to highest resolution
 
         self.cloudwatch.register_metric([
                 { "MetricName": "DrainingInstances",
                   "Unit": "Count",
-                  "StorageResolution": metric_time_resolution },
+                  "StorageResolution": self.metric_time_resolution },
                 { "MetricName": "RunningInstances",
                   "Unit": "Count",
-                  "StorageResolution": metric_time_resolution },
+                  "StorageResolution": self.metric_time_resolution },
                 { "MetricName": "PendingInstances",
                   "Unit": "Count",
-                  "StorageResolution": metric_time_resolution },
+                  "StorageResolution": self.metric_time_resolution },
                 { "MetricName": "StoppedInstances",
                   "Unit": "Count",
-                  "StorageResolution": metric_time_resolution },
+                  "StorageResolution": self.metric_time_resolution },
                 { "MetricName": "StoppingInstances",
                   "Unit": "Count",
-                  "StorageResolution": metric_time_resolution },
+                  "StorageResolution": self.metric_time_resolution },
                 { "MetricName": "NbOfInstanceInInitialState",
                   "Unit": "Count",
-                  "StorageResolution": metric_time_resolution },
+                  "StorageResolution": self.metric_time_resolution },
                 { "MetricName": "NbOfInstanceInUnuseableState",
                   "Unit": "Count",
-                  "StorageResolution": metric_time_resolution },
+                  "StorageResolution": self.metric_time_resolution },
                 { "MetricName": "NbOfBouncedInstances",
                   "Unit": "Count",
-                  "StorageResolution": metric_time_resolution },
+                  "StorageResolution": self.metric_time_resolution },
                 { "MetricName": "NbOfExcludedInstances",
                   "Unit": "Count",
-                  "StorageResolution": metric_time_resolution },
+                  "StorageResolution": self.metric_time_resolution },
                 { "MetricName": "NbOfCPUCreditExhaustedInstances",
                   "Unit": "Count",
-                  "StorageResolution": metric_time_resolution },
+                  "StorageResolution": self.metric_time_resolution },
                 { "MetricName": "NbOfCPUCreditingInstances",
                   "Unit": "Count",
-                  "StorageResolution": metric_time_resolution },
+                  "StorageResolution": self.metric_time_resolution },
                 { "MetricName": "InstanceScaleScore",
                   "Unit": "None",
-                  "StorageResolution": metric_time_resolution },
+                  "StorageResolution": self.metric_time_resolution },
                 { "MetricName": "FleetSize",
                   "Unit": "Count",
-                  "StorageResolution": metric_time_resolution },
+                  "StorageResolution": self.metric_time_resolution },
                 { "MetricName": "MinInstanceCount",
                   "Unit": "Count",
-                  "StorageResolution": metric_time_resolution },
+                  "StorageResolution": self.metric_time_resolution },
                 { "MetricName": "DesiredInstanceCount",
                   "Unit": "Count",
-                  "StorageResolution": metric_time_resolution },
+                  "StorageResolution": self.metric_time_resolution },
                 { "MetricName": "NbOfInstancesInError",
                   "Unit": "Count",
-                  "StorageResolution": metric_time_resolution },
+                  "StorageResolution": self.metric_time_resolution },
                 { "MetricName": "RunningLighthouseInstances",
                   "Unit": "Count",
-                  "StorageResolution": metric_time_resolution },
+                  "StorageResolution": self.metric_time_resolution },
                 { "MetricName": "FleetvCPUCount",
                   "Unit": "Count",
-                  "StorageResolution": metric_time_resolution },
+                  "StorageResolution": self.metric_time_resolution },
                 { "MetricName": "FleetvCPUNeed",
                   "Unit": "Count",
-                  "StorageResolution": metric_time_resolution },
+                  "StorageResolution": self.metric_time_resolution },
                 { "MetricName": "FleetMemCount",
                   "Unit": "Count",
-                  "StorageResolution": metric_time_resolution },
+                  "StorageResolution": self.metric_time_resolution },
                 { "MetricName": "FleetMemNeed",
                   "Unit": "Count",
-                  "StorageResolution": metric_time_resolution },
+                  "StorageResolution": self.metric_time_resolution },
                 { "MetricName": "StaticFleet.EC2.Size",
                   "Unit": "Count",
-                  "StorageResolution": metric_time_resolution },
+                  "StorageResolution": self.metric_time_resolution },
                 { "MetricName": "StaticFleet.EC2.RunningInstances",
                   "Unit": "Count",
-                  "StorageResolution": metric_time_resolution },
+                  "StorageResolution": self.metric_time_resolution },
                 { "MetricName": "StaticFleet.EC2.DrainingInstances",
                   "Unit": "Count",
-                  "StorageResolution": metric_time_resolution },
+                  "StorageResolution": self.metric_time_resolution },
             ])
+
         self.ec2.register_state_aggregates([
             {
                 "Prefix": "ec2.schedule.instance.",
@@ -444,9 +454,33 @@ parameter should NOT be modified by user.
             log.debug("Garbage collect key '%s'..." % state)
             self.ec2.set_state(state, "", TTL=1)
 
+        # Display a warning if some AZ are manually disabled
         disabled_azs = self.get_disabled_azs()
         if len(disabled_azs) > 0:
             log.info("Some Availability Zones are disabled: %s" % disabled_azs)
+
+        # Register dynamic keys for subfleets
+        for subfleet in self.ec2.get_static_subfleet_names():
+            extended_metrics = Cfg.get_int("staticfleet.%s.ec2.schedule.metrics.enable" % subfleet) 
+            log.log(log.NOTICE, "Enabled detailed metrics for subfleet '%s'." % subfleet)
+            if extended_metrics:
+                dimensions = [{
+                    "Name": "SubfleetName",
+                    "Value": subfleet}]
+                self.cloudwatch.register_metric([ 
+                        { "MetricName": "StaticFleet.EC2.Size",
+                          "Dimensions": dimensions,
+                          "Unit": "Count",
+                          "StorageResolution": self.metric_time_resolution },
+                        { "MetricName": "StaticFleet.EC2.RunningInstances",
+                          "Dimensions": dimensions,
+                          "Unit": "Count",
+                          "StorageResolution": self.metric_time_resolution },
+                        { "MetricName": "StaticFleet.EC2.DrainingInstances",
+                          "Dimensions": dimensions,
+                          "Unit": "Count",
+                          "StorageResolution": self.metric_time_resolution },
+                    ])
 
 
 
@@ -613,6 +647,7 @@ parameter should NOT be modified by user.
         self.scale_in_out()
         self.wakeup_burstable_instances()
         self.manage_static_subfleets()
+        self.generate_static_subfleet_dashboard()
 
     @xray_recorder.capture()
     def prepare_metrics(self):
@@ -1036,7 +1071,7 @@ parameter should NOT be modified by user.
         """Manage start/stop actions for static subfleet instances
         """
         instances = self.static_subfleet_instances
-        subfleets = defaultdict(list)
+        subfleets = {}
         for i in instances:
             instance_id    = i["InstanceId"]
             subfleet_name  = self.ec2.get_static_subfleet_name_for_instance(i)
@@ -1056,43 +1091,117 @@ parameter should NOT be modified by user.
                 log.warning("Expected state '%s' for static subfleet '%s' is not valid : (not in %s!)" % (expected_state, subfleet_name, allowed_expected_states))
                 continue
 
+            if subfleet_name not in subfleets:
+                subfleets[subfleet_name] = defaultdict(list)
+
             if expected_state == "running":
-                subfleets[subfleet_name].append(i)
+                subfleets[subfleet_name]["ToStart"].append(i)
 
             if (expected_state == "stopped" and i["State"]["Name"] == "running" 
                     and self.ec2.get_scaling_state(instance_id, do_not_return_excluded=True) != "draining"):
-                log.info("Draining static fleet instance '%s'..." % instance_id)
-                self.ec2.set_scaling_state(instance_id, "draining")
+                subfleets[subfleet_name]["ToStop"].append(i)
 
+            subfleets[subfleet_name]["All"].append(i)
+
+        
         # Manage start/stop of 'running' subfleet
         cache = {}
         for subfleet in subfleets:
-            fleet_instances        = subfleets[subfleet]
-            desired_instance_count = max(0, Cfg.get_abs_or_percent("staticfleet.%s.ec2.desired_instance_count" % subfleet, 
-                len(fleet_instances), len(fleet_instances)))
+            fleet                  = subfleets[subfleet]
+            fleet_instances        = fleet["All"]
             running_instances      = self.ec2.get_instances(cache=cache, instances=fleet_instances, 
                     State="pending,running", ScalingState="-error,draining,bounced")
             stopped_instances      = self.ec2.get_instances(cache=cache, instances=fleet_instances, State="stopped")
-            delta                  = desired_instance_count - len(running_instances)
-            if delta > 0:
-                stopped_instances = self.filter_stopped_instance_candidates(running_instances, stopped_instances)
-                if len(stopped_instances):
-                    instances_to_start = [ i["InstanceId"] for i in stopped_instances ]
-                    if delta > len(instances_to_start):
-                        # If we can't start the request number of instances, we set a letter box variable
-                        #   to ask stop_drained_instances() to release immediatly this amount of 'draining' 
-                        #   instances if possible
-                        self.letter_box_subfleet_to_stop_drained_instances[subfleet] = delta - len(instances_to_start)
-                    log.info("Starting up to %d static fleet instance(s) (fleet=%s)..." % (len(instances_to_start), subfleet))
-                    self.ec2.start_instances(instances_to_start, max_started_instances=desired_instance_count)
-                    self.scaling_state_changed = True
-            if delta < 0:
-                running_instances = self.filter_running_instance_candidates(running_instances)
-                if len(running_instances):
-                    instances_to_stop = [i["InstanceId"] for i in running_instances][:-delta]
-                    log.info("Draining static fleet instance(s) '%s'..." % instances_to_stop)
-                    for instance_id in instances_to_stop:
-                        self.ec2.set_scaling_state(instance_id, "draining")
+            draining_instances     = self.ec2.get_instances(cache=cache, instances=fleet_instances, State="draining")
+            if len(fleet["ToStop"]):
+                instance_ids = [i["InstanceId"] for i in fleet["ToStop"]]
+                log.info("Draining static fleet instance(s) '%s'..." % instance_ids)
+                for instance_id in instance_ids:
+                    self.ec2.set_scaling_state(instance_id, "draining")
+
+            if len(fleet["ToStart"]):
+                desired_instance_count = max(0, Cfg.get_abs_or_percent("staticfleet.%s.ec2.schedule.desired_instance_count" % subfleet, 
+                    len(fleet_instances), len(fleet_instances)))
+                delta                  = desired_instance_count - len(running_instances)
+                if delta > 0:
+                    stopped_instances = self.filter_stopped_instance_candidates(running_instances, stopped_instances)
+                    if len(stopped_instances):
+                        instances_to_start = [ i["InstanceId"] for i in stopped_instances ]
+                        if delta > len(instances_to_start):
+                            # If we can't start the request number of instances, we set a letter box variable
+                            #   to ask stop_drained_instances() to release immediatly this amount of 'draining' 
+                            #   instances if possible
+                            self.letter_box_subfleet_to_stop_drained_instances[subfleet] = delta - len(instances_to_start)
+                        log.info("Starting up to %d static fleet instance(s) (fleet=%s)..." % (len(instances_to_start), subfleet))
+                        self.ec2.start_instances(instances_to_start, max_started_instances=desired_instance_count)
+                        self.scaling_state_changed = True
+                if delta < 0:
+                    running_instances = self.filter_running_instance_candidates(running_instances)
+                    if len(running_instances):
+                        instances_to_stop = [i["InstanceId"] for i in running_instances][:-delta]
+                        log.info("Draining static fleet instance(s) '%s'..." % instances_to_stop)
+                        for instance_id in instances_to_stop:
+                            self.ec2.set_scaling_state(instance_id, "draining")
+
+            extended_metrics = Cfg.get_int("staticfleet.%s.ec2.schedule.metrics.enable" % subfleet)
+            dimensions = [{
+                "Name": "SubfleetName",
+                "Value": subfleet}]
+            if extended_metrics:
+                self.cloudwatch.set_metric("StaticFleet.EC2.Size", len(fleet["All"]), dimensions=dimensions)
+                self.cloudwatch.set_metric("StaticFleet.EC2.RunningInstances", len(running_instances), dimensions=dimensions)
+                self.cloudwatch.set_metric("StaticFleet.EC2.DrainingInstances", len(draining_instances), dimensions=dimensions)
+
+    def generate_static_subfleet_dashboard(self):
+        now                = self.context["now"]
+        dashboard          = { "widgets": [] }
+        static_subfleets   = self.ec2.get_static_subfleet_names()
+        fleet_with_details = []
+        for i in range(0, len(static_subfleets)):
+            subfleet_name = static_subfleets[i]
+            if not Cfg.get_int("staticfleet.%s.ec2.schedule.metrics.enable" % subfleet_name):
+                continue
+            fleet_with_details.append(subfleet_name)
+            widget = {
+                    "type": "metric",
+                    "x": 0 if (i+1) % 2 else 12,
+                    "y": int(i / 2) * 6,
+                    "width": 12,
+                    "height": 6,
+                    "properties": {
+                        "view": "timeSeries",
+                        "stacked": False,
+                        "metrics": [
+                            [ "CloneSquad", "StaticFleet.EC2.Size", "GroupName", self.context["GroupName"], "SubfleetName", subfleet_name ],
+                            [ ".", "StaticFleet.EC2.RunningInstances", ".", ".", ".", "." ],
+                            [ ".", "StaticFleet.EC2.DrainingInstances", ".", ".", ".", "." ]
+                        ],
+                        "region": self.context["AWS_DEFAULT_REGION"],
+                        "title": subfleet_name
+                    }
+                }
+            dashboard["widgets"].append(widget)
+
+        use_dashboard    =  Cfg.get_int("cloudwatch.staticfleet.use_dashboard") if len(dashboard["widgets"]) != 0 else False
+        fingerprint      = "%s : %s : %s " % (sorted(fleet_with_details), use_dashboard, 
+                True if now.minute % 15 else False) # Make the fingerprint change every 15 minutes
+        last_fingerprint = self.ec2.get_state("cloudwatch.staticfleet.last_fingerprint")
+        client = self.context["cloudwatch.client"]
+        if fingerprint != last_fingerprint:
+            if not use_dashboard:
+                try:
+                    client.delete_dashboards(
+                            DashboardNames=[self._get_dashboard_name()]
+                        )
+                except: 
+                    pass
+            else:
+                log.log(log.NOTICE, "Configuring Static Subfleet CloudWatch dashboard...")
+                response = client.put_dashboard(
+                        DashboardName="CloneSquad-%s-Subfleets" % self.context["GroupName"],
+                        DashboardBody=Dbg.pprint(dashboard)
+                    )
+        self.set_state("cloudwatch.staticfleet.last_fingerprint", fingerprint)
 
 
     ###############################################
