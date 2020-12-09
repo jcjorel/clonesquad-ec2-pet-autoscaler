@@ -1,5 +1,6 @@
 v0.7.0:
 - (Improvment/Major) Autoscaling using only per instance metric as scaling criteria is now smoother.
+- (Improvment/Minor) Reduce CloudWatch cost by polling CPU Credit balance only for 'drained' instances.
 - (Bug/Minor) Fixed dependency issues preventing proper deletion of Log groups on stack deletion.
 - (Improvment/Minor) Enforce a release process more robust (especially by downloading the latest amazon linux image.
 
