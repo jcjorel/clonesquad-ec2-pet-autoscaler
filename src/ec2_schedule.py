@@ -1112,7 +1112,7 @@ By default, the dashboard is enabled.
             running_instances      = self.ec2.get_instances(cache=cache, instances=fleet_instances, 
                     State="pending,running", ScalingState="-error,draining,bounced")
             stopped_instances      = self.ec2.get_instances(cache=cache, instances=fleet_instances, State="stopped")
-            draining_instances     = self.ec2.get_instances(cache=cache, instances=fleet_instances, State="draining")
+            draining_instances     = self.ec2.get_instances(cache=cache, instances=fleet_instances, State="running", ScalingState="draining")
             if len(fleet["ToStop"]):
                 instance_ids = [i["InstanceId"] for i in fleet["ToStop"]]
                 log.info("Draining static fleet instance(s) '%s'..." % instance_ids)
@@ -1155,8 +1155,9 @@ By default, the dashboard is enabled.
     def generate_static_subfleet_dashboard(self):
         now                = self.context["now"]
         dashboard          = { "widgets": [] }
-        static_subfleets   = self.ec2.get_static_subfleet_names()
+        static_subfleets   = sorted(self.ec2.get_static_subfleet_names())
         fleet_with_details = []
+        pdb.set_trace()
         for i in range(0, len(static_subfleets)):
             subfleet_name = static_subfleets[i]
             if not Cfg.get_int("staticfleet.%s.ec2.schedule.metrics.enable" % subfleet_name):
@@ -1165,7 +1166,7 @@ By default, the dashboard is enabled.
             widget = {
                     "type": "metric",
                     "x": 0 if (i+1) % 2 else 12,
-                    "y": int(i / 2) * 6,
+                    "y": 1 + int(i / 2) * 6,
                     "width": 12,
                     "height": 6,
                     "properties": {
@@ -1177,14 +1178,16 @@ By default, the dashboard is enabled.
                             [ ".", "StaticFleet.EC2.DrainingInstances", ".", ".", ".", "." ]
                         ],
                         "region": self.context["AWS_DEFAULT_REGION"],
-                        "title": subfleet_name
+                        "title": subfleet_name,
+                        "period": 60,
+                        "stat": "Average"
                     }
                 }
             dashboard["widgets"].append(widget)
 
         use_dashboard    =  Cfg.get_int("cloudwatch.staticfleet.use_dashboard") if len(dashboard["widgets"]) != 0 else False
-        fingerprint      = "%s : %s : %s " % (sorted(fleet_with_details), use_dashboard, 
-                True if now.minute % 15 else False) # Make the fingerprint change every 15 minutes
+        fingerprint      = "%s : %s : %s " % (fleet_with_details, use_dashboard, 
+                now.minute / 15) # Make the fingerprint change every 15 minutes
         last_fingerprint = self.ec2.get_state("cloudwatch.staticfleet.last_fingerprint")
         client = self.context["cloudwatch.client"]
         if fingerprint != last_fingerprint:
@@ -1196,6 +1199,16 @@ By default, the dashboard is enabled.
                 except: 
                     pass
             else:
+                dashboard["widgets"].append({
+                    "type": "text",
+                    "x": 0,
+                    "y": 0,
+                    "width": 24,
+                    "height": 1,
+                    "properties": {
+                       "markdown": "\n### This is an automatically generated dashboard. **DO NOT EDIT!**\n"
+                        }
+                    })
                 log.log(log.NOTICE, "Configuring Static Subfleet CloudWatch dashboard...")
                 response = client.put_dashboard(
                         DashboardName="CloneSquad-%s-Subfleets" % self.context["GroupName"],
