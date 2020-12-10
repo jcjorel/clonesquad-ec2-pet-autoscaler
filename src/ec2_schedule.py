@@ -796,7 +796,7 @@ By default, the dashboard is enabled.
         disabled_azs     = self.get_disabled_azs()
         active_instances = self.pending_running_instances_wo_excluded_draining_error 
         # Get all stopped instances
-        stopped_instances = self.ec2.get_instances(State="stopped", azs_filtered_out=disabled_azs)
+        stopped_instances = self.ec2.get_instances(State="stopped", ScalingState="-excluded", azs_filtered_out=disabled_azs)
 
         # Get a list of startable instances
         stopped_instances = self.filter_stopped_instance_candidates(active_instances, stopped_instances)
