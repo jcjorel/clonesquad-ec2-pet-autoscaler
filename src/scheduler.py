@@ -69,8 +69,6 @@ class Scheduler:
                 if max_rules_per_batch <= 0:
                     break
                 rule_def            = self.get_ruledef_by_name(r)
-                if rule_def["EventName"].startswith("#"):
-                    continue # Ignore commented out rules
                 schedule_expression = rule_def["Data"][0]["schedule"] 
 
                 # In order to remove burden on user, we perform a sanity check about a wellknown 
@@ -130,6 +128,8 @@ class Scheduler:
         self.scheduler_table.reread_table()
         self.events = self.scheduler_table.get_dict()
         for e in self.events:
+            if e.startswith("#"):
+                continue # Ignore commented out rules
             if not isinstance(self.events[e], str): continue
 
             digest     = misc.sha256("%s:%s" % (e, self.events[e]))
