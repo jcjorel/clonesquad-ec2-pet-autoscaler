@@ -1112,7 +1112,6 @@ By default, the dashboard is enabled.
             running_instances      = self.ec2.get_instances(cache=cache, instances=fleet_instances, 
                     State="pending,running", ScalingState="-error,draining,bounced")
             stopped_instances      = self.ec2.get_instances(cache=cache, instances=fleet_instances, State="stopped")
-            draining_instances     = self.ec2.get_instances(cache=cache, instances=fleet_instances, State="running", ScalingState="draining")
             if len(fleet["ToStop"]):
                 instance_ids = [i["InstanceId"] for i in fleet["ToStop"]]
                 log.info("Draining static fleet instance(s) '%s'..." % instance_ids)
@@ -1148,6 +1147,8 @@ By default, the dashboard is enabled.
                 "Name": "SubfleetName",
                 "Value": subfleet}]
             if extended_metrics:
+                running_instances  = self.ec2.get_instances(cache=cache, instances=fleet_instances, State="pending,running", ScalingState="-error")
+                draining_instances = self.ec2.get_instances(cache=cache, instances=fleet_instances, State="running", ScalingState="draining")
                 self.cloudwatch.set_metric("StaticFleet.EC2.Size", len(fleet["All"]), dimensions=dimensions)
                 self.cloudwatch.set_metric("StaticFleet.EC2.RunningInstances", len(running_instances), dimensions=dimensions)
                 self.cloudwatch.set_metric("StaticFleet.EC2.DrainingInstances", len(draining_instances), dimensions=dimensions)
