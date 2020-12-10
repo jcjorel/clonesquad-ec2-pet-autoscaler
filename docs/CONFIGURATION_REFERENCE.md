@@ -199,7 +199,7 @@ forcing their immediate replacement in healthy AZs in the region.
 
 
 
-### staticfleet.<subfleetname>.state
+### staticfleet.&lt;subfleetname&gt;.state
 Default Value: `undefined`   
 Format       :  [String](#String)
 
@@ -212,7 +212,7 @@ A subfleet can contain EC2 instances but also RDS and TransferFamilies tagged in
 
 
 
-### staticfleet.<subfleetname>.ec2.schedule.desired_instance_count
+### staticfleet.&lt;subfleetname&gt;.ec2.schedule.desired_instance_count
 Default Value: `100%`   
 Format       :  [IntegerOrPercentage](#IntegerOrPercentage)
 
@@ -223,7 +223,7 @@ Define the number of EC2 instances to start when a subfleet is in a 'running' st
 
 
 
-### staticfleet.<subfleetname>.ec2.schedule.metrics.enable
+### staticfleet.&lt;subfleetname&gt;.ec2.schedule.metrics.enable
 Default Value: `1`   
 Format       :  [Bool](#Bool)
 
