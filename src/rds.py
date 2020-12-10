@@ -133,6 +133,9 @@ Disabled by default to save Main Lambda execution time. This flag activates supp
         arns   = self.get_subfleet_arns()
         for arn in arns:
             subfleet_name  = self.get_static_subfleet_name_for_db(arn)
+            if subfleet_name is None:
+                log.warning("Missing tag 'clonesquad:subfleet-name' on RDS instance '%s'!" % arn)
+                continue
             forbidden_chars = "[ .]"
             if re.match(forbidden_chars, subfleet_name):
                 log.warning("Subfleet name '%s' contains invalid characters (%s)!! Ignore %s..." % (subfleet_name, forbidden_chars, arn))
