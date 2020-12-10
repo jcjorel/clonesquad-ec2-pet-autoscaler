@@ -1211,7 +1211,7 @@ By default, the dashboard is enabled.
                     })
                 log.log(log.NOTICE, "Configuring Static Subfleet CloudWatch dashboard...")
                 response = client.put_dashboard(
-                        DashboardName="CloneSquad-%s-Subfleets" % self.context["GroupName"],
+                        DashboardName="CS-%s-Subfleets" % self.context["GroupName"],
                         DashboardBody=Dbg.pprint(dashboard)
                     )
         self.set_state("cloudwatch.staticfleet.last_fingerprint", fingerprint)

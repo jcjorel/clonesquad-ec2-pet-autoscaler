@@ -535,7 +535,7 @@ See [Alarm specification documentation](ALARMS_REFERENCE.md)  for more details.
     #####
 
     def _get_dashboard_name(self):
-        return "CloneSquad-%s" % (self.context["GroupName"])
+        return "CS-%s" % (self.context["GroupName"])
 
     def get_dashboard_images(self):
         dashboard = json.loads(self.load_dashboard())
