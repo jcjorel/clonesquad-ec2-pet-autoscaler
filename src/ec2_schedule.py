@@ -1157,7 +1157,6 @@ By default, the dashboard is enabled.
         dashboard          = { "widgets": [] }
         static_subfleets   = sorted(self.ec2.get_static_subfleet_names())
         fleet_with_details = []
-        pdb.set_trace()
         for i in range(0, len(static_subfleets)):
             subfleet_name = static_subfleets[i]
             if not Cfg.get_int("staticfleet.%s.ec2.schedule.metrics.enable" % subfleet_name):
