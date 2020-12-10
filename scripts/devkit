@@ -14,6 +14,7 @@ cd $CLONESQUAD_DIR
 source scripts/_source-me.sh
 
 ACTION=$1
+shift
 if [ "$ACTION" = "build" ] ; then
 	VERSION=${1:-latest}
 	if ! [ -d .venv ]; then
