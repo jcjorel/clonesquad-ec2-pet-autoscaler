@@ -199,7 +199,7 @@ forcing their immediate replacement in healthy AZs in the region.
 
 
 
-### staticfleet.<subfleetname>.state
+### subfleet.<subfleetname>.state
 Default Value: `undefined`   
 Format       :  [String](#String)
 
@@ -212,27 +212,27 @@ A subfleet can contain EC2 instances but also RDS and TransferFamilies tagged in
 
 
 
-### staticfleet.<subfleetname>.ec2.schedule.desired_instance_count
+### subfleet.<subfleetname>.ec2.schedule.desired_instance_count
 Default Value: `100%`   
 Format       :  [IntegerOrPercentage](#IntegerOrPercentage)
 
 Define the number of EC2 instances to start when a subfleet is in a 'running' state.
 
-> This parameter has no effect if [`staticfleet.<subfleetname>.state`](#staticfleetsubfleetnamestate) is set to a value different than `running`.
+> This parameter has no effect if [`subfleet.<subfleetname>.state`](#subfleetsubfleetnamestate) is set to a value different than `running`.
                  
 
 
 
-### staticfleet.<subfleetname>.ec2.schedule.metrics.enable
+### subfleet.<subfleetname>.ec2.schedule.metrics.enable
 Default Value: `1`   
 Format       :  [Bool](#Bool)
 
 Enable detailed metrics for the subfleet <subfleetname>.
 
 The following additional metrics are generated:
-* StaticFleet.EC2.Size,
-* StaticFleet.EC2.RunningInstances,
-* StaticFleet.EC2.DrainingInstances.
+* Subfleet.EC2.Size,
+* Subfleet.EC2.RunningInstances,
+* Subfleet.EC2.DrainingInstances.
 
 These metrics are associated to a dimension specifying the subfleet name and are so different from the metrics with similar names from
 the autoscaled fleet.
@@ -280,7 +280,7 @@ List of metric pattern names to not send to Cloudwatch
 This configuration key is used to do Cost optimization by filtering which CloneSquad Metrics are sent to Cloudwatch.
 It support regex patterns.
 
-> Ex: StaticFleet.*;NbOfBouncedInstances
+> Ex: Subfleet.*;NbOfBouncedInstances
 
                         
 
@@ -660,7 +660,7 @@ When specified in percentage, 100% represents the ['Maximum earned credits than 
 
 
 
-### cloudwatch.staticfleet.use_dashboard
+### cloudwatch.subfleet.use_dashboard
 Default Value: `1`   
 Format       :  [Bool](#Bool)
 
@@ -679,7 +679,7 @@ Format       :  [Bool](#Bool)
 
 Enable management of RDS databases.
 
-Disabled by default to save Main Lambda execution time. This flag activates support of RDS instances in Static Subfleets.
+Disabled by default to save Main Lambda execution time. This flag activates support of RDS instances in Subfleets.
                 
 
 
@@ -690,7 +690,7 @@ Format       :  [Bool](#Bool)
 
 Enable management of TransferFamily services.
 
-Disabled by default to save Main Lambda execution time. This flag activates support of TransferFamily services in Static Subfleets.
+Disabled by default to save Main Lambda execution time. This flag activates support of TransferFamily services in Subfleets.
                 
 
 

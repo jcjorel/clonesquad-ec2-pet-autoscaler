@@ -115,19 +115,19 @@
                 "view": "timeSeries",
                 "stacked": false,
                 "metrics": [
-                    [ "CloneSquad", "StaticFleet.EC2.Size", "GroupName", "{GroupName}" ],
-                    [ ".", "StaticFleet.EC2.RunningInstances", ".", "." ],
-                    [ ".", "StaticFleet.EC2.DrainingInstances", ".", "." ],
-                    [ ".", "StaticFleet.RDS.Size", ".", "." ],
-                    [ ".", "StaticFleet.RDS.AvailableDBs", ".", "." ],
-                    [ ".", "StaticFleet.RDS.StoppingDBs", ".", "." ],
-                    [ ".", "StaticFleet.RDS.StartingDBs", ".", "." ],
-                    [ ".", "StaticFleet.TransferFamily.Size", ".", "." ],
-                    [ ".", "StaticFleet.TransferFamily.RunningServers", ".", "." ]
+                    [ "CloneSquad", "Subfleet.EC2.Size", "GroupName", "{GroupName}" ],
+                    [ ".", "Subfleet.EC2.RunningInstances", ".", "." ],
+                    [ ".", "Subfleet.EC2.DrainingInstances", ".", "." ],
+                    [ ".", "Subfleet.RDS.Size", ".", "." ],
+                    [ ".", "Subfleet.RDS.AvailableDBs", ".", "." ],
+                    [ ".", "Subfleet.RDS.StoppingDBs", ".", "." ],
+                    [ ".", "Subfleet.RDS.StartingDBs", ".", "." ],
+                    [ ".", "Subfleet.TransferFamily.Size", ".", "." ],
+                    [ ".", "Subfleet.TransferFamily.RunningServers", ".", "." ]
                 ],
                 "region": "{AWS_DEFAULT_REGION}",
                 "period": {ec2.schedule.metrics.time_resolution},
-                "title": "Static SubFleet statuses"
+                "title": "SubFleet statuses"
             }
         }
     ]

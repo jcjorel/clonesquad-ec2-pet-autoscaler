@@ -39,21 +39,21 @@ did not start even [`ec2.scheduler.min_instance_count`](../../../docs/CONFIGURAT
 * In both demonstrations, we can observe that LightHouse instances are restarted progressively while the expected amount of instances fall to a low value. It will
 be also seen with scalein/scaleout condition.
 
-## Static fleet flip-flop demo
+## fleet flip-flop demo
 
-Static subfleet are not autoscaled resources but are managed in a on/off manner in a very simple way. Static subfleet is provided to offer more cost 
+subfleet are not autoscaled resources but are managed in a on/off manner in a very simple way. subfleet is provided to offer more cost 
 reduction options to CloneSquad users event not directly related to autoscaling.
 
-A very simple demonstration of static fleet scheduling is enabled when the file [staticfleet-hourly-flipflop-cronfile.yaml](staticfleet-hourly-flipflop-cronfile.yaml)
+A very simple demonstration of subfleet scheduling is enabled when the file [subfleet-hourly-flipflop-cronfile.yaml](subfleet-hourly-flipflop-cronfile.yaml)
 is injected in the CloneQuad-${GroupName}-Scheduler DynamoDB table.
 
-This demo will start named `MyStaticFleet1` and `MyStaticFleet2` static fleet resources at beginning of each hour and will stop them at half of each hour. 
+This demo will start named `MySubfleet1` and `MySubfleet2` subfleet resources at beginning of each hour and will stop them at half of each hour. 
 For your convinience, the demo [demo-instance-fleet](../demo-instance-fleet/) automatically created 4 EC2 instances (2 x Spot, 2 x OnDemand) and 
-4 RDS databases (2 x MySQL RDS and 2 x Aurora with MySQL compatibility) in such named static fleets to see in action this flip-flop demo.
+4 RDS databases (2 x MySQL RDS and 2 x Aurora with MySQL compatibility) in such named subfleets to see in action this flip-flop demo.
 
 To inject this demo configuration, use the following command:
 ```shell
-${CLONESQUAD_DIR}/tools/cs-kvtable CloneSquad-${STACK_NAME}-Scheduler import <staticfleet-hourly-flipflop-cronfile.yaml
+${CLONESQUAD_DIR}/tools/cs-kvtable CloneSquad-${STACK_NAME}-Scheduler import <subfleet-hourly-flipflop-cronfile.yaml
 ```
 
 

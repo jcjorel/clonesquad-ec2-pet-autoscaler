@@ -90,7 +90,7 @@ forcing their immediate replacement in healthy AZs in the region.
                      with value 'True'.
                      """
                  },
-                 "staticfleet.<subfleetname>.state,Stable": {
+                 "subfleet.<subfleetname>.state,Stable": {
                          "DefaultValue": "undefined",
                          "Format": "String",
                          "Description": """Define the status of the subfleet named <subfleetname>.
@@ -99,22 +99,22 @@ Can be one the following values ['`stopped`', '`undefined`', '`running`'].
 
 A subfleet can contain EC2 instances but also RDS and TransferFamilies tagged instances.
                  """},
-                 "staticfleet.<subfleetname>.ec2.schedule.desired_instance_count,Stable": {
+                 "subfleet.<subfleetname>.ec2.schedule.desired_instance_count,Stable": {
                          "DefaultValue": "100%",
                          "Format": "IntegerOrPercentage",
                          "Description": """Define the number of EC2 instances to start when a subfleet is in a 'running' state.
 
-> This parameter has no effect if [`staticfleet.<subfleetname>.state`](#staticfleetsubfleetnamestate) is set to a value different than `running`.
+> This parameter has no effect if [`subfleet.<subfleetname>.state`](#subfleetsubfleetnamestate) is set to a value different than `running`.
                  """},
-                 "staticfleet.<subfleetname>.ec2.schedule.metrics.enable,Stable": {
+                 "subfleet.<subfleetname>.ec2.schedule.metrics.enable,Stable": {
                          "DefaultValue": "1",
                          "Format": "Bool",
                          "Description": """Enable detailed metrics for the subfleet <subfleetname>.
 
 The following additional metrics are generated:
-* StaticFleet.EC2.Size,
-* StaticFleet.EC2.RunningInstances,
-* StaticFleet.EC2.DrainingInstances.
+* Subfleet.EC2.Size,
+* Subfleet.EC2.RunningInstances,
+* Subfleet.EC2.DrainingInstances.
 
 These metrics are associated to a dimension specifying the subfleet name and are so different from the metrics with similar names from
 the autoscaled fleet.
@@ -253,15 +253,15 @@ without any TargetGroup but another external health instance source exists).
             if zone_state != "available":
                 log.warning("AZ %s(%s) is marked with status '%s' by configuration keys!" % (zone_name, zone_id, zone_state))
 
-        # We need to register dynamically static subfleet configuration keys to avoid a 'key unknown' warning 
+        # We need to register dynamically subfleet configuration keys to avoid a 'key unknown' warning 
         #   when the user is going to set it
-        static_subfleet_names = self.get_static_subfleet_names()
-        for static_fleet in static_subfleet_names:
+        subfleet_names = self.get_subfleet_names()
+        for subfleet in subfleet_names:
             for k in Cfg.keys():
-                key = k.replace("<subfleetname>", static_fleet)
-                if k.startswith("staticfleet.<subfleetname>.") and not Cfg.is_builtin_key_exist(key):
+                key = k.replace("<subfleetname>", subfleet)
+                if k.startswith("subfleet.<subfleetname>.") and not Cfg.is_builtin_key_exist(key):
                     Cfg.register({ key : Cfg.get(k) })
-        log.log(log.NOTICE, "Detected following static subfleet names across EC2 resources: %s" % static_subfleet_names)
+        log.log(log.NOTICE, "Detected following subfleet names across EC2 resources: %s" % subfleet_names)
 
         # Load EC2 status override URL content
         self.ec2_status_override_url = Cfg.get("ec2.instance.status.override_url")
@@ -308,24 +308,24 @@ without any TargetGroup but another external health instance source exists).
     def get_azs_with_issues(self):
         return [ az["ZoneName"] for az in self.az_with_issues ]
 
-    def get_static_subfleet_instances(self, subfleet_name=None):
-        instances = self.filter_instance_list_by_tag(self.instances, "clonesquad:static-subfleet-name", subfleet_name)
+    def get_subfleet_instances(self, subfleet_name=None):
+        instances = self.filter_instance_list_by_tag(self.instances, "clonesquad:subfleet-name", subfleet_name)
         return self.filter_instance_list_by_tag(instances, "-clonesquad:excluded", ["True", "true"])
 
-    def get_static_subfleet_names(self):
-        instances = self.get_static_subfleet_instances()
+    def get_subfleet_names(self):
+        instances = self.get_subfleet_instances()
         names     = []
         for i in instances:
             tags = self.get_instance_tags(i)
-            [names.append(tags[k]) for k in tags if k == "clonesquad:static-subfleet-name" and tags[k] not in names]
+            [names.append(tags[k]) for k in tags if k == "clonesquad:subfleet-name" and tags[k] not in names]
         return names
 
-    def get_static_subfleet_name_for_instance(self, i):
+    def get_subfleet_name_for_instance(self, i):
         tags = self.get_instance_tags(i)
-        return tags["clonesquad:static-subfleet-name"] if "clonesquad:static-subfleet-name" in tags else None
+        return tags["clonesquad:subfleet-name"] if "clonesquad:subfleet-name" in tags else None
 
-    def is_static_subfleet_instance(self, instance_id, subfleet_name=None):
-        instances    = self.get_static_subfleet_instances(subfleet_name=subfleet_name)
+    def is_subfleet_instance(self, instance_id, subfleet_name=None):
+        instances    = self.get_subfleet_instances(subfleet_name=subfleet_name)
         instance_ids = [i["InstanceId"] for i in instances]
         return instance_id in instance_ids
 
@@ -742,7 +742,7 @@ without any TargetGroup but another external health instance source exists).
         if (i is not None and not do_not_return_excluded and (
                 self.instance_has_tag(i, "clonesquad:excluded", value=["1", "True", "true"])
                 or i in excluded_instances
-                or self.is_static_subfleet_instance(instance_id))):
+                or self.is_subfleet_instance(instance_id))):
             r = "excluded"
         # Force error state for some VM (debug usage)
         error_instance_ids = Cfg.get_list("ec2.state.error_instance_ids", default=[]) 
@@ -878,7 +878,7 @@ without any TargetGroup but another external health instance source exists).
             is_spot        = self.is_spot_instance(i)
             instance_tags  = self.get_instance_tags(i)
             instance_name  = instance_tags["Name"] if "Name" in instance_tags else None
-            subfleet_name  = self.get_static_subfleet_name_for_instance(i)
+            subfleet_name  = self.get_subfleet_name_for_instance(i)
             az             = i["Placement"]["AvailabilityZone"]
             located_in_az_with_issues = az in az_with_issues
             instance_state = self.get_scaling_state(instance_id, do_not_return_excluded=True)
