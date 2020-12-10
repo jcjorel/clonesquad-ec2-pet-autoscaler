@@ -74,7 +74,7 @@ This parameter does not influence the polling of user supplied alarms that are a
 The dashboard is enabled by default.
                         """
                     },
-                    "cloudwatch.dashboard.update_interval": "hours=1",
+                    "cloudwatch.dashboard.update_interval": "minutes=30",
                     "cloudwatch.dashboard.snapshot_width": 1000,
                     "cloudwatch.dashboard.snapshot_height": 400
                 }
