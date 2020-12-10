@@ -224,7 +224,7 @@ Define the number of EC2 instances to start when a subfleet is in a 'running' st
 
 
 ### staticfleet.<subfleetname>.ec2.schedule.metrics.enable
-Default Value: `0`   
+Default Value: `1`   
 Format       :  [Bool](#Bool)
 
 Enable detailed metrics for the subfleet <subfleetname>.
