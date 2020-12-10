@@ -14,11 +14,6 @@ cd $CLONESQUAD_DIR
 source scripts/_source-me.sh
 
 ACTION=$1
-shift
-if [ -z "$ACTION" ] ; then
-	echo "USage: $0 <build|run>" ; exit 1
-fi
-
 if [ "$ACTION" = "build" ] ; then
 	VERSION=${1:-latest}
 	if ! [ -d .venv ]; then
@@ -29,6 +24,7 @@ if [ "$ACTION" = "build" ] ; then
 	export DOCKER_BUILDKIT=1
 	docker pull amazonlinux:2
 	docker build -t ${CLONESQUAD_DEVKIT_IMAGE}:$VERSION -t clonesquad/devkit:latest -f build/Dockerfile.devkit .
+	exit 0
 fi
 if [ "$ACTION" = "run" ]; then
 
@@ -44,4 +40,8 @@ if [ "$ACTION" = "run" ]; then
 	fi
 	docker run -it -v $PWD:/clonesquad \
 		       -v $clonesquad_parameters_dir:/clonesquad-deployment-parameters ${CLONESQUAD_DEVKIT_IMAGE}:latest $args
+	exit 0
 fi
+
+echo "Usage: $0 <build|run>"
+exit 1

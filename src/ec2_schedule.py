@@ -1142,11 +1142,10 @@ By default, the dashboard is enabled.
                         for instance_id in instances_to_stop:
                             self.ec2.set_scaling_state(instance_id, "draining")
 
-            extended_metrics = Cfg.get_int("staticfleet.%s.ec2.schedule.metrics.enable" % subfleet)
-            dimensions = [{
-                "Name": "SubfleetName",
-                "Value": subfleet}]
-            if extended_metrics:
+            if Cfg.get_int("staticfleet.%s.ec2.schedule.metrics.enable" % subfleet):
+                dimensions = [{
+                    "Name": "SubfleetName",
+                    "Value": subfleet}]
                 running_instances  = self.ec2.get_instances(cache=cache, instances=fleet_instances, State="pending,running", ScalingState="-error")
                 draining_instances = self.ec2.get_instances(cache=cache, instances=fleet_instances, State="running", ScalingState="draining")
                 self.cloudwatch.set_metric("StaticFleet.EC2.Size", len(fleet["All"]), dimensions=dimensions)
