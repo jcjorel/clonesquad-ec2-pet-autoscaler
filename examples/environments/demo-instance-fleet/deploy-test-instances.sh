@@ -25,8 +25,10 @@ Optionaly, please consider activating Vertical Scaling with 'demo-loadbalancers'
 to experience smart management of instance types!
 
 ***** IMPORTANT *****
-To activate Vertical Scaling copy/paste this:
-	${CLONESQUAD_DIR}/tools/cs-kvtable CloneSquad-${GroupName}-Configuration import <configure-ligthhouse-instance.yaml
+        # To activate Vertical Scaling copy/paste this:
+        ${CLONESQUAD_DIR}/tools/cs-kvtable CloneSquad-${GroupName}-Configuration import <configure-ligthhouse-instance.yaml
+        # To enable Subfleet dashboard, copy/paste this:
+        ${CLONESQUAD_DIR}/tools/cs-kvtable CloneSquad-${GroupName}-Configuration import <configure-detailed-subfleet-dashboard.yaml
 ***** IMPORTANT *****
 
 
