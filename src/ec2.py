@@ -107,7 +107,7 @@ A subfleet can contain EC2 instances but also RDS and TransferFamilies tagged in
 > This parameter has no effect if [`staticfleet.<subfleetname>.state`](#staticfleetsubfleetnamestate) is set to a value different than `running`.
                  """},
                  "staticfleet.<subfleetname>.ec2.schedule.metrics.enable,Stable": {
-                         "DefaultValue": "0",
+                         "DefaultValue": "1",
                          "Format": "Bool",
                          "Description": """Enable detailed metrics for the subfleet <subfleetname>.
 
