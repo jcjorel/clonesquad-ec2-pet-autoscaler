@@ -9,7 +9,8 @@ RUN yum upgrade -y && \
 	mtr iputils bind-utils time dialog uuid -y && \
 	yum clean all && rm -rf /var/cache/yum
 RUN bash -c "curl https://bootstrap.pypa.io/get-pip.py | python3" && \
-	/usr/local/bin/pip3 install jinja2 awscli awscurl pythondialog 
+	/usr/local/bin/pip3 install jinja2 awscli awscurl pythondialog && \
+	pip install aws-sam-cli aws-xray-sdk
 RUN groupadd -g 1000 ec2-user && adduser -u 1000 -g 1000 ec2-user
 ENV HOME=/home/ec2-user
 COPY build/bashrc /etc/bashrc.clonesquad
@@ -23,7 +24,6 @@ RUN mkdir -p ${CLONESQUAD_DIR} ${CLONESQUAD_PARAMETER_DIR} && \
 	chown -R ec2-user.ec2-user $CLONESQUAD_PARAMETER_DIR && \
 	ln -s ${CLONESQUAD_PARAMETER_DIR}/.bash_history ${HOME}/.bash_history
 
-RUN pip install aws-sam-cli aws-xray-sdk 
 USER ec2-user
 ENV PATH="${PATH}:/clonesquad/scripts:/clonesquad/tools"
 WORKDIR ${CLONESQUAD_DIR}
