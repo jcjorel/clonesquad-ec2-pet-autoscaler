@@ -90,7 +90,7 @@ Ex:
 	cron(0 7 * * ? *),subfleet.mysubfleetname.state=running
 	cron(0 19 * * ? *),subfleet.mysubfleetname.state=stopped
 
-Note: The subfleets resources have a dedicated widget in the CloneSquad dashboard. Notice thatresources are NOT part of graphed 
+Note: The subfleets resources have a dedicated widget in the CloneSquad dashboard. Notice that resources are NOT part of graphed 
 resources of others widgets. For instance, if a subfleet instance is entering 'CPU Crediting state', it won't appear in the 'TargetGroup and other statuses'
 widget and you will only see 'draining' instances for a very long time in 'SubFleet statues' widget. For more details, look at logs!
 
