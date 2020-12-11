@@ -43,7 +43,7 @@ class CloudWatch:
 This configuration key is used to do Cost optimization by filtering which CloneSquad Metrics are sent to Cloudwatch.
 It support regex patterns.
 
-> Ex: StaticFleet.*;NbOfBouncedInstances
+> Ex: Subfleet.*;NbOfBouncedInstances
 
                         """
                     },

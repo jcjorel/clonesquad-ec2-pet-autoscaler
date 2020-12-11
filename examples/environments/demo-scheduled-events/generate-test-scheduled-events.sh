@@ -17,8 +17,8 @@ do
 
 	echo
 	echo "rds.enable: 1" | ${CLONESQUAD_DIR}/tools/cs-kvtable CloneSquad-${STACK_NAME}-Configuration import --ttl=days=1
-	${CLONESQUAD_DIR}/tools/cs-kvtable CloneSquad-${STACK_NAME}-Scheduler import --ttl=days=1 <staticfleet-hourly-flipflop-cronfile.yaml
-	echo "Configured static fleets Flip-Flop scheduling demo!!"
+	${CLONESQUAD_DIR}/tools/cs-kvtable CloneSquad-${STACK_NAME}-Scheduler import --ttl=days=1 <subfleet-hourly-flipflop-cronfile.yaml
+	echo "Configured subfleets Flip-Flop scheduling demo!!"
 	echo
 
 	for variant in "min_instance_count" "desired_instance_count"

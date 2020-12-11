@@ -28,8 +28,8 @@ def convert(args):
 parser = argparse.ArgumentParser(description="Generate CloudFormation template for Test Environments")
 parser.add_argument('--specs', help="Instances specifications", type=str, default="")
 parser.add_argument('--subnet_count', help="Number of Persistent Spot instances", type=int, default=3)
-parser.add_argument('--static-fleet-specs', help="Static fleet Instances specifications", type=str, default="")
-parser.add_argument('--static-fleet-rds-specs', help="Static fleet RDS specifications", type=str, default="")
+parser.add_argument('--subfleet-specs', help="fleet Instances specifications", type=str, default="")
+parser.add_argument('--subfleet-rds-specs', help="fleet RDS specifications", type=str, default="")
 
 args = parser.parse_args()
 args_dict = {}
@@ -37,8 +37,8 @@ for a in args._get_kwargs():
     args_dict[a[0]] = a[1]
 
 oneliner_args           = convert(misc.parse_line_as_list_of_dict(args.specs, leading_keyname="InstanceType"))
-oneliner_fleet_args     = convert(misc.parse_line_as_list_of_dict(args.static_fleet_specs, leading_keyname="InstanceType"))
-oneliner_fleet_rds_args = convert(misc.parse_line_as_list_of_dict(args.static_fleet_rds_specs, leading_keyname="Engine"))
+oneliner_fleet_args     = convert(misc.parse_line_as_list_of_dict(args.subfleet_specs, leading_keyname="InstanceType"))
+oneliner_fleet_rds_args = convert(misc.parse_line_as_list_of_dict(args.subfleet_rds_specs, leading_keyname="Engine"))
 seed     = hashlib.md5()
 seed.update(bytes(os.environ["AWS_ACCOUNT_ID"], "utf-8"))
 # Look for more entropy
@@ -50,10 +50,10 @@ password = "password%s" % seed.hexdigest()[:16]
 args_dict["parameters"] = {
             "nb_of_instance_specs": len(oneliner_args),
             "specs": oneliner_args,
-            "nb_of_static_fleets": len(oneliner_fleet_args),
-            "static_fleet_specs": oneliner_fleet_args,
-            "nb_of_static_rds_fleets": len(oneliner_fleet_rds_args),
-            "static_fleet_rds_spec" : oneliner_fleet_rds_args,
+            "nb_of_subfleets": len(oneliner_fleet_args),
+            "subfleet_specs": oneliner_fleet_args,
+            "nb_of_rds_fleets": len(oneliner_fleet_rds_args),
+            "subfleet_rds_spec" : oneliner_fleet_rds_args,
             "user": user,
             "password": password,
         }

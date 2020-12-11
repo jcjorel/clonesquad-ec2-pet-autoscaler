@@ -1,3 +1,3 @@
-staticfleet.MyStaticFleet1.ec2.schedule.metrics.enable: 1
-staticfleet.MyStaticFleet2.ec2.schedule.metrics.enable: 1
-staticfleet.MyStaticFleet3.ec2.schedule.metrics.enable: 1
+subfleet.MySubfleet1.ec2.schedule.metrics.enable: 1
+subfleet.MySubfleet2.ec2.schedule.metrics.enable: 1
+subfleet.MySubfleet3.ec2.schedule.metrics.enable: 1

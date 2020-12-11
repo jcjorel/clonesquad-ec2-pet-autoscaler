@@ -33,7 +33,7 @@ class TransferFamily:
                     "Format": "Bool",
                     "Description": """Enable management of TransferFamily services.
 
-Disabled by default to save Main Lambda execution time. This flag activates support of TransferFamily services in Static Subfleets.
+Disabled by default to save Main Lambda execution time. This flag activates support of TransferFamily services in Subfleets.
                 """
                 },
                 "transferfamily.state.default_ttl" : "hours=2",
@@ -70,19 +70,19 @@ Disabled by default to save Main Lambda execution time. This flag activates supp
         metric_time_resolution = Cfg.get_int("transferfamily.metrics.time_resolution")
         if metric_time_resolution < 60: metric_time_resolution = 1 # Switch to highest resolution
         self.cloudwatch.register_metric([
-                { "MetricName": "StaticFleet.TransferFamily.Size",
+                { "MetricName": "Subfleet.TransferFamily.Size",
                   "Unit": "Count",
                   "StorageResolution": metric_time_resolution },
-                { "MetricName": "StaticFleet.TransferFamily.RunningServers",
+                { "MetricName": "Subfleet.TransferFamily.RunningServers",
                   "Unit": "Count",
                   "StorageResolution": metric_time_resolution },
                 ])
 
-        # We need to register dynamically static subfleet configuration keys to avoid a 'key unknown' warning 
+        # We need to register dynamically subfleet configuration keys to avoid a 'key unknown' warning 
         #   when the user is going to set it
         subfleet_names = self.get_subfleet_names()
-        for static_fleet in subfleet_names:
-            key = "staticfleet.%s.state" % static_fleet
+        for subfleet in subfleet_names:
+            key = "subfleet.%s.state" % subfleet
             if not Cfg.is_builtin_key_exist(key):
                 Cfg.register({
                     key : ""
@@ -92,7 +92,7 @@ Disabled by default to save Main Lambda execution time. This flag activates supp
 
     @xray_recorder.capture()
     def manage_subfleet(self):
-        """Manage start/stop actions for static subfleet TransferFamily servers
+        """Manage start/stop actions for subfleet TransferFamily servers
         """
         if not Cfg.get_int("transferfamily.enable"):
             return
@@ -102,15 +102,15 @@ Disabled by default to save Main Lambda execution time. This flag activates supp
             arn = server["Arn"]
             subfleet_name  = self.get_subfleet_name(arn)
             if subfleet_name is None:
-                log.warn("Missing tag 'clonesquad:static-subfleet-name' on resource %s!" % arn)
+                log.warn("Missing tag 'clonesquad:subfleet-name' on resource %s!" % arn)
                 continue
             forbidden_chars = "[ .]"
             if re.match(forbidden_chars, subfleet_name):
                 log.warning("Subfleet name '%s' contains invalid characters (%s)!! Ignore %s..." % (subfleet_name, forbidden_chars, arn))
                 continue
-            expected_state = Cfg.get("staticfleet.%s.state" % subfleet_name, none_on_failure=True)
+            expected_state = Cfg.get("subfleet.%s.state" % subfleet_name, none_on_failure=True)
             if expected_state is None:
-                log.warn("Encountered a static fleet TransferFamily server (%s) without matching state directive. Please set 'staticfleet.%s.state' configuration key..." % 
+                log.warn("Encountered a subfleet TransferFamily server (%s) without matching state directive. Please set 'subfleet.%s.state' configuration key..." % 
                         (arn, subfleet_name))
                 continue
             if expected_state == "running":
@@ -120,7 +120,7 @@ Disabled by default to save Main Lambda execution time. This flag activates supp
             elif expected_state in ["", "undefined"]:
                 continue # Nothing to do
             else:
-                log.warn("Can't understand 'staticfleet.%s.state' configuration key value! Valid values are [running, stopped, undefined]" % expected_state)
+                log.warn("Can't understand 'subfleet.%s.state' configuration key value! Valid values are [running, stopped, undefined]" % expected_state)
                 continue
 
             current_state  = server["State"]
@@ -139,11 +139,11 @@ Disabled by default to save Main Lambda execution time. This flag activates supp
 
         cw = self.cloudwatch
         if len(self.servers):
-            cw.set_metric("StaticFleet.TransferFamily.Size", len(self.servers))
-            cw.set_metric("StaticFleet.TransferFamily.RunningServers", states["running"] + states["STARTING"])
+            cw.set_metric("Subfleet.TransferFamily.Size", len(self.servers))
+            cw.set_metric("Subfleet.TransferFamily.RunningServers", states["running"] + states["STARTING"])
         else:
-            cw.set_metric("StaticFleet.TransferFamily.Size", None)
-            cw.set_metric("StaticFleet.TransferFamily.RunningServers", None)
+            cw.set_metric("Subfleet.TransferFamily.Size", None)
+            cw.set_metric("Subfleet.TransferFamily.RunningServers", None)
 
     def stop_resource(self, arn, service_id):
         try:
@@ -178,10 +178,10 @@ Disabled by default to save Main Lambda execution time. This flag activates supp
 
     def get_subfleet_name(self, svc):
         tags = self.get_tags(svc)
-        if "clonesquad:static-fleet-name" in tags:
-            return tags["clonesquad:static-fleet-name"]
-        if "clonesquad:static-subfleet-name" in tags:
-            return tags["clonesquad:static-subfleet-name"]
+        if "clonesquad:fleet-name" in tags:
+            return tags["clonesquad:fleet-name"]
+        if "clonesquad:subfleet-name" in tags:
+            return tags["clonesquad:subfleet-name"]
         return None
     
     def get_subfleet_names(self):

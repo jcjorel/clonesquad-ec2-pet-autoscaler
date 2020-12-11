@@ -178,9 +178,9 @@ This API can be polled to know when the whole fleet is started (`RunningFleetSiz
 			"ServingFleet_vs_ManagedFleetSizePourcentage": 85,
 			"ServingFleet_vs_MaximumFleetSizePourcentage": 85
 		    },
-		    "StaticSubfleets": [
+		    "Subfleets": [
 		        {
-		    	"Name": "MyStaticSubfleetFleet",
+		    	"Name": "MySubfleetFleet",
 			"RunningInstanceCount": 0,
 			"RunningInstances": [],
 			"StoppedInstanceCount": 2,
@@ -199,7 +199,7 @@ This API can be polled to know when the whole fleet is started (`RunningFleetSiz
 **Return value:**
 
 * **"AutoscaledFleet"**:
-	* `UnhealtyFleetSize`: Number of instances that are reporting an unhealthy status. Note: Only instances in the autoscaled fleet are counted ; especially, static subfleet instances are not part of this indicator.
+	* `UnhealtyFleetSize`: Number of instances that are reporting an unhealthy status. Note: Only instances in the autoscaled fleet are counted ; especially, subfleet instances are not part of this indicator.
 	* `ManagedFleetSize`: Number of instances with the matching 'clonesquad:group-name' tag.
 	* `MaximumFleetSize`: Maximum number of instances that can be running at this moment (This number excludes instances that CloneSquad
 knows that it can't start now. Ex: Instance in `error`or `spot interrupted`).
@@ -207,8 +207,8 @@ knows that it can't start now. Ex: Instance in `error`or `spot interrupted`).
 	* `ServingFleetSize`: Number of instances that are running AND have passed all HealthChecks (either EC2 System or TargetGroup health check).
 	* `ServingFleet_vs_ManagedFleetSizePourcentage`: int(100 * ServingFleetSize / MaximumFleetSize),
 	* `ServingFleet_vs_MaximumFleetSizePourcentage`: int(100 * ServingFleetSize / ManagedFleetSize)
-* **"StaticSubfleets"**: List of subfleet structure
-	* `Name`: Name of the static subfleet,
+* **"Subfleets"**: List of subfleet structure
+	* `Name`: Name of the subfleet,
 	* `RunningInstances`: List of Instance Id member in 'pending' or 'running' state
 	* `RunningInstanceCount`: length(`RunningInstances`)
 	* `StoppedInstance`: Number of instances in 'stopped' state

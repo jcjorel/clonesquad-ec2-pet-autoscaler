@@ -1,0 +1,2 @@
+demo-subfleet-all-running: "cron(0 * * * ? *),subfleet.MySubfleet1.state=running,subfleet.MySubfleet2.state=running,subfleet.MySubfleet3.state=running"
+demo-subfleet-all-stopped: "cron(30 * * * ? *),subfleet.MySubfleet1.state=stopped,subfleet.MySubfleet2.state=stopped,subfleet.MySubfleet3.state=stopped"

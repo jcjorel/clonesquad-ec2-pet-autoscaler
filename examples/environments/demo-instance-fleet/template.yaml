@@ -63,13 +63,13 @@ Resources:
   {% endfor %}
   {% endfor %}
 
-  {% for i in range(parameters.nb_of_static_fleets) %}
-  {% for j in range(parameters.static_fleet_specs[i]["Count"]) %}
-  EC2InstanceStaticFleet{{i}}x{{j}}:
+  {% for i in range(parameters.nb_of_subfleets) %}
+  {% for j in range(parameters.subfleet_specs[i]["Count"]) %}
+  EC2InstanceSubfleet{{i}}x{{j}}:
     Type: AWS::EC2::Instance
     Properties:
       LaunchTemplate:
-      {% if parameters.static_fleet_specs[i]["Spot"]  %}
+      {% if parameters.subfleet_specs[i]["Spot"]  %}
         LaunchTemplateId: !Ref SpotPersistentLaunchTemplate
         Version: !GetAtt SpotPersistentLaunchTemplate.LatestVersionNumber
       {% else %}
@@ -77,35 +77,35 @@ Resources:
         Version: !GetAtt InstanceLaunchTemplate.LatestVersionNumber
       {% endif %}
       SubnetId: !Ref Subnet{{ count.value % subnet_count }}
-      InstanceType: {{parameters.static_fleet_specs[i]["InstanceType"]}}
+      InstanceType: {{parameters.subfleet_specs[i]["InstanceType"]}}
       Monitoring: 'True'
       Tags:
         - Key: "Name"
-      {% if parameters.static_fleet_specs[i]["Spot"]  %}
+      {% if parameters.subfleet_specs[i]["Spot"]  %}
           Value: !Sub "CS-${GroupName}-SpotSF{{i}}.{{j}}"
       {% else %}
           Value: !Sub "CS-${GroupName}-InstSF{{i}}.{{j}}"
       {% endif %}
         - Key: "clonesquad:group-name"
           Value: !Ref GroupName
-        - Key: "clonesquad:static-subfleet-name"
-          Value: {{ parameters.static_fleet_specs[i]["SubFleetName"] }}
+        - Key: "clonesquad:subfleet-name"
+          Value: {{ parameters.subfleet_specs[i]["SubFleetName"] }}
   {% endfor %}
   {% endfor %}
 
-  {% for i in range(parameters.nb_of_static_rds_fleets) %}
-  {% for j in range(parameters.static_fleet_rds_spec[i]["Count"]) %}
+  {% for i in range(parameters.nb_of_rds_fleets) %}
+  {% for j in range(parameters.subfleet_rds_spec[i]["Count"]) %}
   RDS{{i}}x{{j}}:
-    Type: 'AWS::RDS::{{parameters.static_fleet_rds_spec[i]["type"]}}'
+    Type: 'AWS::RDS::{{parameters.subfleet_rds_spec[i]["type"]}}'
     Properties:
-        #{{parameters.static_fleet_rds_spec[i]["type"]}}Identifier: "CS-RDS{{i}}x{{j}}"
-        {% if "DBClass" in parameters.static_fleet_rds_spec[i] %}
-        DBInstanceClass: {{parameters.static_fleet_rds_spec[i]["DBClass"]}}
+        #{{parameters.subfleet_rds_spec[i]["type"]}}Identifier: "CS-RDS{{i}}x{{j}}"
+        {% if "DBClass" in parameters.subfleet_rds_spec[i] %}
+        DBInstanceClass: {{parameters.subfleet_rds_spec[i]["DBClass"]}}
         {% endif %}
-        {% if "Storage" in parameters.static_fleet_rds_spec[i] %}
-        AllocatedStorage: {{parameters.static_fleet_rds_spec[i]["Storage"]}}
+        {% if "Storage" in parameters.subfleet_rds_spec[i] %}
+        AllocatedStorage: {{parameters.subfleet_rds_spec[i]["Storage"]}}
         {% endif %}
-        Engine: {{parameters.static_fleet_rds_spec[i]["Engine"]}}
+        Engine: {{parameters.subfleet_rds_spec[i]["Engine"]}}
         MasterUsername: {{parameters.user}}
         MasterUserPassword: {{parameters.password}}
 
@@ -114,8 +114,8 @@ Resources:
           Value: !Sub "CS-${GroupName}-RDS{{i}}.{{j}}"
         - Key: "clonesquad:group-name"
           Value: !Ref GroupName
-        - Key: "clonesquad:static-subfleet-name"
-          Value: {{ parameters.static_fleet_rds_spec[i]["SubFleetName"] }}
+        - Key: "clonesquad:subfleet-name"
+          Value: {{ parameters.subfleet_rds_spec[i]["SubFleetName"] }}
   {% endfor %}
   {% endfor %}
 

@@ -281,7 +281,7 @@ A very recently stopped persistent Spot instance can not be restarted immediatly
 parameter should NOT be modified by user.
                          """
                  },
-                 "cloudwatch.staticfleet.use_dashboard,Stable": {
+                 "cloudwatch.subfleet.use_dashboard,Stable": {
                          "DefaultValue": "1",
                          "Format": "Bool",
                          "Description": """Enable or disabled the dashboard dedicated to Subfleets.
@@ -362,13 +362,13 @@ By default, the dashboard is enabled.
                 { "MetricName": "FleetMemNeed",
                   "Unit": "Count",
                   "StorageResolution": self.metric_time_resolution },
-                { "MetricName": "StaticFleet.EC2.Size",
+                { "MetricName": "Subfleet.EC2.Size",
                   "Unit": "Count",
                   "StorageResolution": self.metric_time_resolution },
-                { "MetricName": "StaticFleet.EC2.RunningInstances",
+                { "MetricName": "Subfleet.EC2.RunningInstances",
                   "Unit": "Count",
                   "StorageResolution": self.metric_time_resolution },
-                { "MetricName": "StaticFleet.EC2.DrainingInstances",
+                { "MetricName": "Subfleet.EC2.DrainingInstances",
                   "Unit": "Count",
                   "StorageResolution": self.metric_time_resolution },
             ])
@@ -433,10 +433,10 @@ By default, the dashboard is enabled.
         self.non_burstable_instances                = self.ec2.get_non_burstable_instances()
         self.stopped_instances_bounced_draining     = self.ec2.get_instances(cache=cache, State="stopped", ScalingState="bounced,draining")
 
-        # Static fleet
-        self.static_subfleet_instances              = self.ec2.get_static_subfleet_instances()
-        self.running_static_subfleet_instances      = self.ec2.get_instances(cache=cache, instances=self.static_subfleet_instances, State="running")
-        self.draining_static_subfleet_instances     = self.ec2.get_instances(cache=cache, instances=self.static_subfleet_instances, ScalingState="draining")
+        # Subfleets
+        self.subfleet_instances              = self.ec2.get_subfleet_instances()
+        self.running_subfleet_instances      = self.ec2.get_instances(cache=cache, instances=self.subfleet_instances, State="pending,running")
+        self.draining_subfleet_instances     = self.ec2.get_instances(cache=cache, instances=self.subfleet_instances, ScalingState="draining")
         log.debug("End of instance list computation.")
         xray_recorder.end_subsegment()
 
@@ -460,23 +460,23 @@ By default, the dashboard is enabled.
             log.info("Some Availability Zones are disabled: %s" % disabled_azs)
 
         # Register dynamic keys for subfleets
-        for subfleet in self.ec2.get_static_subfleet_names():
-            extended_metrics = Cfg.get_int("staticfleet.%s.ec2.schedule.metrics.enable" % subfleet) 
+        for subfleet in self.ec2.get_subfleet_names():
+            extended_metrics = Cfg.get_int("subfleet.%s.ec2.schedule.metrics.enable" % subfleet) 
             log.log(log.NOTICE, "Enabled detailed metrics for subfleet '%s'." % subfleet)
             if extended_metrics:
                 dimensions = [{
                     "Name": "SubfleetName",
                     "Value": subfleet}]
                 self.cloudwatch.register_metric([ 
-                        { "MetricName": "StaticFleet.EC2.Size",
+                        { "MetricName": "Subfleet.EC2.Size",
                           "Dimensions": dimensions,
                           "Unit": "Count",
                           "StorageResolution": self.metric_time_resolution },
-                        { "MetricName": "StaticFleet.EC2.RunningInstances",
+                        { "MetricName": "Subfleet.EC2.RunningInstances",
                           "Dimensions": dimensions,
                           "Unit": "Count",
                           "StorageResolution": self.metric_time_resolution },
-                        { "MetricName": "StaticFleet.EC2.DrainingInstances",
+                        { "MetricName": "Subfleet.EC2.DrainingInstances",
                           "Dimensions": dimensions,
                           "Unit": "Count",
                           "StorageResolution": self.metric_time_resolution },
@@ -646,8 +646,8 @@ By default, the dashboard is enabled.
         self.scale_bounce_instances_with_issues()
         self.scale_in_out()
         self.wakeup_burstable_instances()
-        self.manage_static_subfleets()
-        self.generate_static_subfleet_dashboard()
+        self.manage_subfleets()
+        self.generate_subfleet_dashboard()
 
     @xray_recorder.capture()
     def prepare_metrics(self):
@@ -664,9 +664,9 @@ By default, the dashboard is enabled.
         error_instances        = self.error_instances
         exhausted_cpu_credits  = self.cpu_exhausted_instances
         instances_with_issues  = self.instances_with_issues
-        static_subfleet_instances         = self.static_subfleet_instances
-        running_static_subfleet_instances = self.running_static_subfleet_instances
-        draining_static_subfleet_instances = self.draining_static_subfleet_instances
+        subfleet_instances          = self.subfleet_instances
+        running_subfleet_instances  = self.running_subfleet_instances
+        draining_subfleet_instances = self.draining_subfleet_instances
         fl_size                = len(fleet_instances)
         cw.set_metric("FleetSize",             len(fleet_instances) if fl_size > 0 else None)
         cw.set_metric("DrainingInstances",     len(draining_instances) if fl_size > 0 else None)
@@ -676,7 +676,7 @@ By default, the dashboard is enabled.
         cw.set_metric("StoppingInstances",     len(stopping_instances) if fl_size > 0 else None)
         cw.set_metric("MinInstanceCount",      self.get_min_instance_count() if fl_size > 0 else None)
         cw.set_metric("DesiredInstanceCount",  max(self.desired_instance_count(), 0) if fl_size > 0 else None)
-        cw.set_metric("NbOfExcludedInstances", len(excluded_instances) - len(static_subfleet_instances))
+        cw.set_metric("NbOfExcludedInstances", len(excluded_instances) - len(subfleet_instances))
         cw.set_metric("NbOfBouncedInstances",  len(bounced_instances) if fl_size > 0 else None)
         cw.set_metric("NbOfInstancesInError",  len(error_instances) if fl_size > 0 else None)
         cw.set_metric("InstanceScaleScore",    self.instance_scale_score if fl_size > 0 else None)
@@ -684,15 +684,15 @@ By default, the dashboard is enabled.
         cw.set_metric("NbOfInstanceInInitialState", len(self.get_initial_instances()) if fl_size > 0 else None)
         cw.set_metric("NbOfInstanceInUnuseableState", len(instances_with_issues) if fl_size > 0 else None)
         cw.set_metric("NbOfCPUCreditExhaustedInstances", len(exhausted_cpu_credits))
-        if len(static_subfleet_instances):
-            # Send metrics only if there are Static fleet instances
-            cw.set_metric("StaticFleet.EC2.Size", len(static_subfleet_instances))
-            cw.set_metric("StaticFleet.EC2.RunningInstances", len(running_static_subfleet_instances))
-            cw.set_metric("StaticFleet.EC2.DrainingInstances", len(draining_static_subfleet_instances))
+        if len(subfleet_instances):
+            # Send metrics only if there are fleet instances
+            cw.set_metric("Subfleet.EC2.Size", len(subfleet_instances))
+            cw.set_metric("Subfleet.EC2.RunningInstances", len(running_subfleet_instances))
+            cw.set_metric("Subfleet.EC2.DrainingInstances", len(draining_subfleet_instances))
         else:
-            cw.set_metric("StaticFleet.EC2.Size", None)
-            cw.set_metric("StaticFleet.EC2.RunningInstances", None)
-            cw.set_metric("StaticFleet.EC2.DrainingInstances", None)
+            cw.set_metric("Subfleet.EC2.Size", None)
+            cw.set_metric("Subfleet.EC2.RunningInstances", None)
+            cw.set_metric("Subfleet.EC2.DrainingInstances", None)
 
         # vCPU + Mem need estimations
         serving_instances = self.ec2.get_instances(self.pending_running_instances_wo_excluded_draining_error, ScalingState="-bounced")
@@ -735,10 +735,10 @@ By default, the dashboard is enabled.
                 "ServingFleet_vs_MaximumFleetSizePourcentage" : servingfleetpercentage_maximumfleetsize,
                 "ServingFleet_vs_ManagedFleetSizePourcentage" : servingfleetpercentage_managedfleetsize
             },
-            "StaticSubfleets" : []
+            "Subfleets" : []
         }
-        subfleet_stats = s_metrics["StaticSubfleets"]
-        for subfleet in self.ec2.get_static_subfleet_names():
+        subfleet_stats = s_metrics["Subfleets"]
+        for subfleet in self.ec2.get_subfleet_names():
             stats = {
                     "Name": subfleet,
                     "RunningInstances": [],
@@ -747,7 +747,7 @@ By default, the dashboard is enabled.
                     "StoppedInstanceCount": 0,
                     "SubfleetSize": 0
                 }
-            fleet = self.ec2.get_static_subfleet_instances(subfleet_name=subfleet)
+            fleet = self.ec2.get_subfleet_instances(subfleet_name=subfleet)
             for i in fleet:
                 instance_id    = i["InstanceId"]
                 instance_state = i["State"]["Name"]
@@ -945,8 +945,8 @@ By default, the dashboard is enabled.
            return False
 
        if cpu_credit >= 0 and cpu_credit < min_cpu_credit_required:
-           log.info("'%s' is CPU crediting... (is_static_fleet_instance=%s, current_credit=%.2f, minimum_required_credit=%s, maximum_possible_credit=%s, %s)" % 
-                   (instance_id, self.ec2.is_static_subfleet_instance(instance_id), cpu_credit, min_cpu_credit_required, max_earned_credits, instance_type))
+           log.info("'%s' is CPU crediting... (is_subfleet_instance=%s, current_credit=%.2f, minimum_required_credit=%s, maximum_possible_credit=%s, %s)" % 
+                   (instance_id, self.ec2.is_subfleet_instance(instance_id), cpu_credit, min_cpu_credit_required, max_earned_credits, instance_type))
            return True
        return False
 
@@ -984,13 +984,13 @@ By default, the dashboard is enabled.
            self.ec2.set_scaling_state(instance_id, "draining", meta=meta)
 
            need_stop_now = False
-           # Special management for static subfleet instances. We need to check if each draining instance
+           # Special management for subfleet instances. We need to check if each draining instance
            #   are marked for 'running' state. If True, we must shutdown this instance immediatly
            #   to allow its restart ASAP
-           is_static_subfleet_instance = False
-           if self.ec2.is_static_subfleet_instance(instance_id):
-                subfleet_name               = self.ec2.get_static_subfleet_name_for_instance(i)
-                is_static_subfleet_instance = True
+           is_subfleet_instance = False
+           if self.ec2.is_subfleet_instance(instance_id):
+                subfleet_name               = self.ec2.get_subfleet_name_for_instance(i)
+                is_subfleet_instance        = True
                 letter_box                  = self.letter_box_subfleet_to_stop_drained_instances
                 # Did we receive a letter from subfleet management method?
                 if letter_box[subfleet_name]:
@@ -1007,7 +1007,7 @@ By default, the dashboard is enabled.
                            (nb_cpu_crediting, max_number_crediting_instances))
                         too_much_cpu_crediting = True
                elif self.is_instance_need_cpu_crediting(i, meta):
-                   if is_static_subfleet_instance:
+                   if is_subfleet_instance:
                        continue
                    else:
                        nb_cpu_crediting += 1
@@ -1026,7 +1026,7 @@ By default, the dashboard is enabled.
                    elapsed_time  = now - draining_date
                    cooldown      = Cfg.get_duration_secs("ec2.schedule.draining.instance_cooldown")
                    if elapsed_time < timedelta(seconds=cooldown):
-                       log.info("Instance '%s' is still in draining cooldown period (elapsed_time=%d, ec2.schedule.draining.instance_cooldown=%d): "
+                       log.log(log.NOTICE, "Instance '%s' is still in draining cooldown period (elapsed_time=%d, ec2.schedule.draining.instance_cooldown=%d): "
                             "Do not assess stop now..." % (instance_id, elapsed_time.total_seconds(), cooldown))
                        continue
                need_stop_now = True
@@ -1067,28 +1067,28 @@ By default, the dashboard is enabled.
                 self.ec2.start_instances([instance_id])
                 self.scaling_state_changed = True
 
-    def manage_static_subfleets(self):
-        """Manage start/stop actions for static subfleet instances
+    def manage_subfleets(self):
+        """Manage start/stop actions forsubfleet instances
         """
-        instances = self.static_subfleet_instances
+        instances = self.subfleet_instances
         subfleets = {}
         for i in instances:
             instance_id    = i["InstanceId"]
-            subfleet_name  = self.ec2.get_static_subfleet_name_for_instance(i)
+            subfleet_name  = self.ec2.get_subfleet_name_for_instance(i)
             forbidden_chars = "[ .]"
             if re.match(forbidden_chars, subfleet_name):
                 log.warning("Instance '%s' contains invalid characters (%s)!! Ignore this instance..." % (instance_id, forbidden_chars))
                 continue
-            expected_state = Cfg.get("staticfleet.%s.state" % subfleet_name, none_on_failure=True)
+            expected_state = Cfg.get("subfleet.%s.state" % subfleet_name, none_on_failure=True)
             if expected_state is None:
-                log.log(log.NOTICE, "Encountered a static fleet instance (%s) without state directive. Please set 'staticfleet.%s.state' configuration key..." % 
+                log.log(log.NOTICE, "Encountered a subfleet instance (%s) without state directive. Please set 'subfleet.%s.state' configuration key..." % 
                         (instance_id, subfleet_name))
                 continue
-            log.debug("Manage static fleet instance '%s': subfleet_name=%s, expected_state=%s" % (instance_id, subfleet_name, expected_state))
+            log.debug("Manage subfleet instance '%s': subfleet_name=%s, expected_state=%s" % (instance_id, subfleet_name, expected_state))
 
             allowed_expected_states = ["running", "stopped", "undefined", ""]
             if expected_state not in allowed_expected_states:
-                log.warning("Expected state '%s' for static subfleet '%s' is not valid : (not in %s!)" % (expected_state, subfleet_name, allowed_expected_states))
+                log.warning("Expected state '%s' for subfleet '%s' is not valid : (not in %s!)" % (expected_state, subfleet_name, allowed_expected_states))
                 continue
 
             if subfleet_name not in subfleets:
@@ -1097,8 +1097,7 @@ By default, the dashboard is enabled.
             if expected_state == "running":
                 subfleets[subfleet_name]["ToStart"].append(i)
 
-            if (expected_state == "stopped" and i["State"]["Name"] == "running" 
-                    and self.ec2.get_scaling_state(instance_id, do_not_return_excluded=True) != "draining"):
+            if (expected_state == "stopped" and i["State"]["Name"] in ["pending", "running"]):
                 subfleets[subfleet_name]["ToStop"].append(i)
 
             subfleets[subfleet_name]["All"].append(i)
@@ -1114,13 +1113,16 @@ By default, the dashboard is enabled.
             stopped_instances      = self.ec2.get_instances(cache=cache, instances=fleet_instances, State="stopped")
             if len(fleet["ToStop"]):
                 instance_ids = [i["InstanceId"] for i in fleet["ToStop"]]
-                log.info("Draining static fleet instance(s) '%s'..." % instance_ids)
+                log.info("Draining subfleet instance(s) '%s'..." % instance_ids)
                 for instance_id in instance_ids:
                     self.ec2.set_scaling_state(instance_id, "draining")
 
             if len(fleet["ToStart"]):
-                desired_instance_count = max(0, Cfg.get_abs_or_percent("staticfleet.%s.ec2.schedule.desired_instance_count" % subfleet, 
+                min_instance_count     = max(0, Cfg.get_abs_or_percent("subfleet.%s.ec2.schedule.min_instance_count" % subfleet,
+                    0, len(fleet_instances)) )
+                desired_instance_count = max(0, Cfg.get_abs_or_percent("subfleet.%s.ec2.schedule.desired_instance_count" % subfleet, 
                     len(fleet_instances), len(fleet_instances)))
+                desired_instance_count = max(min_instance_count, desired_instance_count)
                 delta                  = desired_instance_count - len(running_instances)
                 if delta > 0:
                     stopped_instances = self.filter_stopped_instance_candidates(running_instances, stopped_instances)
@@ -1131,35 +1133,35 @@ By default, the dashboard is enabled.
                             #   to ask stop_drained_instances() to release immediatly this amount of 'draining' 
                             #   instances if possible
                             self.letter_box_subfleet_to_stop_drained_instances[subfleet] = delta - len(instances_to_start)
-                        log.info("Starting up to %d static fleet instance(s) (fleet=%s)..." % (len(instances_to_start), subfleet))
-                        self.ec2.start_instances(instances_to_start, max_started_instances=desired_instance_count)
+                        log.info("Starting up to %d subfleet instance(s) (fleet=%s)..." % (len(instances_to_start), subfleet))
+                        self.ec2.start_instances(instances_to_start, max_started_instances=delta)
                         self.scaling_state_changed = True
                 if delta < 0:
                     running_instances = self.filter_running_instance_candidates(running_instances)
                     if len(running_instances):
                         instances_to_stop = [i["InstanceId"] for i in running_instances][:-delta]
-                        log.info("Draining static fleet instance(s) '%s'..." % instances_to_stop)
+                        log.info("Draining subfleet instance(s) '%s'..." % instances_to_stop)
                         for instance_id in instances_to_stop:
                             self.ec2.set_scaling_state(instance_id, "draining")
 
-            if Cfg.get_int("staticfleet.%s.ec2.schedule.metrics.enable" % subfleet):
+            if Cfg.get_int("subfleet.%s.ec2.schedule.metrics.enable" % subfleet):
                 dimensions = [{
                     "Name": "SubfleetName",
                     "Value": subfleet}]
                 running_instances  = self.ec2.get_instances(cache=cache, instances=fleet_instances, State="pending,running", ScalingState="-error")
                 draining_instances = self.ec2.get_instances(cache=cache, instances=fleet_instances, State="running", ScalingState="draining")
-                self.cloudwatch.set_metric("StaticFleet.EC2.Size", len(fleet["All"]), dimensions=dimensions)
-                self.cloudwatch.set_metric("StaticFleet.EC2.RunningInstances", len(running_instances), dimensions=dimensions)
-                self.cloudwatch.set_metric("StaticFleet.EC2.DrainingInstances", len(draining_instances), dimensions=dimensions)
+                self.cloudwatch.set_metric("Subfleet.EC2.Size", len(fleet["All"]), dimensions=dimensions)
+                self.cloudwatch.set_metric("Subfleet.EC2.RunningInstances", len(running_instances), dimensions=dimensions)
+                self.cloudwatch.set_metric("Subfleet.EC2.DrainingInstances", len(draining_instances), dimensions=dimensions)
 
-    def generate_static_subfleet_dashboard(self):
+    def generate_subfleet_dashboard(self):
         now                = self.context["now"]
         dashboard          = { "widgets": [] }
-        static_subfleets   = sorted(self.ec2.get_static_subfleet_names())
+        subfleets          = sorted(self.ec2.get_subfleet_names())
         fleet_with_details = []
-        for i in range(0, len(static_subfleets)):
-            subfleet_name = static_subfleets[i]
-            if not Cfg.get_int("staticfleet.%s.ec2.schedule.metrics.enable" % subfleet_name):
+        for i in range(0, len(subfleets)):
+            subfleet_name = subfleets[i]
+            if not Cfg.get_int("subfleet.%s.ec2.schedule.metrics.enable" % subfleet_name):
                 continue
             fleet_with_details.append(subfleet_name)
             widget = {
@@ -1172,9 +1174,9 @@ By default, the dashboard is enabled.
                         "view": "timeSeries",
                         "stacked": False,
                         "metrics": [
-                            [ "CloneSquad", "StaticFleet.EC2.Size", "GroupName", self.context["GroupName"], "SubfleetName", subfleet_name ],
-                            [ ".", "StaticFleet.EC2.RunningInstances", ".", ".", ".", "." ],
-                            [ ".", "StaticFleet.EC2.DrainingInstances", ".", ".", ".", "." ]
+                            [ "CloneSquad", "Subfleet.EC2.Size", "GroupName", self.context["GroupName"], "SubfleetName", subfleet_name ],
+                            [ ".", "Subfleet.EC2.RunningInstances", ".", ".", ".", "." ],
+                            [ ".", "Subfleet.EC2.DrainingInstances", ".", ".", ".", "." ]
                         ],
                         "region": self.context["AWS_DEFAULT_REGION"],
                         "title": subfleet_name,
@@ -1184,10 +1186,10 @@ By default, the dashboard is enabled.
                 }
             dashboard["widgets"].append(widget)
 
-        use_dashboard    =  Cfg.get_int("cloudwatch.staticfleet.use_dashboard") if len(dashboard["widgets"]) != 0 else False
+        use_dashboard    =  Cfg.get_int("cloudwatch.subfleet.use_dashboard") if len(dashboard["widgets"]) != 0 else False
         fingerprint      = "%s : %s : %s " % (fleet_with_details, use_dashboard, 
                 now.minute / 15) # Make the fingerprint change every 15 minutes
-        last_fingerprint = self.ec2.get_state("cloudwatch.staticfleet.last_fingerprint")
+        last_fingerprint = self.ec2.get_state("cloudwatch.subfleet.last_fingerprint")
         client = self.context["cloudwatch.client"]
         if fingerprint != last_fingerprint:
             if not use_dashboard:
@@ -1208,12 +1210,12 @@ By default, the dashboard is enabled.
                        "markdown": "\n### This is an automatically generated dashboard. **DO NOT EDIT!**\n"
                         }
                     })
-                log.log(log.NOTICE, "Configuring Static Subfleet CloudWatch dashboard...")
+                log.log(log.NOTICE, "Configuring Subfleet CloudWatch dashboard...")
                 response = client.put_dashboard(
                         DashboardName="CS-%s-Subfleets" % self.context["GroupName"],
                         DashboardBody=Dbg.pprint(dashboard)
                     )
-        self.set_state("cloudwatch.staticfleet.last_fingerprint", fingerprint)
+        self.set_state("cloudwatch.subfleet.last_fingerprint", fingerprint)
 
 
     ###############################################

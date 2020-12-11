@@ -74,25 +74,25 @@ that do not match the policy will be modified dynamically as soon as they are st
 a non-homogeneous fleet (ex: using [Least Outstanding Requests algorithm](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/load-balancer-target-groups.html#modify-routing-algorithm). If not, prefer this setup: one small/cheap instance type for LighHouse instances and a single instance 
 type for non-LightHouse ones.*
 
-# Static subfleet support
+# Subfleet support
 
-CloneSquad can manage static subfleets of EC2 and RDS instances. This support is added to complement the cost reduction benefits of the autoscaling feature.
-The static subfleets are a set of resources using the special tag `clonesquad:static-subfleet-name` that will be managed differently than ones
+CloneSquad can manage subfleets of EC2 and RDS instances. This support is added to complement the cost reduction benefits of the autoscaling feature.
+The subfleets are a set of resources using the special tag `clonesquad:subfleet-name` that will be managed differently than ones
 not tagged this way.
 
-This resources are managed in a On/Off manner through the dynamic configuration key named `staticfleet.{NameOfTheSubFleet}.state` which can take one
+This resources are managed in a On/Off manner through the dynamic configuration key named `subfleet.{NameOfTheSubFleet}.state` which can take one
 of these 3 values: [`stopped`, `undefined` or ``, `running`].
 
 Ones can use the Scheduler to change this value to manage lifecycle of subfleets.
 
 Ex:
 
-	cron(0 7 * * ? *),staticfleet.mysubfleetname.state=running
-	cron(0 19 * * ? *),staticfleet.mysubfleetname.state=stopped
+	cron(0 7 * * ? *),subfleet.mysubfleetname.state=running
+	cron(0 19 * * ? *),subfleet.mysubfleetname.state=stopped
 
-Note: The static fleets resources have a dedicated widget in the CloneSquad dashboard. Notice that static resources are NOT part of graphed 
-resources of others widgets. For instance, if a static fleet instance is entering 'CPU Crediting state', it won't appear in the 'TargetGroup and other statuses'
-widget and you will only see 'draining' instances for a very long time in 'Static SubFleet statues' widget. For more details, look at logs!
+Note: The subfleets resources have a dedicated widget in the CloneSquad dashboard. Notice that resources are NOT part of graphed 
+resources of others widgets. For instance, if a subfleet instance is entering 'CPU Crediting state', it won't appear in the 'TargetGroup and other statuses'
+widget and you will only see 'draining' instances for a very long time in 'SubFleet statues' widget. For more details, look at logs!
 
 # About EC2 Spot instance support
 

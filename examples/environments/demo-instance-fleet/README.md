@@ -32,7 +32,7 @@ FLEET_SPECIFICATION=${FLEET_SPECIFICATION:-"t3.medium,Spot=True,Count=3;c5.large
 ./deploy-test-instances.sh
 ```
 
-Note: The script also generates some 'static subfleet' resources (4 x EC2 instances and 4 x RDS instances). There are used by the 
+Note: The script also generates some 'subfleet' resources (4 x EC2 instances and 4 x RDS instances). There are used by the 
 [demo-scheduled-events](../demo-scheduled-events/)
 
 

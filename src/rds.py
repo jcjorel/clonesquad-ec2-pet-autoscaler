@@ -32,7 +32,7 @@ class RDS:
                     "Format": "Bool",
                     "Description": """Enable management of RDS databases.
 
-Disabled by default to save Main Lambda execution time. This flag activates support of RDS instances in Static Subfleets.
+Disabled by default to save Main Lambda execution time. This flag activates support of RDS instances in Subfleets.
                 """
                 },
                 "rds.state.default_ttl" : "hours=2",
@@ -97,34 +97,34 @@ Disabled by default to save Main Lambda execution time. This flag activates supp
         metric_time_resolution = Cfg.get_int("rds.metrics.time_resolution")
         if metric_time_resolution < 60: metric_time_resolution = 1 # Switch to highest resolution
         self.cloudwatch.register_metric([
-                { "MetricName": "StaticFleet.RDS.Size",
+                { "MetricName": "Subfleet.RDS.Size",
                   "Unit": "Count",
                   "StorageResolution": metric_time_resolution },
-                { "MetricName": "StaticFleet.RDS.AvailableDBs",
+                { "MetricName": "Subfleet.RDS.AvailableDBs",
                   "Unit": "Count",
                   "StorageResolution": metric_time_resolution },
-                { "MetricName": "StaticFleet.RDS.StoppingDBs",
+                { "MetricName": "Subfleet.RDS.StoppingDBs",
                   "Unit": "Count",
                   "StorageResolution": metric_time_resolution },
-                { "MetricName": "StaticFleet.RDS.StartingDBs",
+                { "MetricName": "Subfleet.RDS.StartingDBs",
                   "Unit": "Count",
                   "StorageResolution": metric_time_resolution },
                 ])
 
-        # We need to register dynamically static subfleet configuration keys to avoid a 'key unknown' warning 
+        # We need to register dynamically subfleet configuration keys to avoid a 'key unknown' warning 
         #   when the user is going to set it
-        static_subfleet_names = self.get_rds_subfleet_names()
-        for static_fleet in static_subfleet_names:
-            key = "staticfleet.%s.state" % static_fleet
+        subfleet_names = self.get_rds_subfleet_names()
+        for subfleet in subfleet_names:
+            key = "subfleet.%s.state" % subfleet
             if not Cfg.is_builtin_key_exist(key):
                 Cfg.register({
                     key : ""
                     })
-        log.log(log.NOTICE, "Detected following static subfleet names across RDS resources: %s" % static_subfleet_names)
+        log.log(log.NOTICE, "Detected following subfleet names across RDS resources: %s" % subfleet_names)
 
     @xray_recorder.capture()
     def manage_subfleet(self):
-        """Manage start/stop actions for static subfleet RDS instances
+        """Manage start/stop actions for subfleet RDS instances
         """
         if not Cfg.get_int("rds.enable"):
             return
@@ -132,7 +132,7 @@ Disabled by default to save Main Lambda execution time. This flag activates supp
         states = defaultdict(int)
         arns   = self.get_subfleet_arns()
         for arn in arns:
-            subfleet_name  = self.get_static_subfleet_name_for_db(arn)
+            subfleet_name  = self.get_subfleet_name_for_db(arn)
             if subfleet_name is None:
                 log.warning("Missing tag 'clonesquad:subfleet-name' on RDS instance '%s'!" % arn)
                 continue
@@ -140,15 +140,15 @@ Disabled by default to save Main Lambda execution time. This flag activates supp
             if re.match(forbidden_chars, subfleet_name):
                 log.warning("Subfleet name '%s' contains invalid characters (%s)!! Ignore %s..." % (subfleet_name, forbidden_chars, arn))
                 continue
-            expected_state = Cfg.get("staticfleet.%s.state" % subfleet_name, none_on_failure=True)
+            expected_state = Cfg.get("subfleet.%s.state" % subfleet_name, none_on_failure=True)
             if expected_state is None:
-                log.log(log.NOTICE, "Encountered a static fleet RDS database (%s) without matching state directive. Please set 'staticfleet.%s.state' configuration key..." % 
+                log.log(log.NOTICE, "Encountered a subfleet RDS database (%s) without matching state directive. Please set 'subfleet.%s.state' configuration key..." % 
                         (arn, subfleet_name))
                 continue
             db_expected_state = expected_state if expected_state != "running" else "available"
 
             current_state  = self.get_db_status(arn)
-            log.debug("Manage static fleet DB '%s': subfleet_name=%s, current_state=%s, expected_state=%s" % 
+            log.debug("Manage subfleet DB '%s': subfleet_name=%s, current_state=%s, expected_state=%s" % 
                     (arn, subfleet_name, current_state, expected_state))
             if expected_state != "" and db_expected_state != current_state:
                 log.info("RDS database '%s' is transitionning from '%s' to '%s' state..." % 
@@ -157,7 +157,7 @@ Disabled by default to save Main Lambda execution time. This flag activates supp
 
             allowed_expected_states = ["running", "stopped", "undefined", ""]
             if expected_state not in allowed_expected_states:
-                log.warning("Expected state '%s' for static subfleet '%s' is not valid : (not in %s!)" % (expected_state, subfleet_name, allowed_expected_states))
+                log.warning("Expected state '%s' for subfleet '%s' is not valid : (not in %s!)" % (expected_state, subfleet_name, allowed_expected_states))
                 continue
 
             if expected_state == "running" and self.get_db_status(arn) == "stopped":
@@ -167,15 +167,15 @@ Disabled by default to save Main Lambda execution time. This flag activates supp
 
         cw = self.cloudwatch
         if len(arns):
-            cw.set_metric("StaticFleet.RDS.Size", len(arns))
-            cw.set_metric("StaticFleet.RDS.AvailableDBs", states["available"] + states["backing-up"])
-            cw.set_metric("StaticFleet.RDS.StoppingDBs", states["stopping"])
-            cw.set_metric("StaticFleet.RDS.StartingDBs", states["starting"])
+            cw.set_metric("Subfleet.RDS.Size", len(arns))
+            cw.set_metric("Subfleet.RDS.AvailableDBs", states["available"] + states["backing-up"])
+            cw.set_metric("Subfleet.RDS.StoppingDBs", states["stopping"])
+            cw.set_metric("Subfleet.RDS.StartingDBs", states["starting"])
         else:
-            cw.set_metric("StaticFleet.RDS.Size", None)
-            cw.set_metric("StaticFleet.RDS.AvailableDBs", None)
-            cw.set_metric("StaticFleet.RDS.StoppingDBs", None)
-            cw.set_metric("StaticFleet.RDS.StartingDBs", None)
+            cw.set_metric("Subfleet.RDS.Size", None)
+            cw.set_metric("Subfleet.RDS.AvailableDBs", None)
+            cw.set_metric("Subfleet.RDS.StoppingDBs", None)
+            cw.set_metric("Subfleet.RDS.StartingDBs", None)
 
     def stop_db(self, arn):
         try:
@@ -232,10 +232,10 @@ Disabled by default to save Main Lambda execution time. This flag activates supp
             return tags
         return None
 
-    def get_static_subfleet_name_for_db(self, arn):
+    def get_subfleet_name_for_db(self, arn):
         tags = self.get_rds_tags(arn)
-        if "clonesquad:static-subfleet-name" in tags:
-            return tags["clonesquad:static-subfleet-name"]
+        if "clonesquad:subfleet-name" in tags:
+            return tags["clonesquad:subfleet-name"]
         return None
 
     def get_rds_subfleet_names(self):
@@ -249,10 +249,10 @@ Disabled by default to save Main Lambda execution time. This flag activates supp
                 name   = None
                 if "clonesquad:excluded" in tags and tags["clonesquad:excluded"] in ["True", "true"]:
                     continue
-                if "clonesquad:static-subfleet-name" in tags:
-                    name = tags["clonesquad:static-subfleet-name"]
-                if "clonesquad:static-subfleet-name" in tags:
-                    name = tags["clonesquad:static-subfleet-name"]
+                if "clonesquad:subfleet-name" in tags:
+                    name = tags["clonesquad:subfleet-name"]
+                if "clonesquad:subfleet-name" in tags:
+                    name = tags["clonesquad:subfleet-name"]
                 if name is not None and name not in names: names.append(name)
         return names
 
