@@ -199,12 +199,11 @@ forcing their immediate replacement in healthy AZs in the region.
 
 
 
-
-### subfleet.<subfleetname>.state
+### subfleet.&lt;subfleetname&gt;.state
 Default Value: `undefined`   
 Format       :  [String](#String)
 
-Define the status of the subfleet named <subfleetname>.
+Define the status of the subfleet named &lt;subfleetname&gt;.
 
 Can be one the following values ['`stopped`', '`undefined`', '`running`'].
 
@@ -213,35 +212,33 @@ A subfleet can contain EC2 instances but also RDS and TransferFamilies tagged in
 
 
 
-
-### subfleet.<subfleetname>.ec2.schedule.desired_instance_count
+### subfleet.&lt;subfleetname&gt;.ec2.schedule.desired_instance_count
 Default Value: `100%`   
 Format       :  [IntegerOrPercentage](#IntegerOrPercentage)
 
 Define the number of EC2 instances to start when a subfleet is in a 'running' state.
 
-> This parameter has no effect if [`subfleet.<subfleetname>.state`](#subfleetsubfleetnamestate) is set to a value different than `running`.
+> This parameter has no effect if [`subfleet.&lt;subfleetname&gt;.state`](#subfleetsubfleetnamestate) is set to a value different than `running`.
                  
 
 
 
-
-### subfleet.<subfleetname>.ec2.schedule.min_instance_count
+### subfleet.&lt;subfleetname&gt;.ec2.schedule.min_instance_count
 Default Value: `0`   
 Format       :  [IntegerOrPercentage](#IntegerOrPercentage)
 
 Define the minimum number of EC2 instances to keep up when a subfleet is in a 'running' state.
 
-> This parameter has no effect if [`subfleet.<subfleetname>.state`](#subfleetsubfleetnamestate) is set to a value different than `running`.
+> This parameter has no effect if [`subfleet.&lt;subfleetname&gt;.state`](#subfleetsubfleetnamestate) is set to a value different than `running`.
                  
 
 
 
-### subfleet.<subfleetname>.ec2.schedule.metrics.enable
+### subfleet.&lt;subfleetname&gt;.ec2.schedule.metrics.enable
 Default Value: `1`   
 Format       :  [Bool](#Bool)
 
-Enable detailed metrics for the subfleet <subfleetname>.
+Enable detailed metrics for the subfleet &lt;subfleetname&gt;.
 
 The following additional metrics are generated:
 * Subfleet.EC2.Size,
@@ -614,7 +611,7 @@ Maximum number of instances that could be considered, at a given time, as unheal
 * Setting this parameter to `100%` will indicate that all burstable instances could marked as unhealthy at the same time.
 * Setting this parameter to `0` will completely disable the ability to consider burstable instances as unhealthy. 
 
-> To prevent a DDoS, burstable instances with exhausted CPU Credit balance are NOT marked as unhealthy when len(stopped_instance) - (ec2.scheduler.min_instance_count) <= 0.
+> To prevent a DDoS, burstable instances with exhausted CPU Credit balance are NOT marked as unhealthy when len(stopped_instance) - (ec2.scheduler.min_instance_count) &lt;= 0.
                      
 
 

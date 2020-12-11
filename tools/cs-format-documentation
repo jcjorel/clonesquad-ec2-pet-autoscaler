@@ -38,7 +38,11 @@ c = config.dumps()
 
 # Escape some characters that can confuse makrdown formatting
 for k in c.keys():
-    c[k]["Key"] = c[k]["Key"].replace("<", "&lt;").replace(">", "&gt;")
+    c[k]["Key"]         = c[k]["Key"].replace("<", "&lt;").replace(">", "&gt;")
+    description = []
+    for line in c[k]["Description"].split("\n"):
+        description.append("%s%s" % (line[:1], line[1:].replace("<", "&lt;").replace(">", "&gt;")))
+    c[k]["Description"] = "\n".join(description)
 args_dict["config"] = c
 
 with open(args.doc_template_file[0]) as f:
