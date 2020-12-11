@@ -1026,7 +1026,7 @@ By default, the dashboard is enabled.
                    elapsed_time  = now - draining_date
                    cooldown      = Cfg.get_duration_secs("ec2.schedule.draining.instance_cooldown")
                    if elapsed_time < timedelta(seconds=cooldown):
-                       log.info("Instance '%s' is still in draining cooldown period (elapsed_time=%d, ec2.schedule.draining.instance_cooldown=%d): "
+                       log.log(log.NOTICE, "Instance '%s' is still in draining cooldown period (elapsed_time=%d, ec2.schedule.draining.instance_cooldown=%d): "
                             "Do not assess stop now..." % (instance_id, elapsed_time.total_seconds(), cooldown))
                        continue
                need_stop_now = True
