@@ -218,7 +218,7 @@ Format       :  [IntegerOrPercentage](#IntegerOrPercentage)
 
 Define the number of EC2 instances to start when a subfleet is in a 'running' state.
 
-> This parameter has no effect if [`subfleet.&lt;subfleetname&gt;.state`](#subfleetsubfleetnamestate) is set to a value different than `running`.
+> This parameter has no effect if [`subfleet.subfleetname.state`](#subfleetsubfleetnamestate) is set to a value different than `running`.
                  
 
 
@@ -229,7 +229,7 @@ Format       :  [IntegerOrPercentage](#IntegerOrPercentage)
 
 Define the minimum number of EC2 instances to keep up when a subfleet is in a 'running' state.
 
-> This parameter has no effect if [`subfleet.&lt;subfleetname&gt;.state`](#subfleetsubfleetnamestate) is set to a value different than `running`.
+> This parameter has no effect if [`subfleet.subfleetname.state`](#subfleetsubfleetnamestate) is set to a value different than `running`.
                  
 
 
