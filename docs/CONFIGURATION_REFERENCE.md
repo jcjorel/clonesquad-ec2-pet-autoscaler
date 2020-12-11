@@ -199,6 +199,7 @@ forcing their immediate replacement in healthy AZs in the region.
 
 
 
+
 ### subfleet.<subfleetname>.state
 Default Value: `undefined`   
 Format       :  [String](#String)
@@ -212,6 +213,7 @@ A subfleet can contain EC2 instances but also RDS and TransferFamilies tagged in
 
 
 
+
 ### subfleet.<subfleetname>.ec2.schedule.desired_instance_count
 Default Value: `100%`   
 Format       :  [IntegerOrPercentage](#IntegerOrPercentage)
@@ -220,6 +222,7 @@ Define the number of EC2 instances to start when a subfleet is in a 'running' st
 
 > This parameter has no effect if [`subfleet.<subfleetname>.state`](#subfleetsubfleetnamestate) is set to a value different than `running`.
                  
+
 
 
 

@@ -1,3 +1,7 @@
+v0.7.1:
+- (Bug/Major) Make sure to not start Subfleet stopped instance when expecting to start an Autoscaled instance...
+- (Improvment/Minor) Enabled by default the detailed metric per subfleet (and so, Subfleet dashboard).
+
 v0.7.0:
 - (Improvment/Major) Added 'staticfleet.<subfleetname>.ec2.schedule.desired_instance_count' to control the number of 'running' instances when 'staticfleet.<subfleetname>.enable' is set to 'running'.
 - (Improvment/Major) BACKWARD COMPATIBILITY BREAK: Renamed all dashboards from CloneSquad-xxx to CS-xxx to save space in the CloudWatch console.
