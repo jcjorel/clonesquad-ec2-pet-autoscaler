@@ -1126,13 +1126,16 @@ By default, the dashboard is enabled.
                 delta                  = desired_instance_count - len(running_instances)
                 if delta > 0:
                     stopped_instances = self.filter_stopped_instance_candidates(running_instances, stopped_instances)
+                    instances_to_start = [ i["InstanceId"] for i in stopped_instances ]
+                    if delta > len(instances_to_start):
+                        # If we can't start the request number of instances, we set a letter box variable
+                        #   to ask stop_drained_instances() to release immediatly this amount of 'draining' 
+                        #   instances if possible
+                        missing_count = delta - len(instances_to_start)
+                        log.info("Require %d more subfleet '%s' instances! Try to forcibly stop instances in 'cpu crediting' state..." 
+                                % (missing_count, subfleet))
+                        self.letter_box_subfleet_to_stop_drained_instances[subfleet] = delta - len(instances_to_start)
                     if len(stopped_instances):
-                        instances_to_start = [ i["InstanceId"] for i in stopped_instances ]
-                        if delta > len(instances_to_start):
-                            # If we can't start the request number of instances, we set a letter box variable
-                            #   to ask stop_drained_instances() to release immediatly this amount of 'draining' 
-                            #   instances if possible
-                            self.letter_box_subfleet_to_stop_drained_instances[subfleet] = delta - len(instances_to_start)
                         log.info("Starting up to %d subfleet instance(s) (fleet=%s)..." % (len(instances_to_start), subfleet))
                         self.ec2.start_instances(instances_to_start, max_started_instances=delta)
                         self.scaling_state_changed = True
