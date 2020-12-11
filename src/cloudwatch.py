@@ -253,7 +253,8 @@ See [Alarm specification documentation](ALARMS_REFERENCE.md)  for more details.
             if cached_metric is not None:
                 # Note: Polling of CPU Credit Balance is a bit tricky as this API takes a lot of time to update and sometime
                 #   do send back results from time to time. So we need to try multiple times...
-                if "_LastSamplingAttempt" in cached_metric and misc.str2utc(cached_metric["_LastSamplingAttempt"]) < misc.str2duration_seconds("minutes=1"):
+                if ("_LastSamplingAttempt" in cached_metric and 
+                        (now - misc.str2utc(cached_metric["_LastSamplingAttempt"])).total_seconds() < misc.str2duration_seconds("minutes=1")):
                     continue # We do not want to poll more than one per minute
                 if (now - misc.str2utc(cached_metric["_SamplingTime"])).total_seconds() < max_retention_period * 0.8:
                     # Current data point is not yet expired. Keep of this attempt
