@@ -435,7 +435,7 @@ By default, the dashboard is enabled.
 
         # Subfleets
         self.subfleet_instances              = self.ec2.get_subfleet_instances()
-        self.running_subfleet_instances      = self.ec2.get_instances(cache=cache, instances=self.subfleet_instances, State="running")
+        self.running_subfleet_instances      = self.ec2.get_instances(cache=cache, instances=self.subfleet_instances, State="pending,running")
         self.draining_subfleet_instances     = self.ec2.get_instances(cache=cache, instances=self.subfleet_instances, ScalingState="draining")
         log.debug("End of instance list computation.")
         xray_recorder.end_subsegment()
@@ -1097,8 +1097,7 @@ By default, the dashboard is enabled.
             if expected_state == "running":
                 subfleets[subfleet_name]["ToStart"].append(i)
 
-            if (expected_state == "stopped" and i["State"]["Name"] == "running" 
-                    and self.ec2.get_scaling_state(instance_id, do_not_return_excluded=True) != "draining"):
+            if (expected_state == "stopped" and i["State"]["Name"] in ["pending", "running"]):
                 subfleets[subfleet_name]["ToStop"].append(i)
 
             subfleets[subfleet_name]["All"].append(i)
@@ -1135,7 +1134,7 @@ By default, the dashboard is enabled.
                             #   instances if possible
                             self.letter_box_subfleet_to_stop_drained_instances[subfleet] = delta - len(instances_to_start)
                         log.info("Starting up to %d subfleet instance(s) (fleet=%s)..." % (len(instances_to_start), subfleet))
-                        self.ec2.start_instances(instances_to_start, max_started_instances=desired_instance_count)
+                        self.ec2.start_instances(instances_to_start, max_started_instances=delta)
                         self.scaling_state_changed = True
                 if delta < 0:
                     running_instances = self.filter_running_instance_candidates(running_instances)
