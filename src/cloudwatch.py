@@ -259,7 +259,7 @@ See [Alarm specification documentation](ALARMS_REFERENCE.md)  for more details.
                 if (now - misc.str2utc(cached_metric["_SamplingTime"])).total_seconds() < max_retention_period * 0.8:
                     # Current data point is not yet expired. Keep of this attempt
                     continue
-            cached_metric["_LastSamplingAttempt"] = now
+                cached_metric["_LastSamplingAttempt"] = now
             cpu_credit_polling += 1
             CloudWatch._format_query(query, "%s/%s" % ("CPUCreditBalance", instance_id), {
                     "MetricName": "CPUCreditBalance",
