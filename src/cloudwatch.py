@@ -50,6 +50,7 @@ It support regex patterns.
                     "cloudwatch.metrics.data_period": "minutes=2",
                     "cloudwatch.metrics.max_update_per_batch": "20",
                     "cloudwatch.metrics.cache.max_retention_period": "minutes=15",
+                    "cloudwatch.metrics.instance_minimum_age_for_cpu_credit_polling": "minutes=10",
                     "cloudwatch.metrics.minimum_polled_alarms_per_run": "1",
                     "cloudwatch.metrics.time_for_full_metric_refresh,Stable": {
                         "DefaultValue": "minutes=1,seconds=30",
