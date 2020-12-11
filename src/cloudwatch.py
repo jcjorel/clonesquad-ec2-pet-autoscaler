@@ -49,7 +49,8 @@ It support regex patterns.
                     },
                     "cloudwatch.metrics.data_period": "minutes=2",
                     "cloudwatch.metrics.max_update_per_batch": "20",
-                    "cloudwatch.metrics.cache.max_retention_period": "minutes=10",
+                    "cloudwatch.metrics.cache.max_retention_period": "minutes=15",
+                    "cloudwatch.metrics.instance_minimum_age_for_cpu_credit_polling": "minutes=10",
                     "cloudwatch.metrics.minimum_polled_alarms_per_run": "1",
                     "cloudwatch.metrics.time_for_full_metric_refresh,Stable": {
                         "DefaultValue": "minutes=1,seconds=30",
@@ -238,26 +239,38 @@ See [Alarm specification documentation](ALARMS_REFERENCE.md)  for more details.
                     continue
                 CloudWatch._format_query(query, alarm_name, alarm)
 
+        max_retention_period = Cfg.get_duration_secs("cloudwatch.metrics.cache.max_retention_period")
+
         # Query Metric for Burstable instances
+        instance_minimum_age_for_cpu_credit_polling = Cfg.get_duration_secs("cloudwatch.metrics.instance_minimum_age_for_cpu_credit_polling")
         burstable_instances = self.ec2.get_burstable_instances(State="running", ScalingState="-error")
-        last_collect_date   = self.ec2.get_state_date("cloudwatch.metrics.last_burstable_metric_collect_date")
-        if last_collect_date is None or (now - last_collect_date) > timedelta(minutes=1):
-            for i in burstable_instances:
-                instance_id         = i["InstanceId"]
-                if self.ec2.get_scaling_state(instance_id, raw=True) != "draining":
+        cpu_credit_polling  = 0
+        for i in burstable_instances:
+            instance_id   = i["InstanceId"]
+            if (now - i["LaunchTime"]).total_seconds() < instance_minimum_age_for_cpu_credit_polling:
+                continue
+            cached_metric = self.get_metric_by_id("CPUCreditBalance/%s" % instance_id)
+            if cached_metric is not None:
+                # Note: Polling of CPU Credit Balance is a bit tricky as this API takes a lot of time to update and sometime
+                #   do send back results from time to time. So we need to try multiple times...
+                if "_LastSamplingAttempt" in cached_metric and misc.str2utc(cached_metric["_LastSamplingAttempt"]) < misc.str2duration_seconds("minutes=1"):
+                    continue # We do not want to poll more than one per minute
+                if (now - misc.str2utc(cached_metric["_SamplingTime"])).total_seconds() < max_retention_period * 0.8:
+                    # Current data point is not yet expired. Keep of this attempt
+                    cached_metric["_LastSamplingAttempt"] = now
                     continue
-                CloudWatch._format_query(query, "%s/%s" % ("CPUCreditBalance", instance_id), {
-                        "MetricName": "CPUCreditBalance",
-                        "Namespace" : "AWS/EC2",
-                        "Dimensions": [{
-                            "Name": "InstanceId",
-                            "Value": instance_id
-                        }],
-                        "Period": 300,
-                        "Statistic"  : "Average"
-                    })
-            self.ec2.set_state("cloudwatch.metrics.last_burstable_metric_collect_date", now, 
-                    TTL=Cfg.get_duration_secs("cloudwatch.default_ttl"))
+            cpu_credit_polling += 1
+            CloudWatch._format_query(query, "%s/%s" % ("CPUCreditBalance", instance_id), {
+                    "MetricName": "CPUCreditBalance",
+                    "Namespace" : "AWS/EC2",
+                    "Dimensions": [{
+                        "Name": "InstanceId",
+                        "Value": instance_id
+                    }],
+                    "Period": 300,
+                    "Statistic"  : "Average"
+                })
+        log.log(log.NOTICE, "Will poll %d instances for CPU Credit balance." % cpu_credit_polling)
 
         # Make request to CloudWatch
         query_counter  = self.ec2.get_state_int("cloudwatch.metric.query_counter", default=0)
@@ -301,7 +314,6 @@ See [Alarm specification documentation](ALARMS_REFERENCE.md)  for more details.
         metric_cache      = self.metric_cache
         self.metric_cache = metric_results
         for m in metric_cache:
-            max_retention_period = Cfg.get_duration_secs("cloudwatch.metrics.cache.max_retention_period")
             if m["_MetricId"] in metric_ids or "_SamplingTime" not in m: 
                 continue
             if (now - misc.str2utc(m["_SamplingTime"])).total_seconds() < max_retention_period:
