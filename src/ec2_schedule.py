@@ -1119,8 +1119,11 @@ By default, the dashboard is enabled.
                     self.ec2.set_scaling_state(instance_id, "draining")
 
             if len(fleet["ToStart"]):
+                min_instance_count     = max(0, Cfg.get_abs_or_percent("subfleet.%s.ec2.schedule.min_instance_count" % subfleet,
+                    0, len(fleet_instances)) )
                 desired_instance_count = max(0, Cfg.get_abs_or_percent("subfleet.%s.ec2.schedule.desired_instance_count" % subfleet, 
                     len(fleet_instances), len(fleet_instances)))
+                desired_instance_count = max(min_instance_count, desired_instance_count)
                 delta                  = desired_instance_count - len(running_instances)
                 if delta > 0:
                     stopped_instances = self.filter_stopped_instance_candidates(running_instances, stopped_instances)

@@ -223,6 +223,17 @@ Define the number of EC2 instances to start when a subfleet is in a 'running' st
 
 
 
+### subfleet.<subfleetname>.ec2.schedule.min_instance_count
+Default Value: `0`   
+Format       :  [IntegerOrPercentage](#IntegerOrPercentage)
+
+Define the minimum number of EC2 instances to keep up when a subfleet is in a 'running' state.
+
+> This parameter has no effect if [`subfleet.<subfleetname>.state`](#subfleetsubfleetnamestate) is set to a value different than `running`.
+                 
+
+
+
 ### subfleet.<subfleetname>.ec2.schedule.metrics.enable
 Default Value: `1`   
 Format       :  [Bool](#Bool)

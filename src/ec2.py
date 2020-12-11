@@ -106,6 +106,13 @@ A subfleet can contain EC2 instances but also RDS and TransferFamilies tagged in
 
 > This parameter has no effect if [`subfleet.<subfleetname>.state`](#subfleetsubfleetnamestate) is set to a value different than `running`.
                  """},
+                 "subfleet.<subfleetname>.ec2.schedule.min_instance_count,Stable": {
+                         "DefaultValue": "0",
+                         "Format": "IntegerOrPercentage",
+                         "Description": """Define the minimum number of EC2 instances to keep up when a subfleet is in a 'running' state.
+
+> This parameter has no effect if [`subfleet.<subfleetname>.state`](#subfleetsubfleetnamestate) is set to a value different than `running`.
+                 """},
                  "subfleet.<subfleetname>.ec2.schedule.metrics.enable,Stable": {
                          "DefaultValue": "1",
                          "Format": "Bool",
