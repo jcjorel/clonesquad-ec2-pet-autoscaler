@@ -983,10 +983,8 @@ By default, the dashboard is enabled.
            meta = {}
            self.ec2.set_scaling_state(instance_id, "draining", meta=meta)
 
-           need_stop_now = False
-           # Special management for subfleet instances. We need to check if each draining instance
-           #   are marked for 'running' state. If True, we must shutdown this instance immediatly
-           #   to allow its restart ASAP
+           need_stop_now        = False
+           allow_cpu_crediting  = True
            is_subfleet_instance = False
            if self.ec2.is_subfleet_instance(instance_id):
                 subfleet_name               = self.ec2.get_subfleet_name_for_instance(i)
@@ -994,7 +992,7 @@ By default, the dashboard is enabled.
                 letter_box                  = self.letter_box_subfleet_to_stop_drained_instances
                 # Did we receive a letter from subfleet management method?
                 if letter_box[subfleet_name]:
-                    need_stop_now              = True
+                    allow_cpu_crediting        = False
                     letter_box[subfleet_name] -= 1
            
            if Cfg.get("ec2.schedule.desired_instance_count") == "100%":
@@ -1006,7 +1004,7 @@ By default, the dashboard is enabled.
                         log.info("Maximum number of CPU Crediting instances reached! (nb_cpu_crediting=%s,ec2.schedule.max_cpu_crediting_instances=%d)" %
                            (nb_cpu_crediting, max_number_crediting_instances))
                         too_much_cpu_crediting = True
-               elif self.is_instance_need_cpu_crediting(i, meta):
+               elif allow_cpu_crediting and self.is_instance_need_cpu_crediting(i, meta):
                    if is_subfleet_instance:
                        continue
                    else:
