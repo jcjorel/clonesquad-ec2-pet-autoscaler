@@ -218,7 +218,19 @@ Format       :  [IntegerOrPercentage](#IntegerOrPercentage)
 
 Define the number of EC2 instances to start when a subfleet is in a 'running' state.
 
+    Note: `-1` is an invalid value (and so do not mean 'autoscaling' like in [`ec2.schedule.desired_instance_count`](#ec2scheduledesired_instance_count)).
+
 > This parameter has no effect if [`subfleet.subfleetname.state`](#subfleetsubfleetnamestate) is set to a value different than `running`.
+                 
+
+
+
+### subfleet.&lt;subfleetname&gt;.ec2.schedule.burstable_instance.max_cpu_crediting_instances
+Default Value: `50%`   
+Format       :  [IntegerOrPercentage](#IntegerOrPercentage)
+
+Define the maximum number of EC2 instances that can be in CPU Crediting state at the same time in the designated subfleet.
+
                  
 
 
@@ -632,12 +644,12 @@ condition, CloneSquad will automatically stop and restart instances in CPU Credi
 
 
 ### ec2.schedule.burstable_instance.preserve_accrued_cpu_credit
-Default Value: `1`   
+Default Value: `0`   
 Format       :  [Bool](#Bool)
 
-Enable the weekly wakeup of burstable instances ["t3","t4"]
+Enable a weekly wakeup of burstable instances ["t3","t4"]
 
-This flag enables an automatic wakeup of stopped instances before the one-week limit meaning accrued CPU Credit loss.
+This flag enables an automatic wakeup of stopped instances before the one-week limit that would mean accrued CPU Credit loss.
                          
 
 

@@ -1,3 +1,9 @@
+v0.8.0:
+- (Improvment/Major) BACKWARD COMPATIBILITY BREACH: Suppress all references to 'staticfleet' and reworded documentation, CloudWatch metrics and configuration keys toward simpler 'subfleet' wording.
+- (Improvment/Minor) Do not restart automatically burstable instance to preserver accrued credits (ec2.schedule.burstable_instance.preserve_accrued_cpu_credit with 0 value by default).
+- (Improvment/Major) Added subfleet.<subfleetname>.ec2.schedule.burstable_instance.max_cpu_crediting_instances for fine grained control of CPU Crediting in subfleets.
+- (Improvment/Minor) Reworked draining to make CPU Crediting leaner with subfleets.
+
 v0.7.1:
 - (Bug/Major) Make sure to not start Subfleet stopped instance when expecting to start an Autoscaled instance...
 - (Improvment/Minor) Enabled by default the detailed metric per subfleet (and so, Subfleet dashboard).
