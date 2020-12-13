@@ -231,6 +231,7 @@ Format       :  [IntegerOrPercentage](#IntegerOrPercentage)
 
 Define the maximum number of EC2 instances that can be in CPU Crediting state at the same time in the designated subfleet.
 
+Follow the same semantic and usage than [`ec2.schedule.burstable_instance.max_cpu_crediting_instances`](#ec2scheduleburstable_instancemax_cpu_crediting_instances).
                  
 
 
