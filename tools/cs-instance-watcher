@@ -12,6 +12,7 @@ import os
 import sys
 import argparse
 import json
+import subprocess
 import pdb
 
 # Configure logging
@@ -26,7 +27,11 @@ formatter = logging.Formatter("[%(levelname)s] %(asctime)s %(filename)s:%(lineno
 ch.setFormatter(formatter)
 logger.addHandler(ch)
 
-import requests
+try:
+    import requests
+except:
+    logger.error("Missing critical dependency! Please do 'pip install requests'...")
+    sys.exit(1)
 try:
     from iamauth import IAMAuth
 except:
@@ -39,16 +44,59 @@ except:
     logger.error("Missing critical dependency! Please do 'pip install boto3'...")
     sys.exit(1)
 
+def sys_exec(cmd):
+    try:
+        res = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+        res.wait() 
+    except OSError:
+        logger.exception("Failed to execute command: %s" % cmd)
+        return None
+
+    if res.returncode != 0:
+        logger.error("Executed command %s return a non-zero code: %s" % (cmd, res.returncode))
+        return None   
+    return str(res.stdout.read(), "utf-8")
+
+
+
 def on_draining_block_new_connections_to_ports(instance_state):
-    ports = args["on_draining_block_new_connections_to_ports"]
+    ports  = args["on_draining_block_new_connections_to_ports"]
     logger.info("Configuring 'on_draining_block_new_connections_to_ports' built-in behavior for ports: %s" % ports)
-    cs_chain      = ":CS-INSTANCE-WATCHER -"
-    send_cs_chain = "-I INPUT -j CS-INSTANCE-WATCHER"
+    output = sys_exec(["iptables-save"])
+    if output is None:
+        log.error("Failed to retrieve iptables-save!")
+        return
+    iptables          = output.split("\n")
+    filter_start_idx  = -1
+    filter_commit_idx = -1
+    for i in range(0, len(iptables)):
+        if iptables[i] == "*filter":
+            filter_start_idx = i
+        if filter_start_idx != -1 and iptables[i] == "COMMIT":
+            filter_commit_idx = i
+            break
+    if filter_start_idx == -1 or filter_commit_idx == -1:
+        logger.error("Can't find '*filter' and/or 'COMMIT' keyword in iptables-save output!")
+        return
+    pdb.set_trace()
+
+    cs_chain_pattern = ":CS-INSTANCE-WATCHER -"
+    cs_chain         = next(filter(lambda l: l.startswith(cs_chain_pattern), iptables), None)
+    if cs_chain is None:
+        iptables.insert(0, "%s [0,0]" % cs_chain_pattern)
+
+    send_cs_chain_pattern = "-I INPUT -j CS-INSTANCE-WATCHER"
+    send_cs_chain         = next(filter(lambda l: l.startswith(send_cs_chain_pattern), iptables), None)
+    if send_cs_chain is None:
+         first_rule = next(filter(lambda l: l.startswith("-A"), iptables), None)
+         if first_rule is None:
+             # No rule at all loaded
+            commit_rule = next(filter(lambda l: l.startswith("-A"), iptables), None)
+    
     rule = "-A INPUT -p tcp -m tcp --dport 80 -m state --state NEW -j REJECT --reject-with icmp-port-unreachable"
 
 def loop():
     session = requests.Session()
-    session.auth = IAMAuth() # Make out calls capable to do SigV4 auth.
     try:
         instance_id = str(session.get('http://169.254.169.254/latest/meta-data/instance-id').content, "utf-8")
     except:
@@ -61,6 +109,7 @@ def loop():
         logger.exception("Failed to fetch current region Id! (???)")
         return False
     logger.info("Current region: %s" % os.environ["AWS_DEFAULT_REGION"])
+    session.auth = IAMAuth() # Make out calls capable to do SigV4 auth.
 
     config = Config(
        retries = {
