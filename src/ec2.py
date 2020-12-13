@@ -104,7 +104,7 @@ A subfleet can contain EC2 instances but also RDS and TransferFamilies tagged in
                          "Format": "IntegerOrPercentage",
                          "Description": """Define the number of EC2 instances to start when a subfleet is in a 'running' state.
 
-    Note: `-1` is an invalid value (and so do not mean 'autoscaling' like in [`ec2.schedule.desired_instance_count`](#ec2scheduledesired_instance_count)).
+**Note:** `-1` is an invalid value (and so do not mean 'autoscaling' like in [`ec2.schedule.desired_instance_count`](#ec2scheduledesired_instance_count)).
 
 > This parameter has no effect if [`subfleet.subfleetname.state`](#subfleetsubfleetnamestate) is set to a value different than `running`.
                  """},
