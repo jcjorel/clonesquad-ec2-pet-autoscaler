@@ -484,6 +484,14 @@ By default, the dashboard is enabled.
                           "Dimensions": dimensions,
                           "Unit": "Count",
                           "StorageResolution": self.metric_time_resolution },
+                        { "MetricName": "Subfleet.EC2.MinInstanceCount",
+                          "Dimensions": dimensions,
+                          "Unit": "Count",
+                          "StorageResolution": self.metric_time_resolution },
+                        { "MetricName": "Subfleet.EC2.DesiredInstanceCount",
+                          "Dimensions": dimensions,
+                          "Unit": "Count",
+                          "StorageResolution": self.metric_time_resolution },
                     ])
 
 
@@ -1140,11 +1148,12 @@ By default, the dashboard is enabled.
                 for instance_id in instance_ids:
                     self.ec2.set_scaling_state(instance_id, "draining")
 
+            min_instance_count     = max(0, Cfg.get_abs_or_percent("subfleet.%s.ec2.schedule.min_instance_count" % subfleet,
+                0, len(fleet_instances)) )
+            desired_instance_count = max(0, Cfg.get_abs_or_percent("subfleet.%s.ec2.schedule.desired_instance_count" % subfleet, 
+                len(fleet_instances), len(fleet_instances)))
+
             if len(fleet["ToStart"]):
-                min_instance_count     = max(0, Cfg.get_abs_or_percent("subfleet.%s.ec2.schedule.min_instance_count" % subfleet,
-                    0, len(fleet_instances)) )
-                desired_instance_count = max(0, Cfg.get_abs_or_percent("subfleet.%s.ec2.schedule.desired_instance_count" % subfleet, 
-                    len(fleet_instances), len(fleet_instances)))
                 desired_instance_count = max(min_instance_count, desired_instance_count)
                 delta                  = desired_instance_count - len(running_instances)
                 if delta > 0:
@@ -1179,6 +1188,8 @@ By default, the dashboard is enabled.
                 self.cloudwatch.set_metric("Subfleet.EC2.Size", len(fleet["All"]), dimensions=dimensions)
                 self.cloudwatch.set_metric("Subfleet.EC2.RunningInstances", len(running_instances), dimensions=dimensions)
                 self.cloudwatch.set_metric("Subfleet.EC2.DrainingInstances", len(draining_instances), dimensions=dimensions)
+                self.cloudwatch.set_metric("Subfleet.EC2.MinInstanceCount", min_instance_count, dimensions=dimensions)
+                self.cloudwatch.set_metric("Subfleet.EC2.DesiredInstanceCount", desired_instance_count, dimensions=dimensions)
 
     def generate_subfleet_dashboard(self):
         now                = self.context["now"]
@@ -1203,7 +1214,9 @@ By default, the dashboard is enabled.
                             [ "CloneSquad", "Subfleet.EC2.Size", "GroupName", self.context["GroupName"], "SubfleetName", subfleet_name ],
                             [ ".", "Subfleet.EC2.RunningInstances", ".", ".", ".", "." ],
                             [ ".", "Subfleet.EC2.DrainingInstances", ".", ".", ".", "." ],
-                            [ ".", "Subfleet.EC2.NbOfCPUCreditingInstances", ".", ".", ".", "." ]
+                            [ ".", "Subfleet.EC2.NbOfCPUCreditingInstances", ".", ".", ".", "." ],
+                            [ ".", "Subfleet.EC2.MinInstanceCount", ".", ".", ".", "." ],
+                            [ ".", "Subfleet.EC2.DesiredInstanceCount", ".", ".", ".", "." ]
                         ],
                         "region": self.context["AWS_DEFAULT_REGION"],
                         "title": subfleet_name,
