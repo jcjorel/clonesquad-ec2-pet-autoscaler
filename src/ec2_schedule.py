@@ -480,6 +480,10 @@ By default, the dashboard is enabled.
                           "Dimensions": dimensions,
                           "Unit": "Count",
                           "StorageResolution": self.metric_time_resolution },
+                        { "MetricName": "Subfleet.EC2.NbOfCPUCreditingInstances",
+                          "Dimensions": dimensions,
+                          "Unit": "Count",
+                          "StorageResolution": self.metric_time_resolution },
                     ])
 
 
@@ -1049,6 +1053,12 @@ By default, the dashboard is enabled.
            ids_to_stop.append(instance_id)
 
         cw.set_metric("NbOfCPUCreditingInstances", nb_cpu_crediting)
+        for subfleet in self.ec2.get_subfleet_names():
+            dimensions = [{
+                "Name": "SubfleetName",
+                "Value": subfleet}]
+            self.cloudwatch.set_metric("Subfleet.EC2.NbOfCPUCreditingInstances", 
+                    subfleet_details[subfleet]["max_number_crediting_instances"] - subfleet_details[subfleet]["cpu_credit_counter"], dimensions=dimensions)
 
         if len(ids_to_stop) > 0:
             if self.scaling_state_changed:
@@ -1192,7 +1202,8 @@ By default, the dashboard is enabled.
                         "metrics": [
                             [ "CloneSquad", "Subfleet.EC2.Size", "GroupName", self.context["GroupName"], "SubfleetName", subfleet_name ],
                             [ ".", "Subfleet.EC2.RunningInstances", ".", ".", ".", "." ],
-                            [ ".", "Subfleet.EC2.DrainingInstances", ".", ".", ".", "." ]
+                            [ ".", "Subfleet.EC2.DrainingInstances", ".", ".", ".", "." ],
+                            [ ".", "Subfleet.EC2.NbOfCPUCreditingInstances", ".", ".", ".", "." ]
                         ],
                         "region": self.context["AWS_DEFAULT_REGION"],
                         "title": subfleet_name,
