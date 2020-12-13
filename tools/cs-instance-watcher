@@ -1,0 +1,141 @@
+#!/usr/bin/python3
+"""This application is designed to be run of instances managed by CloneSquad.
+
+It is a daemon that poll efficiently the CloneSquad and detect status change. 
+On status change, it starts scripts to perform actions.
+
+It contains a common default action that can be enabled on demand:
+* Ability to set an IPTable entry on 'draining' state.
+"""
+
+import os
+import sys
+import argparse
+import json
+import pdb
+
+# Configure logging
+import logging
+LOG_LEVEL = logging.INFO
+logger = logging.getLogger(sys.argv[0])
+logger.setLevel(LOG_LEVEL)
+logger.propagate = False
+ch = logging.StreamHandler()
+ch.setLevel(LOG_LEVEL)
+formatter = logging.Formatter("[%(levelname)s] %(asctime)s %(filename)s:%(lineno)d - %(message)s")
+ch.setFormatter(formatter)
+logger.addHandler(ch)
+
+import requests
+try:
+    from iamauth import IAMAuth
+except:
+    logger.error("Missing critical dependency! Please do 'pip install requests-iamauth'...")
+    sys.exit(1)
+try:
+    import boto3
+    from botocore.config import Config
+except:
+    logger.error("Missing critical dependency! Please do 'pip install boto3'...")
+    sys.exit(1)
+
+def on_draining_block_new_connections_to_ports(instance_state):
+    ports = args["on_draining_block_new_connections_to_ports"]
+    logger.info("Configuring 'on_draining_block_new_connections_to_ports' built-in behavior for ports: %s" % ports)
+    cs_chain      = ":CS-INSTANCE-WATCHER -"
+    send_cs_chain = "-I INPUT -j CS-INSTANCE-WATCHER"
+    rule = "-A INPUT -p tcp -m tcp --dport 80 -m state --state NEW -j REJECT --reject-with icmp-port-unreachable"
+
+def loop():
+    session = requests.Session()
+    session.auth = IAMAuth() # Make out calls capable to do SigV4 auth.
+    try:
+        instance_id = str(session.get('http://169.254.169.254/latest/meta-data/instance-id').content, "utf-8")
+    except:
+        logger.exception("Failed to fetch current instance Id! (???)")
+        return False
+    logger.info("Running on instance '%s'." % instance_id)
+    try:
+        os.environ["AWS_DEFAULT_REGION"] = str(session.get('http://169.254.169.254/latest/meta-data/placement/availability-zone').content, "utf-8")[:-1]
+    except:
+        logger.exception("Failed to fetch current region Id! (???)")
+        return False
+    logger.info("Current region: %s" % os.environ["AWS_DEFAULT_REGION"])
+
+    config = Config(
+       retries = {
+       'max_attempts': 5,
+       'mode': 'standard'
+       })
+    sts_client    = boto3.client("sts",    config=config)
+    ec2_client    = boto3.client("ec2",    config=config)
+    lambda_client = boto3.client("lambda", config=config)
+
+    # Discover the current CloneSquad GroupName
+    try:
+        Filters   = [{'Name': 'instance-id', 'Values': [instance_id]}]
+        response  = ec2_client.describe_instances(Filters=Filters)
+        instances = []
+        for reservation in response["Reservations"]:
+            instances.extend(reservation["Instances"])
+        if len(instances) != 1:
+            raise Exception("Can't describe instance '%s'! (describe_instances returned %d instances)" % (instance_id, len(instances)))
+    except:
+        logger.exception("Failed to describe instance '%d'!" % instance_id)
+        return False
+
+    tags       = instances[0]["Tags"]
+    tag        = next(filter(lambda t: t["Key"] == "clonesquad:group-name", tags), None)
+    if tag is None:
+        logger.error("Instance '%s' does not belong to a CloneSquad group! (No 'clonesquad:group-name' tag!)" % instance_id)
+        return False
+    group_name = tag["Value"]
+
+    # Get the current Account Id
+    try:
+        account_id = sts_client.get_caller_identity().get('Account')
+    except:
+        logger.exception("Failed to get current region from STS service!")
+        return False
+
+    # Discover API GW URL
+    try:
+        response   = lambda_client.invoke(
+            FunctionName="arn:aws:lambda:%s:%s:function:CloneSquad-Discovery-%s" % (os.environ["AWS_DEFAULT_REGION"], account_id, group_name),
+            InvocationType='RequestResponse',
+            LogType='Tail',
+            Payload=b""
+            )
+        payload    = str(response["Payload"].read(), "utf-8")
+        api_gw_url = json.loads(payload)["InteractAPIGWUrl"]
+    except:
+        logger.exception("Failed to discover API GW Url!")
+        return False
+
+    try:
+        logger.info("Calling %s/metadata..." % api_gw_url)
+        api_payload = str(session.get("%s/metadata" % api_gw_url).content, "utf-8")
+        if api_payload[0] != "{":
+            raise ValueError("API GW Response not a JSON: '%s'" % api_payload)
+        payload     = json.loads(api_payload)
+    except:
+        logger.exception("Failed to process API GW response! (%s) [API response=%s]" % (api_gw_url, api_payload))
+    logger.info("Instance metadata: %s" % payload)
+    instance_state = payload["State"]
+
+    # Call built-in behavior
+    on_draining_block_new_connections_to_ports(instance_state)
+
+
+args = {}
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description="CloneSquad configuration documentation generator")
+    parser.add_argument('api-polling-period', help="Number of seconds between polling of CloneSquad API for status change", 
+            nargs='?', type=int, default=10)
+    parser.add_argument('--on-draining-block-new-connections-to-ports', help="Specify a list of ports where, on DRAINING state, to install IPTable rule"
+            " to reject new connections (while allowing the current ones to finish)", 
+            nargs='*', type=int, default=None)
+
+    for a in parser.parse_args()._get_kwargs():
+        args[a[0]] = a[1]
+    loop()
