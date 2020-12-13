@@ -1154,8 +1154,8 @@ By default, the dashboard is enabled.
                 len(fleet_instances), len(fleet_instances)))
 
             if len(fleet["ToStart"]):
-                desired_instance_count = max(min_instance_count, desired_instance_count)
-                delta                  = desired_instance_count - len(running_instances)
+                instance_count = max(min_instance_count, desired_instance_count)
+                delta          = instance_count - len(running_instances)
                 if delta > 0:
                     stopped_instances = self.filter_stopped_instance_candidates(running_instances, stopped_instances)
                     instances_to_start = [ i["InstanceId"] for i in stopped_instances ]
