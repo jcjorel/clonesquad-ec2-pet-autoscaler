@@ -1,5 +1,5 @@
 v0.8.1:
-- (Bug/Major) Fixed possible mixup of instances between subfleets when some subfleet names can be foud in others.
+- (Bug/Major) Fixed possible mixup of instances between subfleets when some subfleet names can be found in others.
 
 v0.8.0:
 - (Improvment/Major) BACKWARD COMPATIBILITY BREACH: Suppress all references to 'staticfleet' and reworded documentation, CloudWatch metrics and configuration keys toward simpler 'subfleet' wording.
