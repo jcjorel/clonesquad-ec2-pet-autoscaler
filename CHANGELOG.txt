@@ -1,3 +1,6 @@
+v0.8.1:
+- (Bug/Major) Fixed possible mixup of instances between subfleets when some subfleet names can be foud in others.
+
 v0.8.0:
 - (Improvment/Major) BACKWARD COMPATIBILITY BREACH: Suppress all references to 'staticfleet' and reworded documentation, CloudWatch metrics and configuration keys toward simpler 'subfleet' wording.
 - (Improvment/Minor) By default, do not restart automatically burstable instances to preserve accrued credits (ec2.schedule.burstable_instance.preserve_accrued_cpu_credit with 0 value by default).
