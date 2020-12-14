@@ -1185,7 +1185,7 @@ By default, the dashboard is enabled.
                         for instance_id in instances_to_stop:
                             self.ec2.set_scaling_state(instance_id, "draining")
 
-            if Cfg.get_int("subfleet.%s.ec2.schedule.metrics.enable" % subfleet):
+            if Cfg.get_int(f"subfleet.{subfleet}.ec2.schedule.metrics.enable"):
                 dimensions = [{
                     "Name": "SubfleetName",
                     "Value": subfleet}]
@@ -1194,8 +1194,12 @@ By default, the dashboard is enabled.
                 self.cloudwatch.set_metric("Subfleet.EC2.Size", len(fleet["All"]), dimensions=dimensions)
                 self.cloudwatch.set_metric("Subfleet.EC2.RunningInstances", len(running_instances), dimensions=dimensions)
                 self.cloudwatch.set_metric("Subfleet.EC2.DrainingInstances", len(draining_instances), dimensions=dimensions)
-                self.cloudwatch.set_metric("Subfleet.EC2.MinInstanceCount", min_instance_count, dimensions=dimensions)
-                self.cloudwatch.set_metric("Subfleet.EC2.DesiredInstanceCount", desired_instance_count, dimensions=dimensions)
+                if expected_state == "running":
+                    self.cloudwatch.set_metric("Subfleet.EC2.MinInstanceCount", min_instance_count, dimensions=dimensions)
+                    self.cloudwatch.set_metric("Subfleet.EC2.DesiredInstanceCount", desired_instance_count, dimensions=dimensions)
+                else:
+                    self.cloudwatch.set_metric("Subfleet.EC2.MinInstanceCount", None, dimensions=dimensions)
+                    self.cloudwatch.set_metric("Subfleet.EC2.DesiredInstanceCount", None, dimensions=dimensions)
 
     def generate_subfleet_dashboard(self):
         now                = self.context["now"]
