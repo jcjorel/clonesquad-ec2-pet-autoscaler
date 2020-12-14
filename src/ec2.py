@@ -325,7 +325,8 @@ without any TargetGroup but another external health instance source exists).
         return [ az["ZoneName"] for az in self.az_with_issues ]
 
     def get_subfleet_instances(self, subfleet_name=None):
-        instances = self.filter_instance_list_by_tag(self.instances, "clonesquad:subfleet-name", subfleet_name)
+        value = [subfleet_name] if subfleet_name is not None else None
+        instances = self.filter_instance_list_by_tag(self.instances, "clonesquad:subfleet-name", value)
         return self.filter_instance_list_by_tag(instances, "-clonesquad:excluded", ["True", "true"])
 
     def get_subfleet_names(self):
