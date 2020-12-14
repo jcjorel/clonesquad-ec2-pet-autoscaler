@@ -1,3 +1,8 @@
+v0.8.3:
+- (Improvment/Minor) Added explicit warning when a subfleet is in 'undefined' state to notify user that no scaling action will take place.
+- (Bug/Minor) Display subfleet configuration keys with API GW (/configuration).
+- (Improvment/Minor) Added 'raw' argument to API GW (/configuration?raw=true) to dump in a clean YAML format ready for further import.
+
 v0.8.2:
 - (Improvment/Minor) Default value for subfleet.<subfleetname>.ec2.schedule.burstable_instance.max_cpu_crediting_instances changed from 50% to 0% to ease understand of shutdown behavior of burstable instances. CPU Crediting needs now to be explicitly actived with this key with a value > 0%.
 
