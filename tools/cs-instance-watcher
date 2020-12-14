@@ -15,6 +15,8 @@ import json
 import subprocess
 import re
 import pdb
+import time
+from datetime import datetime, timezone
 
 # Configure logging
 import logging
@@ -131,17 +133,18 @@ def on_draining_block_new_connections_to_ports(instance_state):
 
 
 def loop():
-    session = requests.Session()
+    start_time = seconds()
+    session    = requests.Session()
     try:
         instance_id = str(session.get('http://169.254.169.254/latest/meta-data/instance-id').content, "utf-8")
-    except:
-        logger.exception("Failed to fetch current instance Id! (???)")
+    except Exception as e:
+        logger.exception("Failed to fetch current instance Id! (???) : %s" % e)
         return False
     logger.info("Running on instance '%s'." % instance_id)
     try:
         os.environ["AWS_DEFAULT_REGION"] = str(session.get('http://169.254.169.254/latest/meta-data/placement/availability-zone').content, "utf-8")[:-1]
-    except:
-        logger.exception("Failed to fetch current region Id! (???)")
+    except Exception as e:
+        logger.error("Failed to fetch current region Id! (???) : %s" % e)
         return False
     logger.info("Current region: %s" % os.environ["AWS_DEFAULT_REGION"])
     session.auth = IAMAuth() # Make out calls capable to do SigV4 auth.
@@ -164,8 +167,8 @@ def loop():
             instances.extend(reservation["Instances"])
         if len(instances) != 1:
             raise Exception("Can't describe instance '%s'! (describe_instances returned %d instances)" % (instance_id, len(instances)))
-    except:
-        logger.exception("Failed to describe instance '%d'!" % instance_id)
+    except Exception as e:
+        logger.error("Failed to describe instance '%d'! : %s" % (instance_id, e))
         return False
 
     tags       = instances[0]["Tags"]
@@ -178,8 +181,8 @@ def loop():
     # Get the current Account Id
     try:
         account_id = sts_client.get_caller_identity().get('Account')
-    except:
-        logger.exception("Failed to get current region from STS service!")
+    except Exception as e:
+        logger.error("Failed to get current region from STS service! : %s" % e)
         return False
 
     # Discover API GW URL
@@ -193,26 +196,37 @@ def loop():
         payload    = json.loads(str(response["Payload"].read(), "utf-8"))
         logger.info("Discovery data: %s" % payload)
         api_gw_url = payload["InteractAPIGWUrl"]
-    except:
-        logger.exception("Failed to discover API GW Url!")
+    except Exception as e:
+        logger.error("Failed to discover API GW Url!")
         return False
 
-    try:
-        logger.info("Calling %s/metadata..." % api_gw_url)
-        api_payload = str(session.get("%s/metadata" % api_gw_url).content, "utf-8")
-        if api_payload[0] != "{":
-            raise ValueError("API GW Response not a JSON: '%s'" % api_payload)
-        payload     = json.loads(api_payload)
-    except:
-        logger.exception("Failed to process API GW response! (%s) [API response=%s]" % (api_gw_url, api_payload))
-    logger.info("Instance metadata: %s" % payload)
-    instance_state = payload["State"]
+    while (seconds() - start_time) < args["stale_context_timeout"]:
+        last_poll_time = seconds()
+        try:
+            logger.info("Calling %s/metadata..." % api_gw_url)
+            api_payload = str(session.get("%s/metadata" % api_gw_url).content, "utf-8")
+            if api_payload[0] != "{":
+                raise ValueError("API GW Response not a JSON: '%s'" % api_payload)
+            payload     = json.loads(api_payload)
+        except:
+            logger.exception("Failed to process API GW response! (%s) [API response=%s]" % (api_gw_url, api_payload))
+            return False
+        logger.info("Instance metadata: %s" % payload)
+        instance_state = payload["State"]
 
-    # Call built-in behavior
-    on_draining_block_new_connections_to_ports(instance_state)
+        # Call built-in behavior
+        on_draining_block_new_connections_to_ports(instance_state)
+        wait_time = max(0, args["api-polling-period"] - (seconds() - last_poll_time))
+        logger.info("Waiting next polling (%.02fs)..." % wait_time)
+        time.sleep(wait_time)
 
+def seconds():
+    now   = datetime.now(tz=timezone.utc) 
+    epoch = datetime.utcfromtimestamp(0).replace(tzinfo=timezone.utc)
+    return (now - epoch).total_seconds()
 
 args = {}
+LOOP_DURATION=5
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="CloneSquad configuration documentation generator")
     parser.add_argument('api-polling-period', help="Number of seconds between polling of CloneSquad API for status change", 
@@ -222,7 +236,16 @@ if __name__ == '__main__':
             nargs='*', type=int, default=[])
     parser.add_argument('--instance-state', help="Force to consider the specified state as the one for the instance (debug purpose)",
             nargs='?', type=str, default="")
+    parser.add_argument('--stale-context-timeout', help="Define the period (in seconds) instance meta are considered fresh before to rescan them.",
+            nargs='?', type=int, default=300)
 
     for a in parser.parse_args()._get_kwargs():
         args[a[0]] = a[1]
-    loop()
+
+    while True:
+        try:
+            loop()
+        except Exception as e:
+            logger.exception("Got Exception in main loop: %s" % e)
+        logger.info("Waiting %d seconds before next GLOBAL loop..." % LOOP_DURATION)
+        time.sleep(LOOP_DURATION)
