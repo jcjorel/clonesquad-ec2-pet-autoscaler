@@ -70,7 +70,7 @@ def on_draining_block_new_connections_to_ports(instance_state):
         instance_state = args["instance_state"] # Override
     if instance_state != "draining":
         if len(ports):
-            logger.info("Instance not in 'draining' state (currently '%s'): No port blacklist." % instance_state)
+            logger.info("Instance not in 'draining' state (current state is '%s'): No port blacklist." % instance_state)
         ports = [] # When not in draining state, no port are blacklisted
     else:
         logger.info("Configuring 'on_draining_block_new_connections_to_ports' built-in behavior for ports: %s" % ports)
@@ -197,7 +197,7 @@ def loop():
         logger.info("Discovery data: %s" % payload)
         api_gw_url       = payload["InteractAPIGWUrl"]
         api_gw_id        = payload["InteractApi"]
-        vpc_endpoint_dns = payload["VpcEndpointDNS"] if "VpcEndpointDNS" in payload else None
+        vpc_endpoint_dns = payload["ApiGwVpcEndpointDNSEntry"] if "ApiGwVpcEndpointDNSEntry" in payload and payload["ApiGwVpcEndpointDNSEntry"] != "" else None
     except Exception as e:
         logger.error("Failed to discover API GW Url!")
         return False
@@ -220,6 +220,14 @@ def loop():
             logger.exception("Failed to process API GW response! (%s) [API response=%s]" % (api_gw_url, api_payload))
             return False
         logger.info("Instance metadata: %s" % payload)
+        # When targetgroups are used, we do not need cs-instance-watcher.
+        if "TargetGroups" in payload:
+            targetgroups = payload["TargetGroups"]
+            if targetgroups["NbOfTargetGroups"] and not args["force"]:
+                log.warning(f"Targetgroups are used in group name '{group_name}': No need for cs-instance-watcher! (To force use, set --force option)")
+                time.sleep(wait_time)
+                break
+
         instance_state = payload["State"]
 
         # Call built-in behavior
@@ -238,7 +246,8 @@ args = {
     "on_draining_block_new_connections_to_ports": [],
     "instance_state": "",
     "stale_context_timeout": 300,
-    "config": "/etc/cs-instance-watcher.json"
+    "config": "/etc/cs-instance-watcher.json",
+    "force": False
 }
 LOOP_DURATION=5
 if __name__ == '__main__':
@@ -254,6 +263,8 @@ if __name__ == '__main__':
             nargs='?', type=str, default=argparse.SUPPRESS)
     parser.add_argument('--stale-context-timeout', help="Define the period (in seconds) instance meta are considered fresh before to rescan them.",
             nargs='?', type=int, default=argparse.SUPPRESS)
+    parser.add_argument('--force', help="Force operations despite lack of pre-requisites (ex: no Targetgroup used).",
+            nargs='?', type=bool, default=argparse.SUPPRESS)
 
     if os.path.exists(args["config"]):
         try:

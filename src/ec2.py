@@ -912,6 +912,11 @@ without any TargetGroup but another external health instance source exists).
                 "Status"      : status,
                 "State"       : instance_state if instance_state is not None else i["State"]["Name"]
             }
+            targetgroups            = self.context["o_targetgroup"].get_targetgroups()
+            stat["TargetGroups"]    = {
+                "NbOfTargetGroups": len(targetgroups),
+                "Arns": [t["TargetGroupArn"] for t in targetgroups]
+            }
             if is_spot:
                 stat["SpotDetails"] = {
                         "InterruptedAt" : EC2.get_spot_event(self.context, instance_id, "interrupted"),

@@ -709,10 +709,10 @@ Resources:
                   InteractAPIGWUrl:                           !Sub "https://${InteractApi}.execute-api.${AWS::Region}.amazonaws.com/v1/"
                   MainFunctionArn:                            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:CloneSquad-Main-${GroupName}"
                   InteractApi:                                !Ref InteractApi
-                  ApiGwVpcEndpointDNSEntries: !If 
+                  ApiGwVpcEndpointDNSEntry: !If 
                         - HasApiGWEndpointConfiguration 
                         - !Select [ 1, !Split [ ":", !Select [ 0, !GetAtt ApiGWVpcEndpoints.DnsEntries]]]
-                        - ""
+                        - !GetAtt ApiGWParameters.VpcEndpointDNS
 
     InteractFunction:
             Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction

@@ -142,10 +142,11 @@ def ApiGWParameters_CreateOrUpdate(data, AccountId=None, Region=None,
         ApiGWConfiguration=None, ApiGWEndpointConfiguration=None, DefaultGWPolicyURL=None):
     data["GWType"]   = "REGIONAL"
     data["GWPolicy"] = get_policy_content(DefaultGWPolicyURL, AccountId, Region)
+    data["VpcEndpointDNS"] = ""
     config           = misc.parse_line_as_list_of_dict(ApiGWConfiguration, leading_keyname="GWType")
     if len(config): data.update(config[0])
 
-    CONFIG_KEYS = ["GWPolicy", "GWType"]
+    CONFIG_KEYS = ["GWPolicy", "GWType", "VpcEndpointDNS"]
     if len(config):
         a = config[0]
         for kw in a.keys():

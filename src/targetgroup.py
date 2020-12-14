@@ -189,6 +189,8 @@ class ManagedTargetGroup:
             return None
         return h
 
+    def get_targetgroups(self):
+        return self.targetgroups
 
     @xray_recorder.capture()
     def manage_targetgroup(self):
