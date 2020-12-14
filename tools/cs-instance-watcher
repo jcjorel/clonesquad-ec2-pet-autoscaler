@@ -193,9 +193,11 @@ def loop():
             LogType='Tail',
             Payload=b""
             )
-        payload    = json.loads(str(response["Payload"].read(), "utf-8"))
+        payload          = json.loads(str(response["Payload"].read(), "utf-8"))
         logger.info("Discovery data: %s" % payload)
-        api_gw_url = payload["InteractAPIGWUrl"]
+        api_gw_url       = payload["InteractAPIGWUrl"]
+        api_gw_id        = payload["InteractApi"]
+        vpc_endpoint_dns = payload["VpcEndpointDNS"] if "VpcEndpointDNS" in payload else None
     except Exception as e:
         logger.error("Failed to discover API GW Url!")
         return False
@@ -203,8 +205,14 @@ def loop():
     while (seconds() - start_time) < args["stale_context_timeout"]:
         last_poll_time = seconds()
         try:
-            logger.info("Calling %s/metadata..." % api_gw_url)
-            api_payload = str(session.get("%s/metadata" % api_gw_url).content, "utf-8")
+            if vpc_endpoint_dns is not None:
+                # If a VPC Endpoint is specified, we prefer it...
+                url = "https://%s/v1/metadata" % vpc_endpoint_dns
+            else:
+                # If not, we use the Public DNS name of the API GW.
+                url = "%s/metadata" % api_gw_url
+            logger.info("Calling API GW URL %s..." % url)
+            api_payload = str(session.get(url, headers={"x-apigw-api-id": f"{api_gw_id}"}).content, "utf-8")
             if api_payload[0] != "{":
                 raise ValueError("API GW Response not a JSON: '%s'" % api_payload)
             payload     = json.loads(api_payload)
@@ -216,7 +224,7 @@ def loop():
 
         # Call built-in behavior
         on_draining_block_new_connections_to_ports(instance_state)
-        wait_time = max(0, min(60, args["api-polling-period"]) - (seconds() - last_poll_time))
+        wait_time = max(0, min(60, args["api_polling_period"]) - (seconds() - last_poll_time))
         logger.info("Waiting next polling (%.02fs)..." % wait_time)
         time.sleep(wait_time)
 
@@ -225,26 +233,46 @@ def seconds():
     epoch = datetime.utcfromtimestamp(0).replace(tzinfo=timezone.utc)
     return (now - epoch).total_seconds()
 
-args = {}
+args = {
+    "api_polling_period": 10,
+    "on_draining_block_new_connections_to_ports": [],
+    "instance_state": "",
+    "stale_context_timeout": 300,
+    "config": "/etc/cs-instance-watcher.json"
+}
 LOOP_DURATION=5
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="CloneSquad configuration documentation generator")
-    parser.add_argument('api-polling-period', help="Number of seconds between polling of CloneSquad API for status change", 
-            nargs='?', type=int, default=10)
+    parser = argparse.ArgumentParser(description="CloneSquad Instance watcher")
+    parser.add_argument('--api-polling-period', help="Number of seconds between polling of CloneSquad API for status change", 
+            nargs='?', type=int, default=argparse.SUPPRESS)
     parser.add_argument('--on-draining-block-new-connections-to-ports', help="Specify a list of ports where, on DRAINING state, to install IPTable rule"
             " to reject new connections (while allowing the current ones to finish)", 
-            nargs='*', type=int, default=[])
+            nargs='*', type=int, default=argparse.SUPPRESS)
+    parser.add_argument('--config', help="Configuration file (JSON format)",
+            nargs='?', type=str, default=argparse.SUPPRESS)
     parser.add_argument('--instance-state', help="Force to consider the specified state as the one for the instance (debug purpose)",
-            nargs='?', type=str, default="")
+            nargs='?', type=str, default=argparse.SUPPRESS)
     parser.add_argument('--stale-context-timeout', help="Define the period (in seconds) instance meta are considered fresh before to rescan them.",
-            nargs='?', type=int, default=300)
+            nargs='?', type=int, default=argparse.SUPPRESS)
 
+    if os.path.exists(args["config"]):
+        try:
+            c = json.load(args["config"])
+            for a in c:
+                args[a] = c[a]
+        except Exception as e:
+            log.error("Failed to read/parse configuration file '%s'! : %s" % (args["config"], e))
+            sys.exit(1)
+
+    # Override with command line args
     for a in parser.parse_args()._get_kwargs():
         args[a[0]] = a[1]
 
     while True:
         try:
             loop()
+        except KeyboardInterrupt as e:
+            sys.exit(1)
         except Exception as e:
             logger.exception("Got Exception in main loop: %s" % e)
         logger.info("Waiting %d seconds before next GLOBAL loop..." % LOOP_DURATION)
