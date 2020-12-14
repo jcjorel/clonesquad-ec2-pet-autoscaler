@@ -276,7 +276,7 @@ without any TargetGroup but another external health instance source exists).
             for k in Cfg.keys():
                 key = k.replace("<subfleetname>", subfleet)
                 if k.startswith("subfleet.<subfleetname>.") and not Cfg.is_builtin_key_exist(key):
-                    Cfg.register({ key : Cfg.get(k) })
+                    Cfg.register({ f"{key},Stable" : Cfg.get(k) })
         log.log(log.NOTICE, "Detected following subfleet names across EC2 resources: %s" % subfleet_names)
 
         # Load EC2 status override URL content
