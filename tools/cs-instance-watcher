@@ -13,6 +13,7 @@ import sys
 import argparse
 import json
 import subprocess
+import re
 import pdb
 
 # Configure logging
@@ -44,8 +45,10 @@ except:
     logger.error("Missing critical dependency! Please do 'pip install boto3'...")
     sys.exit(1)
 
-def sys_exec(cmd):
+def sys_exec(cmd, silent=False):
     try:
+        if not silent:
+            logger.info("Exec command: %s" % " ".join(cmd))
         res = subprocess.Popen(cmd, stdout=subprocess.PIPE)
         res.wait() 
     except OSError:
@@ -61,8 +64,15 @@ def sys_exec(cmd):
 
 def on_draining_block_new_connections_to_ports(instance_state):
     ports  = args["on_draining_block_new_connections_to_ports"]
-    logger.info("Configuring 'on_draining_block_new_connections_to_ports' built-in behavior for ports: %s" % ports)
-    output = sys_exec(["iptables-save"])
+    if args["instance_state"] != "":
+        instance_state = args["instance_state"] # Override
+    if instance_state != "draining":
+        if len(ports):
+            logger.info("Instance not in 'draining' state (currently '%s'): No port blacklist." % instance_state)
+        ports = [] # When not in draining state, no port are blacklisted
+    else:
+        logger.info("Configuring 'on_draining_block_new_connections_to_ports' built-in behavior for ports: %s" % ports)
+    output = sys_exec(["iptables-save"], silent=True)
     if output is None:
         log.error("Failed to retrieve iptables-save!")
         return
@@ -78,22 +88,47 @@ def on_draining_block_new_connections_to_ports(instance_state):
     if filter_start_idx == -1 or filter_commit_idx == -1:
         logger.error("Can't find '*filter' and/or 'COMMIT' keyword in iptables-save output!")
         return
-    pdb.set_trace()
+    filter_table = iptables[filter_start_idx:filter_commit_idx]
 
     cs_chain_pattern = ":CS-INSTANCE-WATCHER -"
-    cs_chain         = next(filter(lambda l: l.startswith(cs_chain_pattern), iptables), None)
-    if cs_chain is None:
-        iptables.insert(0, "%s [0,0]" % cs_chain_pattern)
+    cs_chain         = next(filter(lambda l: l.startswith(cs_chain_pattern), filter_table), None)
+    if len(ports) and cs_chain is None:
+        sys_exec(["iptables", "-N", "CS-INSTANCE-WATCHER"])
 
-    send_cs_chain_pattern = "-I INPUT -j CS-INSTANCE-WATCHER"
+    send_cs_chain_pattern = "-A INPUT -j CS-INSTANCE-WATCHER"
     send_cs_chain         = next(filter(lambda l: l.startswith(send_cs_chain_pattern), iptables), None)
-    if send_cs_chain is None:
-         first_rule = next(filter(lambda l: l.startswith("-A"), iptables), None)
-         if first_rule is None:
-             # No rule at all loaded
-            commit_rule = next(filter(lambda l: l.startswith("-A"), iptables), None)
+    if len(ports) and send_cs_chain is None:
+        sys_exec(["iptables", "-I", "INPUT", "-j", "CS-INSTANCE-WATCHER"])
     
-    rule = "-A INPUT -p tcp -m tcp --dport 80 -m state --state NEW -j REJECT --reject-with icmp-port-unreachable"
+    rule_pattern   = "-{command} CS-INSTANCE-WATCHER -p tcp -m tcp --dport {port} -m state --state NEW -j REJECT --reject-with icmp-port-unreachable"
+    match_var      = {"command":"A", "port":"(\d+)"}
+    cs_rules       = [r for r in filter_table if re.match(rule_pattern.format(**match_var), r)]
+    existing_ports = []
+    for rule in cs_rules:
+        m = re.search(rule_pattern.format(**match_var), rule)
+        if len(m.groups()) != 1:
+            logger.error("Can't parse rule '%s' as expected! Bug??" % rule)
+            continue
+        existing_ports.append(int(m.group(1)))
+
+    # Remove outdated rules
+    outdated_ports = [ r for r in existing_ports if r not in ports ]
+    for p in outdated_ports:
+        cmd = "iptables %s" % rule_pattern.format(**{"command":"D", "port":p})
+        sys_exec(cmd.split())
+    # Add missing rules
+    missing_ports  = [ r for r in ports if r not in existing_ports ]
+    for p in missing_ports:
+        cmd = "iptables %s" % rule_pattern.format(**{"command":"A", "port":p})
+        sys_exec(cmd.split())
+
+    # If no port configured, suppress also the chain
+    if not len(ports):
+        if send_cs_chain is not None:
+            sys_exec(["iptables", "-D", "INPUT", "-j", "CS-INSTANCE-WATCHER"])
+        if cs_chain is not None:
+            sys_exec(["iptables", "-X", "CS-INSTANCE-WATCHER"])
+
 
 def loop():
     session = requests.Session()
@@ -155,8 +190,9 @@ def loop():
             LogType='Tail',
             Payload=b""
             )
-        payload    = str(response["Payload"].read(), "utf-8")
-        api_gw_url = json.loads(payload)["InteractAPIGWUrl"]
+        payload    = json.loads(str(response["Payload"].read(), "utf-8"))
+        logger.info("Discovery data: %s" % payload)
+        api_gw_url = payload["InteractAPIGWUrl"]
     except:
         logger.exception("Failed to discover API GW Url!")
         return False
@@ -183,7 +219,9 @@ if __name__ == '__main__':
             nargs='?', type=int, default=10)
     parser.add_argument('--on-draining-block-new-connections-to-ports', help="Specify a list of ports where, on DRAINING state, to install IPTable rule"
             " to reject new connections (while allowing the current ones to finish)", 
-            nargs='*', type=int, default=None)
+            nargs='*', type=int, default=[])
+    parser.add_argument('--instance-state', help="Force to consider the specified state as the one for the instance (debug purpose)",
+            nargs='?', type=str, default="")
 
     for a in parser.parse_args()._get_kwargs():
         args[a[0]] = a[1]
