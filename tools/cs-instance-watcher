@@ -216,7 +216,7 @@ def loop():
 
         # Call built-in behavior
         on_draining_block_new_connections_to_ports(instance_state)
-        wait_time = max(0, args["api-polling-period"] - (seconds() - last_poll_time))
+        wait_time = max(0, min(60, args["api-polling-period"]) - (seconds() - last_poll_time))
         logger.info("Waiting next polling (%.02fs)..." % wait_time)
         time.sleep(wait_time)
 
