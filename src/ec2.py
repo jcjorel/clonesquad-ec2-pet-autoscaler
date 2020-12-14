@@ -109,7 +109,7 @@ A subfleet can contain EC2 instances but also RDS and TransferFamilies tagged in
 > This parameter has no effect if [`subfleet.subfleetname.state`](#subfleetsubfleetnamestate) is set to a value different than `running`.
                  """},
                  "subfleet.<subfleetname>.ec2.schedule.burstable_instance.max_cpu_crediting_instances,Stable": {
-                         "DefaultValue": "50%",
+                         "DefaultValue": "0%",
                          "Format": "IntegerOrPercentage",
                          "Description": """Define the maximum number of EC2 instances that can be in CPU Crediting state at the same time in the designated subfleet.
 
