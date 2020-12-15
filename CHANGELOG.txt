@@ -1,3 +1,6 @@
+v0.9.1:
+- (Bug/Major) Fix CloudFormation template update regression. Add a 'Dummy' parameter to force customresource recreation on update.
+
 v0.9.0:
 - Added cs-instance-watcher tool. It has to be installed on CloneSquad EC2 managed instances to improve failover of non-AWS LoadBalancers of instance draining condition when no AWS TargetGroup is used. See docs/TOOLS.md.
 
