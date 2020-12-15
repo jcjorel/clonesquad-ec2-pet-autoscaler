@@ -42,6 +42,8 @@ Pre-requisites:
 	* The tool do not need the DevKit and only need the packages listed in the pre-requisistes.
 2) Run the tool with appropriate arguments.
 
+> The tool can be left installed on any CloneSquad or non-CloneSquad managed EC2 instances safely.
+
 **Example:**
 
 The following lines could be part of the EC2 Instance user-data to install once and run the tool at every start automatically.
