@@ -1,11 +1,13 @@
 #!/usr/bin/python3
-"""This application is designed to be run of instances managed by CloneSquad.
+"""This application is designed to run on instances managed by CloneSquad.
 
-It is a daemon that poll efficiently the CloneSquad and detect status change. 
+It is a daemon that polls efficiently the CloneSquad API Gateway and detect status change. 
 On status change, it starts scripts to perform actions.
 
-It contains a common default action that can be enabled on demand:
-* Ability to set an IPTable entry on 'draining' state.
+It also contains a common default action that can be enabled optionnaly:
+* Ability to set IPTable entries on 'draining' state to block new incoming connection to
+user specified port list.
+
 """
 
 import os
