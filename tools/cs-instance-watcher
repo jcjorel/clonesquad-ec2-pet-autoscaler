@@ -220,7 +220,7 @@ def loop():
                 raise ValueError(f"API GW Response not a JSON: '{api_payload}'")
             payload     = json.loads(api_payload)
         except:
-            logger.error(f"Failed to process API GW response! ({api_gw_url}) [API response={api_payload}]")
+            logger.error(f"Failed to process API GW response! ({url}) [API response={api_payload}]")
             return False
         logger.info(f"Instance metadata: {payload}")
         # When targetgroups are used, we do not need cs-instance-watcher.
