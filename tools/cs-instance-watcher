@@ -138,13 +138,13 @@ def loop():
     try:
         instance_id = str(session.get('http://169.254.169.254/latest/meta-data/instance-id').content, "utf-8")
     except Exception as e:
-        logger.exception("Failed to fetch current instance Id! (???) : %s" % e)
+        logger.exception(f"Failed to fetch current instance Id! (???) : {e}")
         return False
-    logger.info("Running on instance '%s'." % instance_id)
+    logger.info(f"Running on instance '{instance_id}'.")
     try:
         os.environ["AWS_DEFAULT_REGION"] = str(session.get('http://169.254.169.254/latest/meta-data/placement/availability-zone').content, "utf-8")[:-1]
     except Exception as e:
-        logger.error("Failed to fetch current region Id! (???) : %s" % e)
+        logger.error(f"Failed to fetch current region Id! (???) : {e}")
         return False
     logger.info("Current region: %s" % os.environ["AWS_DEFAULT_REGION"])
     session.auth = IAMAuth() # Make out calls capable to do SigV4 auth.
@@ -166,15 +166,15 @@ def loop():
         for reservation in response["Reservations"]:
             instances.extend(reservation["Instances"])
         if len(instances) != 1:
-            raise Exception("Can't describe instance '%s'! (describe_instances returned %d instances)" % (instance_id, len(instances)))
+            raise Exception(f"Can't describe instance '{instance_id}'! (describe_instances returned %d instances)" % len(instances))
     except Exception as e:
-        logger.error("Failed to describe instance '%d'! : %s" % (instance_id, e))
+        logger.error(f"Failed to describe instance '{instance_id}' (IAM role issue?)! : {e}")
         return False
 
     tags       = instances[0]["Tags"]
     tag        = next(filter(lambda t: t["Key"] == "clonesquad:group-name", tags), None)
     if tag is None:
-        logger.error("Instance '%s' does not belong to a CloneSquad group! (No 'clonesquad:group-name' tag!)" % instance_id)
+        logger.error(f"Instance '{instance_id}' does not belong to a CloneSquad group! (No 'clonesquad:group-name' tag!)")
         return False
     group_name = tag["Value"]
 
@@ -182,7 +182,7 @@ def loop():
     try:
         account_id = sts_client.get_caller_identity().get('Account')
     except Exception as e:
-        logger.error("Failed to get current region from STS service! : %s" % e)
+        logger.error(f"Failed to get current Account Id from STS service (IAM role issue?)! : {e}")
         return False
 
     # Discover API GW URL
@@ -194,12 +194,12 @@ def loop():
             Payload=b""
             )
         payload          = json.loads(str(response["Payload"].read(), "utf-8"))
-        logger.info("Discovery data: %s" % payload)
+        logger.info(f"Discovery data: {payload}")
         api_gw_url       = payload["InteractAPIGWUrl"]
         api_gw_id        = payload["InteractApi"]
         vpc_endpoint_dns = payload["ApiGwVpcEndpointDNSEntry"] if "ApiGwVpcEndpointDNSEntry" in payload and payload["ApiGwVpcEndpointDNSEntry"] != "" else None
     except Exception as e:
-        logger.error("Failed to discover API GW Url!")
+        logger.error(f"Failed to discover API GW Url!  (IAM role issue?): {e}")
         return False
 
     while (seconds() - start_time) < args["stale_context_timeout"]:
@@ -211,15 +211,15 @@ def loop():
             else:
                 # If not, we use the Public DNS name of the API GW.
                 url = "%s/metadata" % api_gw_url
-            logger.info("Calling API GW URL %s..." % url)
+            logger.info(f"Calling API GW URL {url}...")
             api_payload = str(session.get(url, headers={"x-apigw-api-id": f"{api_gw_id}"}).content, "utf-8")
             if api_payload[0] != "{":
-                raise ValueError("API GW Response not a JSON: '%s'" % api_payload)
+                raise ValueError(f"API GW Response not a JSON: '{api_payload}'")
             payload     = json.loads(api_payload)
         except:
-            logger.exception("Failed to process API GW response! (%s) [API response=%s]" % (api_gw_url, api_payload))
+            logger.exception(f"Failed to process API GW response! ({api_gw_url}) [API response={api_payload}]")
             return False
-        logger.info("Instance metadata: %s" % payload)
+        logger.info(f"Instance metadata: {payload}")
         # When targetgroups are used, we do not need cs-instance-watcher.
         if "TargetGroups" in payload:
             targetgroups = payload["TargetGroups"]
@@ -285,6 +285,6 @@ if __name__ == '__main__':
         except KeyboardInterrupt as e:
             sys.exit(1)
         except Exception as e:
-            logger.exception("Got Exception in main loop: %s" % e)
-        logger.info("Waiting %d seconds before next GLOBAL loop..." % LOOP_DURATION)
+            logger.exception(f"Got Exception in main loop: {e}")
+        logger.info(f"Waiting {LOOP_DURATION} seconds before next GLOBAL loop...")
         time.sleep(LOOP_DURATION)
