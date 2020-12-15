@@ -75,6 +75,8 @@ def on_draining_block_new_connections_to_ports(instance_state):
         ports = [] # When not in draining state, no port are blacklisted
     else:
         logger.info("Configuring 'on_draining_block_new_connections_to_ports' built-in behavior for ports: %s" % ports)
+    # Always run an 'iptables -L' to ensure iptables kernel modules are loaded.
+    sys_exec(["iptables", "-L"])
     output = sys_exec(["iptables-save"], silent=True)
     if output is None:
         log.error("Failed to retrieve iptables-save!")
