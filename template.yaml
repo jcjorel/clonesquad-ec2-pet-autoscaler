@@ -506,6 +506,7 @@ Resources:
               Helper: ApiGWParameters
               AccountId: !Ref AWS::AccountId
               Region: !Ref AWS::Region
+              Dummy: "0"
               ApiGWConfiguration: !Ref ApiGWConfiguration
               ApiGWEndpointConfiguration: !Ref ApiGWEndpointConfiguration
               DefaultGWPolicyURL: "internal:api-gw-default-policy.json"

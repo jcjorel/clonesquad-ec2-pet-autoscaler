@@ -138,7 +138,7 @@ def ApiGWVpcEndpointParameters_CreateOrUpdate(data, AccountId=None, Region=None,
         raise ValueError("Unknown keywords in ApiGWVpcEndpointParameters '%s'!" % edp.keys())
 
 
-def ApiGWParameters_CreateOrUpdate(data, AccountId=None, Region=None, 
+def ApiGWParameters_CreateOrUpdate(data, AccountId=None, Region=None, Dummy=None,
         ApiGWConfiguration=None, ApiGWEndpointConfiguration=None, DefaultGWPolicyURL=None):
     data["GWType"]   = "REGIONAL"
     data["GWPolicy"] = get_policy_content(DefaultGWPolicyURL, AccountId, Region)
