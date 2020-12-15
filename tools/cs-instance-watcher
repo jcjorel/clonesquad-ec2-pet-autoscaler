@@ -20,14 +20,15 @@ from datetime import datetime, timezone
 
 # Configure logging
 import logging
+from logging import handlers
 LOG_LEVEL = logging.INFO
 logger = logging.getLogger(sys.argv[0])
 logger.setLevel(LOG_LEVEL)
 logger.propagate = False
 ch = logging.StreamHandler()
 ch.setLevel(LOG_LEVEL)
-formatter = logging.Formatter("[%(levelname)s] %(asctime)s %(filename)s:%(lineno)d - %(message)s")
-ch.setFormatter(formatter)
+logger_formatter = logging.Formatter("[%(levelname)s] %(asctime)s %(filename)s:%(lineno)d - %(message)s")
+ch.setFormatter(logger_formatter)
 logger.addHandler(ch)
 
 try:
@@ -265,6 +266,10 @@ if __name__ == '__main__':
             nargs='?', type=int, default=argparse.SUPPRESS)
     parser.add_argument('--force', help="Force operations despite lack of pre-requisites (ex: no Targetgroup used).",
             nargs='?', type=bool, default=argparse.SUPPRESS)
+    parser.add_argument('--log-file', help="File where to write operation logs.",
+            nargs='?', type=str, default=argparse.SUPPRESS)
+    parser.add_argument('--log-file-rotate', help="File where to write operation logs. Format: <timeunit>,<interval>,<retention> Default value: d,1,7 meaning rotate every day and keep 7 log backup (one week).",
+            nargs='?', type=str, default=argparse.SUPPRESS)
 
     if os.path.exists(args["config"]):
         try:
@@ -276,8 +281,26 @@ if __name__ == '__main__':
             sys.exit(1)
 
     # Override with command line args
-    for a in parser.parse_args()._get_kwargs():
+    _args = parser.parse_args()._get_kwargs()
+    for a in _args:
         args[a[0]] = a[1]
+
+    log_file = next(filter(lambda a: a[0] == "log_file", _args), None)
+    if log_file:
+        rotate_params = ["d", "1", "7"] # Default value for log rotate
+        log_file_rotate = next(filter(lambda a: a[0] == "log_file_rotate", _args), None)
+        if log_file_rotate:
+            params = log_file_rotate[1].split(",")
+            for i in range(0, len(params)):
+                rotate_params[i] = params[i]
+        logger.info(f"Logging to rotated file '%s' (rotation parameters={rotate_params}). Disabling logging to stdout..." % log_file[1])
+        logger.removeHandler(logger.handlers[0])
+        handler = handlers.TimedRotatingFileHandler(log_file[1],
+           when=rotate_params[0],
+           interval=int(rotate_params[1]),
+           backupCount=int(rotate_params[2]))
+        logger.addHandler(handler)
+        handler.setFormatter(logger_formatter)
 
     while True:
         try:
