@@ -1,0 +1,1122 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Conditions:
+  HasApiGWEndpointConfiguration:
+    Fn::Not:
+    - Fn::Equals:
+      - Ref: ApiGWEndpointConfiguration
+      - ''
+  HasCustomizationZipParameters:
+    Fn::Not:
+    - Fn::Equals:
+      - Ref: CustomizationZipParameters
+      - ''
+Description: 'CloneSquad deployment '
+Globals:
+  Function:
+    Timeout: 300
+Outputs:
+  CloneSquadDependencyLayer:
+    Description: CloneSquad Lambda layer (dependencies)
+    Value:
+      Ref: CloneSquadDependencyLayer
+  CloneSquadLayer:
+    Description: CloneSquad Lambda layer (available for customization)
+    Value:
+      Ref: CloneSquadLayer
+  ConfigTable:
+    Description: Configuration table
+    Value:
+      Fn::GetAtt:
+      - ConfigTable
+      - Arn
+  GroupName:
+    Description: Group name for this CloneSquad deployment
+    Value:
+      Ref: GroupName
+  InteractAPIUrl:
+    Description: Interact API Gateway URL
+    Value:
+      Fn::Sub: https://${InteractApi}.execute-api.${AWS::Region}.amazonaws.com/v1/
+  InteractFunction:
+    Description: InteractFunction Lambda Function ARN
+    Value:
+      Fn::GetAtt:
+      - InteractFunction
+      - Arn
+  InteractQueue:
+    Description: Queue for asynchronous calls with Interact Lambda function
+    Value:
+      Ref: InteractQueue
+  InternalERRORInteractAlarm:
+    Description: Alarm that triggers when an ERROR is encountered by Interact Lambda
+      function
+    Value:
+      Fn::GetAtt:
+      - InternalERRORInteractAlarm
+      - Arn
+  InternalERRORMainAlarm:
+    Description: Alarm that triggers when an ERROR is encountered by Main Lambda function
+    Value:
+      Fn::GetAtt:
+      - InternalERRORMainAlarm
+      - Arn
+  InternalWARNINGInteractAlarm:
+    Description: Alarm that triggers when a WARNING is encountered by Interact Lambda
+      function
+    Value:
+      Fn::GetAtt:
+      - InternalWARNINGInteractAlarm
+      - Arn
+  InternalWARNINGMainAlarm:
+    Description: Alarm that triggers when a WARNING is encountered by Main Lambda
+      function
+    Value:
+      Fn::GetAtt:
+      - InternalWARNINGMainAlarm
+      - Arn
+  LackOfCPUCreditAlarm:
+    Description: Alarm that triggers when at least one burstable instance has exhausted
+      all its CPU credits
+    Value:
+      Fn::GetAtt:
+      - LackOfCPUCreditAlarm
+      - Arn
+  LongTermEventTable:
+    Description: Logging table of noticeable events (requiring analysis)
+    Value:
+      Fn::GetAtt:
+      - LongTermEventTable
+      - Arn
+  MainFunction:
+    Description: MainFunction Lambda Function ARN
+    Value:
+      Fn::GetAtt:
+      - MainFunction
+      - Arn
+  MainFunctionIamRole:
+    Description: Implicit IAM Role created for MainRole function
+    Value:
+      Fn::GetAtt:
+      - MainFunctionRole
+      - Arn
+Parameters:
+  ApiGWConfiguration:
+    Default: ''
+    Description: (Optional) API Gateway configuration.
+    Type: String
+  ApiGWEndpointConfiguration:
+    Default: ''
+    Description: (Optional) API Gateway VPC endpoint configuration.
+    Type: String
+  ConfigurationURLs:
+    ConstraintDescription: '[?-/:A-Za-z0-9]*'
+    Default: ''
+    Description: (Optional) Semicolon separated list of URLs targeting YAML files
+      where to read configuration in sequence.
+    Type: String
+  CustomizationZipParameters:
+    Default: ''
+    Description: (Optional) Path to a ZIP file located in S3 expressed with the special
+      format '<S3_bucket_name>:<S3_key_path>'.
+    Type: String
+  DynamoDBConfiguration:
+    Default: ''
+    Description: '(Optional) DynamodDB configuration. Format: Comma separated list
+      of <TableName>=<ReadCapacityUnits>:<WriteCapacityUnits>'
+    Type: String
+  GroupName:
+    ConstraintDescription: '[A-Za-z0-9][-A-Za-z0-9]+'
+    Description: CloneSquad group name. This is used to look for resources tagged
+      with 'clonesquad:group-name' tag in the current account and region.
+    MaxLength: 40
+    MinLength: 2
+    Type: String
+  LambdaMemorySize:
+    Default: 512
+    Description: (Optional) Memory size to allocate to Main and Interact Lambda functions.
+    Type: Number
+  LogRetentionDuration:
+    Default: 14
+    Description: (Optional) Cloudwatch Logs retention duration (in Days).
+    Type: Number
+  LoggingS3Path:
+    Default: ''
+    Description: (Optional) S3 Path for detailed logging (s3://<bucket_name>/<path>)
+    Type: String
+  UserNotificationArns:
+    ConstraintDescription: '[-/:A-Za-z0-9]*'
+    Default: ''
+    Description: (Optional) Comma seperated list of user provided ARNs (Lambda, SQS,
+      SNS) to receive real-time notifications (TargetGroup Register/Deregister events,
+      instances start/stop...)
+    Type: String
+  XRayDiagnosis:
+    ConstraintDescription: '[0|1]'
+    Default: 1
+    Description: (Debug) Trace CloneSquad to get visibility into execution time and
+      associated costs
+    Type: String
+Resources:
+  AlarmStateEC2Table:
+    Properties:
+      AttributeDefinitions:
+      - AttributeName: AlarmName
+        AttributeType: S
+      BillingMode:
+        Fn::GetAtt:
+        - DynamoDBParameters
+        - AlarmStateEC2Table.BillingMode
+      KeySchema:
+      - AttributeName: AlarmName
+        KeyType: HASH
+      ProvisionedThroughput:
+        Fn::GetAtt:
+        - DynamoDBParameters
+        - AlarmStateEC2Table.ProvisionedThroughput
+      TableName:
+        Fn::Sub: CloneSquad-${GroupName}-AlarmState-EC2
+      Tags:
+      - Key: clonesquad:group-name
+        Value:
+          Ref: GroupName
+      TimeToLiveSpecification:
+        AttributeName: ExpirationTime
+        Enabled: true
+    Type: AWS::DynamoDB::Table
+  ApiGWEndpointSecurityGroup:
+    Condition: HasApiGWEndpointConfiguration
+    Properties:
+      GroupDescription:
+        Fn::Sub: ${AWS::StackName} - Security Group for CloneSquad API GW
+      SecurityGroupEgress:
+      - CidrIp: 0.0.0.0/0
+        FromPort: -1
+        IpProtocol: -1
+        ToPort: -1
+      SecurityGroupIngress:
+        Fn::GetAtt:
+        - ApiGWVpcEndpointParameters
+        - SecurityGroupIngressRule
+      Tags:
+      - Key: Name
+        Value:
+          Fn::Join:
+          - ''
+          - - Ref: AWS::StackName
+            - -APIGWEndpointSecurityGroup
+      VpcId:
+        Fn::GetAtt:
+        - ApiGWVpcEndpointParameters
+        - VpcId
+    Type: AWS::EC2::SecurityGroup
+  ApiGWParameters:
+    Properties:
+      AccountId:
+        Ref: AWS::AccountId
+      ApiGWConfiguration:
+        Ref: ApiGWConfiguration
+      ApiGWEndpointConfiguration:
+        Ref: ApiGWEndpointConfiguration
+      DefaultGWPolicyURL: internal:api-gw-default-policy.json
+      Dummy: '0'
+      Helper: ApiGWParameters
+      Region:
+        Ref: AWS::Region
+      ServiceToken:
+        Fn::GetAtt:
+        - CustomResourceFunction
+        - Arn
+    Type: Custom::CustomResourceFunction
+  ApiGWVpcEndpointParameters:
+    Condition: HasApiGWEndpointConfiguration
+    Properties:
+      AccountId:
+        Ref: AWS::AccountId
+      ApiGWConfiguration:
+        Ref: ApiGWConfiguration
+      ApiGWEndpointConfiguration:
+        Ref: ApiGWEndpointConfiguration
+      ApiGWId:
+        Ref: InteractApi
+      DefaultGWVpcEndpointPolicyURL: internal:api-gw-default-endpoint-policy.json
+      Helper: ApiGWVpcEndpointParameters
+      Region:
+        Ref: AWS::Region
+      ServiceToken:
+        Fn::GetAtt:
+        - CustomResourceFunction
+        - Arn
+    Type: Custom::CustomResourceFunction
+  ApiGWVpcEndpoints:
+    Condition: HasApiGWEndpointConfiguration
+    Properties:
+      PolicyDocument:
+        Fn::GetAtt:
+        - ApiGWVpcEndpointParameters
+        - PolicyDocument
+      PrivateDnsEnabled:
+        Fn::GetAtt:
+        - ApiGWVpcEndpointParameters
+        - PrivateDnsEnabled
+      SecurityGroupIds:
+      - Ref: ApiGWEndpointSecurityGroup
+      ServiceName:
+        Fn::Sub: com.amazonaws.${AWS::Region}.execute-api
+      SubnetIds:
+        Fn::GetAtt:
+        - ApiGWVpcEndpointParameters
+        - SubnetIds
+      VpcEndpointType: Interface
+      VpcId:
+        Fn::GetAtt:
+        - ApiGWVpcEndpointParameters
+        - VpcId
+    Type: AWS::EC2::VPCEndpoint
+  CloneSquadDependencyLayer:
+    Properties:
+      CompatibleRuntimes:
+      - python3.7
+      ContentUri: s3://XXXXXXXXXXXXXX/YYYYYYYYYYYYYY/c1e50838ce15ed9243d542334765795c
+      Description: Binary dependency artifact for 'Main' CloneSquad layer
+      LayerName:
+        Fn::Sub: CloneSquad-Dependencies-Layer-${GroupName}
+    Type: AWS::Serverless::LayerVersion
+  CloneSquadLayer:
+    Properties:
+      CompatibleRuntimes:
+      - python3.7
+      ContentUri: s3://XXXXXXXXXXXXXX/YYYYYYYYYYYYYY/c89f3de9a1357883d14b148d3e8b450f
+      Description: Binary artifact for CloneSquad functions
+      LayerName:
+        Fn::Sub: CloneSquad-Layer-${GroupName}
+      LicenseInfo: MIT
+    Type: AWS::Serverless::LayerVersion
+  CloudWatchEventRole:
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Action:
+          - sts:AssumeRole
+          Effect: Allow
+          Principal:
+            Service:
+            - events.amazonaws.com
+        Version: 2012-10-17
+      RoleName:
+        Fn::Sub: CloneSquad-${GroupName}-CWRole
+    Type: AWS::IAM::Role
+  ConfigTable:
+    Properties:
+      AttributeDefinitions:
+      - AttributeName: Key
+        AttributeType: S
+      BillingMode:
+        Fn::GetAtt:
+        - DynamoDBParameters
+        - ConfigTable.BillingMode
+      KeySchema:
+      - AttributeName: Key
+        KeyType: HASH
+      ProvisionedThroughput:
+        Fn::GetAtt:
+        - DynamoDBParameters
+        - ConfigTable.ProvisionedThroughput
+      StreamSpecification:
+        StreamViewType: NEW_IMAGE
+      TableName:
+        Fn::Sub: CloneSquad-${GroupName}-Configuration
+      Tags:
+      - Key: clonesquad:group-name
+        Value:
+          Ref: GroupName
+      TimeToLiveSpecification:
+        AttributeName: ExpirationTime
+        Enabled: true
+    Type: AWS::DynamoDB::Table
+  CustomResourceFunction:
+    Properties:
+      CodeUri: s3://XXXXXXXXXXXXXX/YYYYYYYYYYYYYY/5acc2603f5b000309c27ba15fa8fd28a
+      Environment:
+        Variables:
+          PYTHONPATH: /opt:/opt/site-packages
+      FunctionName:
+        Fn::Sub: CloneSquad-CustomResource-${GroupName}
+      Handler: customresource.handler
+      Layers:
+      - Ref: CloneSquadLayer
+      - Ref: CloneSquadDependencyLayer
+      MemorySize: 128
+      Policies:
+      - AdministratorAccess
+      Runtime: python3.7
+      Timeout: 60
+    Type: AWS::Serverless::Function
+  DiscoveryFunction:
+    DependsOn: SNSDiscoveryFunctionLogGroup
+    Properties:
+      CodeUri: s3://XXXXXXXXXXXXXX/YYYYYYYYYYYYYY/5acc2603f5b000309c27ba15fa8fd28a
+      Environment:
+        Variables:
+          AlarmStateEC2Table:
+            Ref: AlarmStateEC2Table
+          ApiGwVpcEndpointDNSEntry:
+            Fn::If:
+            - HasApiGWEndpointConfiguration
+            - Fn::Select:
+              - 1
+              - Fn::Split:
+                - ':'
+                - Fn::Select:
+                  - 0
+                  - Fn::GetAtt:
+                    - ApiGWVpcEndpoints
+                    - DnsEntries
+            - Fn::GetAtt:
+              - ApiGWParameters
+              - VpcEndpointDNS
+          ConfigurationTable:
+            Ref: ConfigTable
+          ConfigurationURLs:
+            Ref: ConfigurationURLs
+          EventTable:
+            Ref: EventTable
+          GenericInsufficientDataActions_SNSTopicArn:
+            Ref: SNSInsufficientData
+          GenericOkActions_SNSTopicArn:
+            Ref: SNSOk
+          GroupName:
+            Ref: GroupName
+          InteractAPIGWUrl:
+            Fn::Sub: https://${InteractApi}.execute-api.${AWS::Region}.amazonaws.com/v1/
+          InteractApi:
+            Ref: InteractApi
+          InteractQueue:
+            Ref: InteractQueue
+          LoggingS3Path:
+            Ref: LoggingS3Path
+          LongTermEventTable:
+            Ref: LongTermEventTable
+          MainFunctionArn:
+            Fn::Sub: arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:CloneSquad-Main-${GroupName}
+          PYTHONPATH: /opt:/opt/site-packages
+          ScaleUp_SNSTopicArn:
+            Ref: SNSScaleUp
+          SchedulerTable:
+            Ref: SchedulerTable
+          StateTable:
+            Ref: StateTable
+      FunctionName:
+        Fn::Sub: CloneSquad-Discovery-${GroupName}
+      Handler: app.discovery_handler
+      Layers:
+      - Ref: CloneSquadLayer
+      - Ref: CloneSquadDependencyLayer
+      MemorySize: 128
+      Runtime: python3.7
+    Type: AWS::Serverless::Function
+  DynamoDBParameters:
+    Properties:
+      AccountId:
+        Ref: AWS::AccountId
+      DynamoDBConfiguration:
+        Ref: DynamoDBConfiguration
+      Helper: DynamoDBParameters
+      Region:
+        Ref: AWS::Region
+      ServiceToken:
+        Fn::GetAtt:
+        - CustomResourceFunction
+        - Arn
+    Type: Custom::CustomResourceFunction
+  EC2SpotEventRule:
+    Properties:
+      Description: Events rule for Spot Instance Interruption Notices
+      EventPattern:
+        detail-type:
+        - EC2 Spot Instance Interruption Warning
+        - EC2 Instance Rebalance Recommendation
+        source:
+        - aws.ec2
+      Name:
+        Fn::Sub: CloneSquad-EC2Spot-Notif-${GroupName}
+      State: ENABLED
+      Targets:
+      - Arn:
+          Fn::GetAtt:
+          - MainQueue
+          - Arn
+        Id:
+          Fn::GetAtt:
+          - MainQueue
+          - QueueName
+    Type: AWS::Events::Rule
+  ERRORInteractMetricFilter:
+    DependsOn: InteractFunctionLogGroup
+    Properties:
+      FilterPattern: '"[ERROR]"'
+      LogGroupName:
+        Fn::Sub: /aws/lambda/CloneSquad-Interact-${GroupName}
+      MetricTransformations:
+      - DefaultValue: 0
+        MetricName:
+          Fn::Sub: InternalErrors.Interact.${GroupName}
+        MetricNamespace: CloneSquad
+        MetricValue: 1
+    Type: AWS::Logs::MetricFilter
+  ERRORMetricFilter:
+    DependsOn: MainFunctionLogGroup
+    Properties:
+      FilterPattern: '"[ERROR]"'
+      LogGroupName:
+        Fn::Sub: /aws/lambda/CloneSquad-Main-${GroupName}
+      MetricTransformations:
+      - DefaultValue: 0
+        MetricName:
+          Fn::Sub: InternalErrors.Main.${GroupName}
+        MetricNamespace: CloneSquad
+        MetricValue: 1
+    Type: AWS::Logs::MetricFilter
+  EventTable:
+    Properties:
+      AttributeDefinitions:
+      - AttributeName: EventDate
+        AttributeType: S
+      BillingMode:
+        Fn::GetAtt:
+        - DynamoDBParameters
+        - EventTable.BillingMode
+      KeySchema:
+      - AttributeName: EventDate
+        KeyType: HASH
+      ProvisionedThroughput:
+        Fn::GetAtt:
+        - DynamoDBParameters
+        - EventTable.ProvisionedThroughput
+      TableName:
+        Fn::Sub: CloneSquad-${GroupName}-EventLog
+      Tags:
+      - Key: clonesquad:group-name
+        Value:
+          Ref: GroupName
+      TimeToLiveSpecification:
+        AttributeName: ExpirationTime
+        Enabled: true
+    Type: AWS::DynamoDB::Table
+  InteractApi:
+    Properties:
+      Auth:
+        DefaultAuthorizer: AWS_IAM
+        ResourcePolicy:
+          CustomStatements:
+            Fn::GetAtt:
+            - ApiGWParameters
+            - GWPolicy
+      EndpointConfiguration:
+        Type:
+          Fn::GetAtt:
+          - ApiGWParameters
+          - EndpointConfiguration.Type
+      Name:
+        Fn::Sub: CloneSquad-${GroupName}
+      StageName: v1
+    Tags:
+    - Key: clonesquad:group-name
+      Value:
+        Ref: GroupName
+    Type: AWS::Serverless::Api
+  InteractFunction:
+    DependsOn: InteractFunctionLogGroup
+    Properties:
+      CodeUri: s3://XXXXXXXXXXXXXX/YYYYYYYYYYYYYY/5acc2603f5b000309c27ba15fa8fd28a
+      Environment:
+        Variables:
+          AlarmStateEC2Table:
+            Ref: AlarmStateEC2Table
+          ConfigurationTable:
+            Ref: ConfigTable
+          ConfigurationURLs:
+            Ref: ConfigurationURLs
+          EventTable:
+            Ref: EventTable
+          GenericInsufficientDataActions_SNSTopicArn:
+            Ref: SNSInsufficientData
+          GenericOkActions_SNSTopicArn:
+            Ref: SNSOk
+          GroupName:
+            Ref: GroupName
+          InteractQueue:
+            Ref: InteractQueue
+          LoggingS3Path:
+            Ref: LoggingS3Path
+          LongTermEventTable:
+            Ref: LongTermEventTable
+          MainFunctionArn:
+            Fn::Sub: arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:CloneSquad-Main-${GroupName}
+          MainSQSQueue:
+            Ref: MainQueue
+          PYTHONPATH: /opt:/opt/site-packages
+          ScaleUp_SNSTopicArn:
+            Ref: SNSScaleUp
+          SchedulerTable:
+            Ref: SchedulerTable
+          StateTable:
+            Ref: StateTable
+      Events:
+        ApiEventCommandGET:
+          Properties:
+            Auth:
+              InvokeRole: NONE
+            Method: get
+            Path: /{proxy+}
+            RestApiId:
+              Ref: InteractApi
+          Type: Api
+        ApiEventCommandGETRoot:
+          Properties:
+            Auth:
+              InvokeRole: NONE
+            Method: get
+            Path: /
+            RestApiId:
+              Ref: InteractApi
+          Type: Api
+        ApiEventCommandPOST:
+          Properties:
+            Auth:
+              InvokeRole: NONE
+            Method: post
+            Path: /{proxy+}
+            RestApiId:
+              Ref: InteractApi
+          Type: Api
+        SQS:
+          Properties:
+            BatchSize: 10
+            Queue:
+              Fn::GetAtt:
+              - InteractQueue
+              - Arn
+          Type: SQS
+      FunctionName:
+        Fn::Sub: CloneSquad-Interact-${GroupName}
+      Handler: app.interact_handler
+      Layers:
+      - Ref: CloneSquadLayer
+      - Ref: CloneSquadDependencyLayer
+      MemorySize:
+        Ref: LambdaMemorySize
+      Policies:
+      - AdministratorAccess
+      Runtime: python3.7
+      Timeout: 900
+    Type: AWS::Serverless::Function
+  InteractFunctionLogGroup:
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/CloneSquad-Interact-${GroupName}
+      RetentionInDays:
+        Ref: LogRetentionDuration
+    Type: AWS::Logs::LogGroup
+  InteractQueue:
+    Properties:
+      MessageRetentionPeriod: 3600
+      QueueName:
+        Fn::Sub: CloneSquad-Interact-${GroupName}
+      ReceiveMessageWaitTimeSeconds: 20
+      Tags:
+      - Key: clonesquad:group-name
+        Value:
+          Ref: GroupName
+      VisibilityTimeout: 900
+    Type: AWS::SQS::Queue
+  InteractQueueSQSPolicy:
+    Properties:
+      PolicyDocument:
+        Statement:
+        - Action:
+          - SQS:SendMessage
+          Condition:
+            ArnLike:
+              aws:SourceArn:
+                Fn::Split:
+                - ','
+                - Fn::Sub: ${UserNotificationArns}
+          Effect: Allow
+          Resource:
+            Fn::GetAtt:
+            - InteractQueue
+            - Arn
+          Sid: CloneSquad-User-Interact-SQS-policy
+        - Action:
+          - sqs:*
+          Condition:
+            ArnLike:
+              aws:SourceArn:
+                Fn::GetAtt:
+                - InteractFunction
+                - Arn
+          Effect: Allow
+          Resource:
+            Fn::GetAtt:
+            - InteractQueue
+            - Arn
+          Sid: CloneSquad-Interact-SQS-policy
+      Queues:
+      - Ref: InteractQueue
+    Type: AWS::SQS::QueuePolicy
+  InternalERRORInteractAlarm:
+    Properties:
+      ActionsEnabled: true
+      AlarmDescription: 'Alarm to catch CloudSquad Internal errors (ex: Misconfiguration,
+        bugs...) - INTERACT function'
+      AlarmName:
+        Fn::Sub: CloneSquad-${GroupName}-InternalERRORs.Interact
+      ComparisonOperator: GreaterThanThreshold
+      DatapointsToAlarm: 1
+      EvaluationPeriods: 2
+      MetricName:
+        Fn::Sub: InternalErrors.Interact.${GroupName}
+      Namespace: CloneSquad
+      Period: 60
+      Statistic: Sum
+      Threshold: 0
+    Type: AWS::CloudWatch::Alarm
+  InternalERRORMainAlarm:
+    Properties:
+      ActionsEnabled: true
+      AlarmDescription: 'Alarm to catch CloudSquad Internal errors (ex: Misconfiguration,
+        bugs...) - MAIN function'
+      AlarmName:
+        Fn::Sub: CloneSquad-${GroupName}-InternalERRORs.Main
+      ComparisonOperator: GreaterThanThreshold
+      DatapointsToAlarm: 1
+      EvaluationPeriods: 2
+      MetricName:
+        Fn::Sub: InternalErrors.Main.${GroupName}
+      Namespace: CloneSquad
+      Period: 60
+      Statistic: Sum
+      Threshold: 0
+    Type: AWS::CloudWatch::Alarm
+  InternalWARNINGInteractAlarm:
+    Properties:
+      ActionsEnabled: true
+      AlarmDescription: 'Alarm to catch CloudSquad Internal warnings (ex: Misconfiguration,
+        bugs...) - INTERACT function'
+      AlarmName:
+        Fn::Sub: CloneSquad-${GroupName}-InternalWARNINGs.Interact
+      ComparisonOperator: GreaterThanThreshold
+      DatapointsToAlarm: 1
+      EvaluationPeriods: 2
+      MetricName:
+        Fn::Sub: InternalWarnings.Interact.${GroupName}
+      Namespace: CloneSquad
+      Period: 60
+      Statistic: Sum
+      Threshold: 0
+    Type: AWS::CloudWatch::Alarm
+  InternalWARNINGMainAlarm:
+    Properties:
+      ActionsEnabled: true
+      AlarmDescription: 'Alarm to catch CloudSquad Internal warnings (ex: Misconfiguration,
+        bugs...) - MAIN function'
+      AlarmName:
+        Fn::Sub: CloneSquad-${GroupName}-InternalWARNINGs.Main
+      ComparisonOperator: GreaterThanThreshold
+      DatapointsToAlarm: 1
+      EvaluationPeriods: 2
+      MetricName:
+        Fn::Sub: InternalWarnings.Main.${GroupName}
+      Namespace: CloneSquad
+      Period: 60
+      Statistic: Sum
+      Threshold: 0
+    Type: AWS::CloudWatch::Alarm
+  LackOfCPUCreditAlarm:
+    Properties:
+      ActionsEnabled: true
+      AlarmDescription: Alarm to catch burstable instance that exhausted their CPU
+        credits
+      AlarmName:
+        Fn::Sub: CloneSquad-${GroupName}-LackOfCPUCreditAlarm
+      ComparisonOperator: GreaterThanThreshold
+      DatapointsToAlarm: 2
+      Dimensions:
+      - Name: GroupName
+        Value:
+          Fn::Sub: ${GroupName}
+      EvaluationPeriods: 2
+      MetricName: NbOfCPUCreditExhaustedInstances
+      Namespace: CloneSquad
+      Period: 60
+      Statistic: Average
+      Threshold: 0
+    Type: AWS::CloudWatch::Alarm
+  LongTermEventTable:
+    Properties:
+      AttributeDefinitions:
+      - AttributeName: EventDate
+        AttributeType: S
+      BillingMode:
+        Fn::GetAtt:
+        - DynamoDBParameters
+        - LongTermEventTable.BillingMode
+      KeySchema:
+      - AttributeName: EventDate
+        KeyType: HASH
+      ProvisionedThroughput:
+        Fn::GetAtt:
+        - DynamoDBParameters
+        - LongTermEventTable.ProvisionedThroughput
+      TableName:
+        Fn::Sub: CloneSquad-${GroupName}-EventLog-LongTerm
+      Tags:
+      - Key: clonesquad:group-name
+        Value:
+          Ref: GroupName
+      TimeToLiveSpecification:
+        AttributeName: ExpirationTime
+        Enabled: true
+    Type: AWS::DynamoDB::Table
+  MainFunction:
+    DependsOn: MainFunctionLogGroup
+    Properties:
+      CodeUri: s3://XXXXXXXXXXXXXX/YYYYYYYYYYYYYY/5acc2603f5b000309c27ba15fa8fd28a
+      Environment:
+        Variables:
+          AWS_XRAY_SDK_ENABLED:
+            Ref: XRayDiagnosis
+          AlarmStateEC2Table:
+            Ref: AlarmStateEC2Table
+          CloudWatchEventRoleArn:
+            Fn::GetAtt:
+            - CloudWatchEventRole
+            - Arn
+          ConfigurationTable:
+            Ref: ConfigTable
+          ConfigurationURLs:
+            Ref: ConfigurationURLs
+          EventTable:
+            Ref: EventTable
+          GenericInsufficientDataActions_SNSTopicArn:
+            Ref: SNSInsufficientData
+          GenericOkActions_SNSTopicArn:
+            Ref: SNSOk
+          GroupName:
+            Ref: GroupName
+          InteractLambdaArn:
+            Fn::GetAtt:
+            - InteractFunction
+            - Arn
+          InteractSQSUrl:
+            Ref: InteractQueue
+          LoggingS3Path:
+            Ref: LoggingS3Path
+          LongTermEventTable:
+            Ref: LongTermEventTable
+          MainSQSQueue:
+            Ref: MainQueue
+          PYTHONPATH: /opt:/opt/site-packages
+          ScaleUp_SNSTopicArn:
+            Ref: SNSScaleUp
+          SchedulerTable:
+            Ref: SchedulerTable
+          StateTable:
+            Ref: StateTable
+          UserNotificationArns:
+            Ref: UserNotificationArns
+      Events:
+        SQS:
+          Properties:
+            BatchSize: 10
+            Queue:
+              Fn::GetAtt:
+              - MainQueue
+              - Arn
+          Type: SQS
+        Schedule:
+          Properties:
+            Description: Schedule event for CloneSquad HeartBeat
+            Enabled: true
+            Name:
+              Fn::Sub: CS-hb-rule-${GroupName}
+            Schedule: rate(1 minute)
+          Type: Schedule
+      FunctionName:
+        Fn::Sub: CloneSquad-Main-${GroupName}
+      Handler: app.main_handler
+      Layers:
+      - Ref: CloneSquadLayer
+      - Ref: CloneSquadDependencyLayer
+      MemorySize:
+        Ref: LambdaMemorySize
+      Policies:
+      - AdministratorAccess
+      ReservedConcurrentExecutions: 1
+      Runtime: python3.7
+      Timeout: 300
+      Tracing: Active
+    Type: AWS::Serverless::Function
+  MainFunctionLogGroup:
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/CloneSquad-Main-${GroupName}
+      RetentionInDays:
+        Ref: LogRetentionDuration
+    Type: AWS::Logs::LogGroup
+  MainQueue:
+    Properties:
+      MessageRetentionPeriod: 120
+      QueueName:
+        Fn::Sub: CloneSquad-Main-${GroupName}
+      ReceiveMessageWaitTimeSeconds: 10
+      Tags:
+      - Key: clonesquad:group-name
+        Value:
+          Ref: GroupName
+      VisibilityTimeout: 300
+    Type: AWS::SQS::Queue
+  MainSQSPolicy:
+    Properties:
+      PolicyDocument:
+        Statement:
+        - Action:
+          - sqs:SendMessage
+          Effect: Allow
+          Principal:
+            Service:
+            - events.amazonaws.com
+            - ec2.amazonaws.com
+          Resource:
+            Fn::GetAtt:
+            - MainQueue
+            - Arn
+          Sid: CloneSquad-Service-SendMessage-SQS-policy
+        - Action:
+          - sqs:SendMessage
+          Condition:
+            ArnLike:
+              aws:SourceArn:
+              - Fn::GetAtt:
+                - MainFunction
+                - Arn
+              - Fn::GetAtt:
+                - SNSMgrFunction
+                - Arn
+          Effect: Allow
+          Resource:
+            Fn::GetAtt:
+            - MainQueue
+            - Arn
+          Sid: CloneSquad-SendMessage-SQS-policy
+        - Action:
+          - sqs:*
+          Condition:
+            ArnLike:
+              aws:SourceArn:
+              - Fn::GetAtt:
+                - MainFunction
+                - Arn
+          Effect: Allow
+          Resource:
+            Fn::GetAtt:
+            - MainQueue
+            - Arn
+          Sid: CloneSquad-Main-SQS-policy
+      Queues:
+      - Ref: MainQueue
+    Type: AWS::SQS::QueuePolicy
+  PermissionForSchedulerEvents:
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName:
+        Ref: InteractFunction
+      Principal: events.amazonaws.com
+      SourceArn:
+        Fn::Sub: arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:rule/CS-Cron-${GroupName}-*
+    Type: AWS::Lambda::Permission
+  SNSDiscoveryFunctionLogGroup:
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/CloneSquad-Discovery-${GroupName}
+      RetentionInDays:
+        Ref: LogRetentionDuration
+    Type: AWS::Logs::LogGroup
+  SNSInsufficientData:
+    Properties:
+      Tags:
+      - Key: clonesquad:group-name
+        Value:
+          Ref: GroupName
+      TopicName:
+        Fn::Sub: CloneSquad-CloudWatchAlarm-InsufficientData-${GroupName}
+    Type: AWS::SNS::Topic
+  SNSMgrFunction:
+    DependsOn: SNSMgrFunctionLogGroup
+    Properties:
+      CodeUri: s3://XXXXXXXXXXXXXX/YYYYYYYYYYYYYY/5acc2603f5b000309c27ba15fa8fd28a
+      Environment:
+        Variables:
+          AlarmStateEC2Table:
+            Ref: AlarmStateEC2Table
+          ConfigurationTable:
+            Ref: ConfigTable
+          ConfigurationURLs:
+            Ref: ConfigurationURLs
+          EventTable:
+            Ref: EventTable
+          GenericInsufficientDataActions_SNSTopicArn:
+            Ref: SNSInsufficientData
+          GenericOkActions_SNSTopicArn:
+            Ref: SNSOk
+          GroupName:
+            Ref: GroupName
+          MainSQSQueue:
+            Ref: MainQueue
+          PYTHONPATH: /opt:/opt/site-packages
+          ScaleUp_SNSTopicArn:
+            Ref: SNSScaleUp
+          StateTable:
+            Ref: StateTable
+      Events:
+        ConfigStream:
+          Properties:
+            BatchSize: 100
+            StartingPosition: TRIM_HORIZON
+            Stream:
+              Fn::GetAtt:
+              - ConfigTable
+              - StreamArn
+          Type: DynamoDB
+        InsufficientDataTopic:
+          Properties:
+            Topic:
+              Ref: SNSInsufficientData
+          Type: SNS
+        OkTopic:
+          Properties:
+            Topic:
+              Ref: SNSOk
+          Type: SNS
+        ScaleUpTopic:
+          Properties:
+            Topic:
+              Ref: SNSScaleUp
+          Type: SNS
+      FunctionName:
+        Fn::Sub: CloneSquad-SNSMgr-${GroupName}
+      Handler: app.sns_handler
+      Layers:
+      - Ref: CloneSquadLayer
+      - Ref: CloneSquadDependencyLayer
+      MemorySize: 256
+      Policies:
+      - AdministratorAccess
+      Runtime: python3.7
+      Timeout: 60
+    Type: AWS::Serverless::Function
+  SNSMgrFunctionLogGroup:
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/CloneSquad-SNSMgr-${GroupName}
+      RetentionInDays:
+        Ref: LogRetentionDuration
+    Type: AWS::Logs::LogGroup
+  SNSOk:
+    Properties:
+      Tags:
+      - Key: clonesquad:group-name
+        Value:
+          Ref: GroupName
+      TopicName:
+        Fn::Sub: CloneSquad-CloudWatchAlarm-Ok-${GroupName}
+    Type: AWS::SNS::Topic
+  SNSScaleUp:
+    Properties:
+      Tags:
+      - Key: clonesquad:group-name
+        Value:
+          Ref: GroupName
+      TopicName:
+        Fn::Sub: CloneSquad-CloudWatchAlarm-ScaleUp-${GroupName}
+    Type: AWS::SNS::Topic
+  SchedulerTable:
+    Properties:
+      AttributeDefinitions:
+      - AttributeName: Key
+        AttributeType: S
+      BillingMode:
+        Fn::GetAtt:
+        - DynamoDBParameters
+        - SchedulerTable.BillingMode
+      KeySchema:
+      - AttributeName: Key
+        KeyType: HASH
+      ProvisionedThroughput:
+        Fn::GetAtt:
+        - DynamoDBParameters
+        - SchedulerTable.ProvisionedThroughput
+      TableName:
+        Fn::Sub: CloneSquad-${GroupName}-Scheduler
+      Tags:
+      - Key: clonesquad:group-name
+        Value:
+          Ref: GroupName
+      TimeToLiveSpecification:
+        AttributeName: ExpirationTime
+        Enabled: true
+    Type: AWS::DynamoDB::Table
+  StateTable:
+    Properties:
+      AttributeDefinitions:
+      - AttributeName: Key
+        AttributeType: S
+      BillingMode:
+        Fn::GetAtt:
+        - DynamoDBParameters
+        - StateTable.BillingMode
+      KeySchema:
+      - AttributeName: Key
+        KeyType: HASH
+      ProvisionedThroughput:
+        Fn::GetAtt:
+        - DynamoDBParameters
+        - StateTable.ProvisionedThroughput
+      TableName:
+        Fn::Sub: CloneSquad-${GroupName}-State
+      Tags:
+      - Key: clonesquad:group-name
+        Value:
+          Ref: GroupName
+      TimeToLiveSpecification:
+        AttributeName: ExpirationTime
+        Enabled: true
+    Type: AWS::DynamoDB::Table
+  WARNINGInteractMetricFilter:
+    DependsOn: InteractFunctionLogGroup
+    Properties:
+      FilterPattern: '"[WARNING]"'
+      LogGroupName:
+        Fn::Sub: /aws/lambda/CloneSquad-Interact-${GroupName}
+      MetricTransformations:
+      - DefaultValue: 0
+        MetricName:
+          Fn::Sub: InternalWarnings.Interact.${GroupName}
+        MetricNamespace: CloneSquad
+        MetricValue: 1
+    Type: AWS::Logs::MetricFilter
+  WARNINGMetricFilter:
+    DependsOn: MainFunctionLogGroup
+    Properties:
+      FilterPattern: '"[WARNING]"'
+      LogGroupName:
+        Fn::Sub: /aws/lambda/CloneSquad-Main-${GroupName}
+      MetricTransformations:
+      - DefaultValue: 0
+        MetricName:
+          Fn::Sub: InternalWarnings.Main.${GroupName}
+        MetricNamespace: CloneSquad
+        MetricValue: 1
+    Type: AWS::Logs::MetricFilter
+Transform: AWS::Serverless-2016-10-31
+
