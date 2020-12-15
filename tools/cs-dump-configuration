@@ -8,7 +8,7 @@ source ${CLONESQUAD_DIR}/scripts/_source-me.sh
 tmpfile=/tmp/cs-config.$$
 aws lambda invoke --function-name CloneSquad-Discovery-${GroupName} --payload '' $tmpfile 1>/dev/stderr
 APIGW_URL=$(jq -r '.["InteractAPIGWUrl"]' <$tmpfile)
-APIGW_VPCENDPOINT_URL=$(jq -r '.["ApiGwVpcEndpointDNSEntries"]' <$tmpfile)
+APIGW_VPCENDPOINT_URL=$(jq -r '.["ApiGwVpcEndpointDNSEntry"]' <$tmpfile)
 APIGW_ID=$(jq -r '.["InteractApi"]' <$tmpfile)
 rm -f $tmpfile
 #if ! [ -z "$APIGW_VPCENDPOINT_URL" ] ; then
