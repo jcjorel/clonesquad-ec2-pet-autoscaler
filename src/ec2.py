@@ -413,6 +413,10 @@ without any TargetGroup but another external health instance source exists).
                         self.set_state("ec2.instance.last_start_date.%s" % instance_id, now,
                                 TTL=Cfg.get_duration_secs("ec2.state.status_ttl"))
                         max_startable_instances -= 1
+                        # Update statuses
+                        instance = self.get_instance_by_id(instance_id)
+                        instance["State"]["Code"] = 0
+                        instance["State"]["Name"] = "pending"
                     else:
                         log.error("Failed to start instance '%s'! Blacklist it for a while... (pre/current status=%s/%s)" %
                                 (instance_id, previous_state["Name"], current_state["Name"]))
@@ -487,6 +491,10 @@ without any TargetGroup but another external health instance source exists).
                         self.set_scaling_state(instance_id, "")
                         self.set_state("ec2.schedule.instance.last_stop_date.%s" % instance_id, now, 
                                 TTL=Cfg.get_duration_secs("ec2.state.status_ttl"))
+                        # Update the statuses 
+                        instance = self.get_instance_by_id(instance_id)
+                        instance["State"]["Code"] = 64
+                        instance["State"]["Name"] = "stopping"
                 log.debug(response)
             except Exception as e:
                 log.warning("Failed to stop_instance(s) '%s' : %s" % (to_stop, e))
@@ -502,6 +510,10 @@ without any TargetGroup but another external health instance source exists).
                                 self.set_scaling_state(instance_id, "")
                                 self.set_state("ec2.schedule.instance.last_stop_date.%s" % instance_id, now, 
                                         TTL=Cfg.get_duration_secs("ec2.state.status_ttl"))
+                                # Update the statuses 
+                                instance = self.get_instance_by_id(instance_id)
+                                instance["State"]["Code"] = 64
+                                instance["State"]["Name"] = "stopping"
                         log.debug(response)
                     except Exception as e:
                         log.warning("Failed to stop_instance '%s' : %s" % (i, e))
@@ -911,7 +923,12 @@ without any TargetGroup but another external health instance source exists).
                 "SubfleetName": subfleet_name,
                 "AvailabilityZone": az,
                 "Status"      : status,
-                "State"       : instance_state if instance_state is not None else i["State"]["Name"]
+                "State"       : i["State"]["Name"] if instance_state not in ["draining", "error", "bounced"] else instance_state
+            }
+            targetgroups            = self.context["o_targetgroup"].get_targetgroups()
+            stat["TargetGroups"]    = {
+                "NbOfTargetGroups": len(targetgroups),
+                "Arns": [t["TargetGroupArn"] for t in targetgroups]
             }
             targetgroups            = self.context["o_targetgroup"].get_targetgroups()
             stat["TargetGroups"]    = {

@@ -1,3 +1,6 @@
+v0.8.4:
+- (Bug/Major) Cached data for EC2 status were never flushed from API GW cache.
+
 v0.8.3:
 - (Improvment/Minor) Added explicit warning when a subfleet is in 'undefined' state to notify user that no scaling action will take place.
 - (Improvment/Minor) Added 'raw' argument to API GW (/configuration?raw=true) to dump in a clean YAML format ready for further import.

@@ -31,12 +31,11 @@ class QueryCache:
 
     def check_invalidation(self):
         date = self.context["o_ec2"].get_state("main.last_call_date", direct=True)
-        if date != self.last_call_date:
+        if date is None or date != self.last_call_date:
+            log.info(f"Invalidating cache ({date} != %s)." % self.last_call_date)
             self.cache          = {}
             self.last_call_date = date
-            self.load_cached    = True
-        else:
-            self.load_cached    = False
+            self.interact_precomputed_data = None
 
     def get(self, url, variant=None, default=None):
         key = "%s_%s" % (url, variant)
@@ -242,6 +241,7 @@ class Interact:
             return False
 
         if "instanceid" in event: instance_id = event["instanceid"] # Override from query string
+        query_cache.load_cached_data()
         d        = next(filter(lambda d: d["InstanceId"] == instance_id, cacheddata), None)
         if d is None:
             response["statusCode"] = 400
