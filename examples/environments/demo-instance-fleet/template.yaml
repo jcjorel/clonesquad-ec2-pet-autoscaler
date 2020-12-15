@@ -215,7 +215,6 @@ Resources:
                 - /root/cs-instance-watcher --on-draining-block-new-connections-to-ports 80 443 --log-file /var/log/cs-instance-watcher.log --log-file-rotate d,1,10 --generate-systemd /etc/systemd/system/cs-instance-watcher.service
                 - systemctl enable cs-instance-watcher
                 - systemctl start cs-instance-watcher
-                - ls
 
     {% endblock %}
         InstanceMarketOptions:
