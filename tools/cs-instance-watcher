@@ -65,13 +65,13 @@ def sys_exec(cmd, silent=False):
 
 
 
-def on_draining_block_new_connections_to_ports(instance_state):
+def on_draining_block_new_connections_to_ports(instance_stateo, subfleet_name):
     ports  = args["on_draining_block_new_connections_to_ports"]
     if args["instance_state"] != "":
         instance_state = args["instance_state"] # Override
-    if instance_state != "draining":
+    if instance_state not in ["stopping", "draining"]:
         if len(ports):
-            logger.info("Instance not in 'draining' state (current state is '%s'): No port blacklist." % instance_state)
+            logger.info("Instance not in 'draining' or 'stopping' state (current state is '%s'): No port blacklist." % instance_state)
         ports = [] # When not in draining state, no port are blacklisted
     else:
         logger.info("Configuring 'on_draining_block_new_connections_to_ports' built-in behavior for ports: %s" % ports)
@@ -219,22 +219,26 @@ def loop():
             if api_payload[0] != "{":
                 raise ValueError(f"API GW Response not a JSON: '{api_payload}'")
             payload     = json.loads(api_payload)
+            if "State" not in payload:
+                raise ValueError(f"API GW Response not in an expected JSON format: '{api_payload}'")
         except:
             logger.error(f"Failed to process API GW response! ({url}) [API response={api_payload}]")
             return False
         logger.info(f"Instance metadata: {payload}")
-        # When targetgroups are used, we do not need cs-instance-watcher.
-        if "TargetGroups" in payload:
+        subfleet_name  = payload["SubfleetName"]
+
+        # When targetgroups are used, we do not need cs-instance-watcher (only in the autoscaled fleet, we always need in subfleet).
+        if subfleet_name is None and "TargetGroups" in payload:
             targetgroups = payload["TargetGroups"]
             if targetgroups["NbOfTargetGroups"] and not args["force"]:
-                log.warning(f"Targetgroups are used in group name '{group_name}': No need for cs-instance-watcher! (To force use, set --force option)")
+                logger.warning(f"Targetgroups are used in group name '{group_name}': No need for cs-instance-watcher! (To force use, set --force option)")
                 time.sleep(wait_time)
                 break
 
         instance_state = payload["State"]
 
         # Call built-in behavior
-        on_draining_block_new_connections_to_ports(instance_state)
+        on_draining_block_new_connections_to_ports(instance_state, subfleet_name)
         wait_time = max(0, min(60, args["api_polling_period"]) - (seconds() - last_poll_time))
         logger.info("Waiting next polling (%.02fs)..." % wait_time)
         time.sleep(wait_time)
@@ -306,7 +310,7 @@ StartLimitIntervalSec=0
 [Service]
 Type=simple
 Restart=always
-RestartSec=1
+RestartSec=10
 ExecStart={cmd} {options}
 
 [Install]
