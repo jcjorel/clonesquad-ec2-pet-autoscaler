@@ -272,6 +272,10 @@ if __name__ == '__main__':
             nargs='?', type=str, default=argparse.SUPPRESS)
     parser.add_argument('--log-file-rotate', help="File where to write operation logs. Format: <timeunit>,<interval>,<retention> Default value: d,1,7 meaning rotate every day and keep 7 log backup (one week).",
             nargs='?', type=str, default=argparse.SUPPRESS)
+    parser.add_argument('--generate-systemd', help="Generate a systemd service file at the specified location.",
+            nargs='?', type=str, default=argparse.SUPPRESS)
+    parser.add_argument('--do-not-generate-systemd', help="Force no generation of systemd file.",
+            nargs='?', type=str, default=argparse.SUPPRESS)
 
     if os.path.exists(args["config"]):
         try:
@@ -286,6 +290,30 @@ if __name__ == '__main__':
     _args = parser.parse_args()._get_kwargs()
     for a in _args:
         args[a[0]] = a[1]
+
+    generate_systemd       = next(filter(lambda a: a[0] == "generate_systemd", _args), None)
+    do_not_generate_systemd = next(filter(lambda a: a[0] == "do_not_generate_systemd", _args), None)
+    if generate_systemd and not do_not_generate_systemd:
+        cmd = sys.argv[0]
+        options = "%s --do-not-generate-systemd" % " ".join(sys.argv[1:])
+        with open(generate_systemd[1], "w") as f:
+            f.write(f"""
+[Unit]
+Description=CloneSquad Instance service
+After=network.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=1
+ExecStart={cmd} {options}
+
+[Install]
+WantedBy=multi-user.target
+            """)
+        logger.info("Generated systemd file at '%s'." % generate_systemd[1])
+        sys.exit(0)
 
     log_file = next(filter(lambda a: a[0] == "log_file", _args), None)
     if log_file:

@@ -207,11 +207,14 @@ Resources:
                 - /usr/sbin/service httpd start
                 - /usr/sbin/chkconfig httpd on
                 - echo "GroupName=${GroupName}" >/.metadata
+                # Install the cs-instance-watcher helper
                 - /usr/bin/python3 -m pip install requests requests-iamauth boto3
                 - curl https://raw.githubusercontent.com/jcjorel/clonesquad-ec2-pet-autoscaler/instance-watcher/tools/cs-instance-watcher -o /root/cs-instance-watcher
                 - chmod a+x /root/cs-instance-watcher
-                # Starts the instance watcher ready to block ports 80 and 443 if the instance is placed in draining state
-                - /root/cs-instance-watcher --on-draining-block-new-connections-to-ports 80 443 --log-file /var/log/cs-instance-watcher.log --log-file-rotate d,1,10 &
+                # Start the instance watcher ready to block ports 80 and 443 if the instance is placed in draining state
+                - /root/cs-instance-watcher --on-draining-block-new-connections-to-ports 80 443 --log-file /var/log/cs-instance-watcher.log --log-file-rotate d,1,10 --generate-systemd /etc/systemd/system/cs-instance-watcher.service
+                - systemctl enable cs-instance-watcher
+                - systemctl run cs-instance-watcher
 
     {% endblock %}
         InstanceMarketOptions:
