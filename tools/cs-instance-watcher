@@ -76,7 +76,7 @@ def on_draining_block_new_connections_to_ports(instance_state):
     else:
         logger.info("Configuring 'on_draining_block_new_connections_to_ports' built-in behavior for ports: %s" % ports)
     # Always run an 'iptables -L' to ensure iptables kernel modules are loaded.
-    sys_exec(["iptables", "-L"])
+    sys_exec(["iptables", "-L"], silent=True)
     output = sys_exec(["iptables-save"], silent=True)
     if output is None:
         log.error("Failed to retrieve iptables-save!")
@@ -220,7 +220,7 @@ def loop():
                 raise ValueError(f"API GW Response not a JSON: '{api_payload}'")
             payload     = json.loads(api_payload)
         except:
-            logger.exception(f"Failed to process API GW response! ({api_gw_url}) [API response={api_payload}]")
+            logger.error(f"Failed to process API GW response! ({api_gw_url}) [API response={api_payload}]")
             return False
         logger.info(f"Instance metadata: {payload}")
         # When targetgroups are used, we do not need cs-instance-watcher.
