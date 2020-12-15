@@ -1,3 +1,6 @@
+v0.9.0:
+- Added cs-instance-watcher tool. It has to be installed on CloneSquad EC2 managed instances to improve failover of non-AWS LoadBalancers of instance draining condition when no AWS TargetGroup is used. See docs/TOOLS.md.
+
 v0.8.4:
 - (Bug/Major) Cached data for EC2 status were never flushed from API GW cache.
 
