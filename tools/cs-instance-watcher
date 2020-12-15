@@ -34,18 +34,18 @@ logger.addHandler(ch)
 try:
     import requests
 except:
-    logger.error("Missing critical dependency! Please do 'pip install requests'...")
+    logger.error("Missing critical dependency! Please do 'python3 -m pip install requests requests-iamauth boto3'...")
     sys.exit(1)
 try:
     from iamauth import IAMAuth
 except:
-    logger.error("Missing critical dependency! Please do 'pip install requests-iamauth'...")
+    logger.error("Missing critical dependency! Please do 'python3 -m pip install requests requests-iamauth boto3'...")
     sys.exit(1)
 try:
     import boto3
     from botocore.config import Config
 except:
-    logger.error("Missing critical dependency! Please do 'pip install boto3'...")
+    logger.error("Missing critical dependency! Please do 'python3 -m pip install requests requests-iamauth boto3'...")
     sys.exit(1)
 
 def sys_exec(cmd, silent=False):
