@@ -4,26 +4,29 @@
 
 # cs-instance-watcher
 
-**Purpose:** Optimize EC2 instande draining mode when CloneSquad is used without TargetGroup.
+**Purpose:** Optimize EC2 instance draining mode handling CloneSquad is used without TargetGroup.
 
 This daemon is to install and run on EC2 instances part of a CloneSquad group.
 
 This scripts allows to react on instance state change from the CloneSquad point of view. 
-Event it is designed to track and possibly react to any state transition, it is 
+
+> Without usage of `cs-instance-watcher`, **in a TargetGroup free usage and with a front-end external Load-Balancer**, 
+users could see latencies, timeouts or sharp disconnections due to draining instances shutdown abruptly.
+
+Even the tool is designed to track and possibly react to any state transition, it is 
 meant to react especially to the 'draining' state:
 When no TargetGroup is used, a possible use-case is that a load-balancer (different 
 from an AWS ALB/NLB/CLB) is serving CloneSquad managed instances.
-In order to help this non-AWS Load-Balancer detects the draining instance condition, the
+
+In order to help non-AWS Load-Balancer detects the draining instance condition, the
 `cs-instance-watcher` daemon contains a pre-built algorithm that reject all new TCP connections
-toward a user-supplied target list of ports while allowing the current established ones to continue.
+toward a user-supplied list of ports while allowing the current established ones to continue.
 The external load-balancer health-checks will thus fail as soon as the instance
 falls in the 'draining' state allowing a smooth redirection toward other serving
 instances without user noticing the event.
 
-Users can also decide to write their own logic for reacting to 'draining' state.
+Users can also decide to write their own logic for reacting to 'draining' state (See [Configuration](#Configuration)).
 
-> Without cs-instance-watcher and in a TargetGroup free usage and with a frent-end external Load-Balancer, 
-users could see latencies, timeouts or sharp disconnections due to draining instances shutdown abruptly.
 
 ## Installation
 
@@ -75,6 +78,13 @@ The tool takes command line arguments:
 * `--log-file <path_to_a_file>`: Path to the rotated log file Default: `stderr`
 * `--log-file-rotate log_rotate_spec`: Log rotation specification. Format: TimeUnit,RotationPerTimeUnit,BackupFileCount. Default: `d,1,7`
 * `--generate-systemd <systemd_service_file>`: Path to a systemd service configuration file to create.
+* `--script-dir <directory>: A directory containing scripts to launch on state change. Default: /etc/cs-instance-watcher.d/
+	* Place scripts under a subdirectory which hold the name of the state.
+
+Ex: 
+
+	/etc/cs-instance-watcher.d/draining/script_to_launch_on_draining.sh
+
 
 
 
