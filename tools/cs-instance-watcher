@@ -16,6 +16,7 @@ import subprocess
 import re
 import pdb
 import time
+import glob
 from datetime import datetime, timezone
 
 # Configure logging
@@ -134,8 +135,11 @@ def on_draining_block_new_connections_to_ports(instance_state):
         if cs_chain is not None:
             sys_exec(["iptables", "-X", "CS-INSTANCE-WATCHER"])
 
-
+COUNT=0
+last_instance_state = None
 def loop():
+    global COUNT
+    global last_instance_state
     start_time = seconds()
     session    = requests.Session()
     try:
@@ -236,9 +240,24 @@ def loop():
                 break
 
         instance_state = payload["State"]
+        #if COUNT >= 2: instance_state = "draining"
+        #COUNT += 1
 
         # Call built-in behavior
         on_draining_block_new_connections_to_ports(instance_state)
+
+        # React to instance state change
+        if instance_state != last_instance_state and last_instance_state is not None:
+            script_dir = f"%s/{instance_state}" % args["script_dir"]
+            logger.info(f"State changed from '{last_instance_state}' to '{instance_state}'. Looking at directory '{script_dir}' for scripts to launch...")
+            for script in glob.glob(f"{script_dir}/*"):
+                if os.path.exists(script):
+                    try:
+                        logger.info(f"{script}: %s" % sys_exec([script, instance_state, last_instance_state]))
+                    except Exception as e:
+                        log.error(f"Got an Exception while starting '{script}'! : {e}")
+        last_instance_state = instance_state
+
         wait_time = max(0, min(60, args["api_polling_period"]) - (seconds() - last_poll_time))
         logger.info("Waiting next polling (%.02fs)..." % wait_time)
         time.sleep(wait_time)
@@ -254,6 +273,7 @@ args = {
     "instance_state": "",
     "stale_context_timeout": 300,
     "config": "/etc/cs-instance-watcher.json",
+    "script_dir": "/etc/cs-instance-watcher.d",
     "force": False
 }
 LOOP_DURATION=5
@@ -265,6 +285,8 @@ if __name__ == '__main__':
             " to reject new connections (while allowing the current ones to finish)", 
             nargs='*', type=int, default=argparse.SUPPRESS)
     parser.add_argument('--config', help="Configuration file (JSON format)",
+            nargs='?', type=str, default=argparse.SUPPRESS)
+    parser.add_argument('--script-dir', help="Directory of scripts to launch of instance state change. ",
             nargs='?', type=str, default=argparse.SUPPRESS)
     parser.add_argument('--instance-state', help="Force to consider the specified state as the one for the instance (debug purpose)",
             nargs='?', type=str, default=argparse.SUPPRESS)
@@ -320,7 +342,7 @@ WantedBy=multi-user.target
         sys.exit(0)
 
     log_file = next(filter(lambda a: a[0] == "log_file", _args), None)
-    if log_file:
+    if log_file and log_file[1] is not None:
         rotate_params = ["d", "1", "7"] # Default value for log rotate
         log_file_rotate = next(filter(lambda a: a[0] == "log_file_rotate", _args), None)
         if log_file_rotate:
