@@ -107,7 +107,7 @@ class Interact:
                     "interface": ["apigw"],
                     "clients": ["dynamodb"],
                     "cache": "none",
-                    "prerequisites": [],
+                    "prerequisites": ["o_ec2"],
                     "func": self.configuration_dump,
                 },
                 "configuration/(.*)"       : {
@@ -293,7 +293,10 @@ class Interact:
                 return False
         else:
             only_stable_keys = "unstable" not in event or event["unstable"].lower() != "true"
-            dump             = config.dumps(only_stable_keys=only_stable_keys) 
+            if "raw" in event and event["raw"].lower() == "true":
+                dump = Cfg.get_dict() 
+            else:
+                dump = config.dumps(only_stable_keys=only_stable_keys) 
             response["body"] = yaml.dump(dump) if is_yaml else Dbg.pprint(dump)
         return True
 

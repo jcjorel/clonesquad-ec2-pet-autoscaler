@@ -1,3 +1,14 @@
+v0.8.3:
+- (Improvment/Minor) Added explicit warning when a subfleet is in 'undefined' state to notify user that no scaling action will take place.
+- (Improvment/Minor) Added 'raw' argument to API GW (/configuration?raw=true) to dump in a clean YAML format ready for further import.
+- (Bug/Minor) Dump subfleet configuration keys with API GW (/configuration).
+
+v0.8.2:
+- (Improvment/Minor) Default value for subfleet.<subfleetname>.ec2.schedule.burstable_instance.max_cpu_crediting_instances changed from 50% to 0% to ease understand of shutdown behavior of burstable instances. CPU Crediting needs now to be explicitly actived with this key with a value > 0%.
+
+v0.8.1:
+- (Bug/Major) Fixed possible mixup of instances between subfleets when some subfleet names can be found in others.
+
 v0.8.0:
 - (Improvment/Major) BACKWARD COMPATIBILITY BREACH: Suppress all references to 'staticfleet' and reworded documentation, CloudWatch metrics and configuration keys toward simpler 'subfleet' wording.
 - (Improvment/Minor) By default, do not restart automatically burstable instances to preserve accrued credits (ec2.schedule.burstable_instance.preserve_accrued_cpu_credit with 0 value by default).

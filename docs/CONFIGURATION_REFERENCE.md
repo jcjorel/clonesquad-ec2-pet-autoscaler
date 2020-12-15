@@ -226,7 +226,7 @@ Define the number of EC2 instances to start when a subfleet is in a 'running' st
 
 
 ### subfleet.&lt;subfleetname&gt;.ec2.schedule.burstable_instance.max_cpu_crediting_instances
-Default Value: `50%`   
+Default Value: `0%`   
 Format       :  [IntegerOrPercentage](#IntegerOrPercentage)
 
 Define the maximum number of EC2 instances that can be in CPU Crediting state at the same time in the designated subfleet.

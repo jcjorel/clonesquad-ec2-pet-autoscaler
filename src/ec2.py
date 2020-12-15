@@ -109,7 +109,7 @@ A subfleet can contain EC2 instances but also RDS and TransferFamilies tagged in
 > This parameter has no effect if [`subfleet.subfleetname.state`](#subfleetsubfleetnamestate) is set to a value different than `running`.
                  """},
                  "subfleet.<subfleetname>.ec2.schedule.burstable_instance.max_cpu_crediting_instances,Stable": {
-                         "DefaultValue": "50%",
+                         "DefaultValue": "0%",
                          "Format": "IntegerOrPercentage",
                          "Description": """Define the maximum number of EC2 instances that can be in CPU Crediting state at the same time in the designated subfleet.
 
@@ -276,7 +276,7 @@ without any TargetGroup but another external health instance source exists).
             for k in Cfg.keys():
                 key = k.replace("<subfleetname>", subfleet)
                 if k.startswith("subfleet.<subfleetname>.") and not Cfg.is_builtin_key_exist(key):
-                    Cfg.register({ key : Cfg.get(k) })
+                    Cfg.register({ f"{key},Stable" : Cfg.get(k) })
         log.log(log.NOTICE, "Detected following subfleet names across EC2 resources: %s" % subfleet_names)
 
         # Load EC2 status override URL content
@@ -325,7 +325,8 @@ without any TargetGroup but another external health instance source exists).
         return [ az["ZoneName"] for az in self.az_with_issues ]
 
     def get_subfleet_instances(self, subfleet_name=None):
-        instances = self.filter_instance_list_by_tag(self.instances, "clonesquad:subfleet-name", subfleet_name)
+        value = [subfleet_name] if subfleet_name is not None else None
+        instances = self.filter_instance_list_by_tag(self.instances, "clonesquad:subfleet-name", value)
         return self.filter_instance_list_by_tag(instances, "-clonesquad:excluded", ["True", "true"])
 
     def get_subfleet_names(self):

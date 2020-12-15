@@ -322,6 +322,10 @@ def import_dict(c):
     t = _init["configuration_table"]
     t.set_dict(c)
 
+def get_dict():
+    t = _init["configuration_table"]
+    return t.get_dict()
+
 def get(key, none_on_failure=False):
     r = get_extended(key)
     if not r["Success"]:

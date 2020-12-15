@@ -1131,6 +1131,7 @@ By default, the dashboard is enabled.
             if (expected_state == "stopped" and i["State"]["Name"] in ["pending", "running"]):
                 subfleets[subfleet_name]["ToStop"].append(i)
 
+            subfleets[subfleet_name]["expected_state"] = expected_state
             subfleets[subfleet_name]["All"].append(i)
 
         
@@ -1148,10 +1149,15 @@ By default, the dashboard is enabled.
                 for instance_id in instance_ids:
                     self.ec2.set_scaling_state(instance_id, "draining")
 
-            min_instance_count     = max(0, Cfg.get_abs_or_percent("subfleet.%s.ec2.schedule.min_instance_count" % subfleet,
+            min_instance_count     = max(0, Cfg.get_abs_or_percent(f"subfleet.{subfleet}.ec2.schedule.min_instance_count",
                 0, len(fleet_instances)) )
-            desired_instance_count = max(0, Cfg.get_abs_or_percent("subfleet.%s.ec2.schedule.desired_instance_count" % subfleet, 
+            desired_instance_count = max(0, Cfg.get_abs_or_percent(f"subfleet.{subfleet}.ec2.schedule.desired_instance_count", 
                 len(fleet_instances), len(fleet_instances)))
+            expected_state         = fleet["expected_state"]
+            if expected_state in ["undefined", ""]:
+                log.info(f"/!\ Subfleet '{subfleet}' is in 'undefined' state. No subfleet scaling action will be performed until "
+                    f"subfleet.{subfleet}.state is set to 'running'! (subfleet.{subfleet}.ec2.schedule.min_instance_count and "
+                    f"subfleet.{subfleet}.ec2.schedule.desired_instance_count are ignored.)")
 
             if len(fleet["ToStart"]):
                 instance_count = max(min_instance_count, desired_instance_count)
@@ -1179,7 +1185,7 @@ By default, the dashboard is enabled.
                         for instance_id in instances_to_stop:
                             self.ec2.set_scaling_state(instance_id, "draining")
 
-            if Cfg.get_int("subfleet.%s.ec2.schedule.metrics.enable" % subfleet):
+            if Cfg.get_int(f"subfleet.{subfleet}.ec2.schedule.metrics.enable"):
                 dimensions = [{
                     "Name": "SubfleetName",
                     "Value": subfleet}]
@@ -1188,8 +1194,12 @@ By default, the dashboard is enabled.
                 self.cloudwatch.set_metric("Subfleet.EC2.Size", len(fleet["All"]), dimensions=dimensions)
                 self.cloudwatch.set_metric("Subfleet.EC2.RunningInstances", len(running_instances), dimensions=dimensions)
                 self.cloudwatch.set_metric("Subfleet.EC2.DrainingInstances", len(draining_instances), dimensions=dimensions)
-                self.cloudwatch.set_metric("Subfleet.EC2.MinInstanceCount", min_instance_count, dimensions=dimensions)
-                self.cloudwatch.set_metric("Subfleet.EC2.DesiredInstanceCount", desired_instance_count, dimensions=dimensions)
+                if expected_state == "running":
+                    self.cloudwatch.set_metric("Subfleet.EC2.MinInstanceCount", min_instance_count, dimensions=dimensions)
+                    self.cloudwatch.set_metric("Subfleet.EC2.DesiredInstanceCount", desired_instance_count, dimensions=dimensions)
+                else:
+                    self.cloudwatch.set_metric("Subfleet.EC2.MinInstanceCount", None, dimensions=dimensions)
+                    self.cloudwatch.set_metric("Subfleet.EC2.DesiredInstanceCount", None, dimensions=dimensions)
 
     def generate_subfleet_dashboard(self):
         now                = self.context["now"]
@@ -1212,11 +1222,11 @@ By default, the dashboard is enabled.
                         "stacked": False,
                         "metrics": [
                             [ "CloneSquad", "Subfleet.EC2.Size", "GroupName", self.context["GroupName"], "SubfleetName", subfleet_name ],
-                            [ ".", "Subfleet.EC2.RunningInstances", ".", ".", ".", "." ],
-                            [ ".", "Subfleet.EC2.DrainingInstances", ".", ".", ".", "." ],
-                            [ ".", "Subfleet.EC2.NbOfCPUCreditingInstances", ".", ".", ".", "." ],
                             [ ".", "Subfleet.EC2.MinInstanceCount", ".", ".", ".", "." ],
-                            [ ".", "Subfleet.EC2.DesiredInstanceCount", ".", ".", ".", "." ]
+                            [ ".", "Subfleet.EC2.DesiredInstanceCount", ".", ".", ".", "." ],
+                            [ ".", "Subfleet.EC2.NbOfCPUCreditingInstances", ".", ".", ".", "." ],
+                            [ ".", "Subfleet.EC2.DrainingInstances", ".", ".", ".", "." ],
+                            [ ".", "Subfleet.EC2.RunningInstances", ".", ".", ".", "." ],
                         ],
                         "region": self.context["AWS_DEFAULT_REGION"],
                         "title": subfleet_name,
