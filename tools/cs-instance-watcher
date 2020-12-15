@@ -56,7 +56,7 @@ def sys_exec(cmd, silent=False):
         res = subprocess.Popen(cmd, stdout=subprocess.PIPE)
         res.wait() 
     except OSError:
-        logger.exception("Failed to execute command: %s" % cmd)
+        logger.exception(f"Failed to execute command: {cmd}")
         return None
 
     if res.returncode != 0:
@@ -72,10 +72,11 @@ def on_draining_block_new_connections_to_ports(instance_state):
         instance_state = args["instance_state"] # Override
     if instance_state not in ["stopping", "draining"]:
         if len(ports):
-            logger.info("Instance not in 'draining' or 'stopping' state (current state is '%s'): No port blacklist." % instance_state)
+            logger.info("on_draining_block_new_connections_to_ports: Instance not in 'draining' or 'stopping' "
+                f"state (current state is '{instance_state}'): No port blacklist.")
         ports = [] # When not in draining state, no port are blacklisted
     else:
-        logger.info("Configuring 'on_draining_block_new_connections_to_ports' built-in behavior for ports: %s" % ports)
+        logger.info(f"Configuring 'on_draining_block_new_connections_to_ports' built-in behavior for ports: {ports}")
     # Always run an 'iptables -L' to ensure iptables kernel modules are loaded.
     sys_exec(["iptables", "-L"], silent=True)
     output = sys_exec(["iptables-save"], silent=True)
@@ -141,6 +142,9 @@ def loop():
     global COUNT
     global last_instance_state
     start_time = seconds()
+
+    read_configuration()
+
     session    = requests.Session()
     try:
         instance_id = str(session.get('http://169.254.169.254/latest/meta-data/instance-id').content, "utf-8")
@@ -267,7 +271,8 @@ def seconds():
     epoch = datetime.utcfromtimestamp(0).replace(tzinfo=timezone.utc)
     return (now - epoch).total_seconds()
 
-args = {
+args         = None
+default_args = {
     "api_polling_period": 10,
     "on_draining_block_new_connections_to_ports": [],
     "instance_state": "",
@@ -276,33 +281,11 @@ args = {
     "script_dir": "/etc/cs-instance-watcher.d",
     "force": False
 }
-LOOP_DURATION=5
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="CloneSquad Instance watcher")
-    parser.add_argument('--api-polling-period', help="Number of seconds between polling of CloneSquad API for status change", 
-            nargs='?', type=int, default=argparse.SUPPRESS)
-    parser.add_argument('--on-draining-block-new-connections-to-ports', help="Specify a list of ports where, on DRAINING state, to install IPTable rule"
-            " to reject new connections (while allowing the current ones to finish)", 
-            nargs='*', type=int, default=argparse.SUPPRESS)
-    parser.add_argument('--config', help="Configuration file (JSON format)",
-            nargs='?', type=str, default=argparse.SUPPRESS)
-    parser.add_argument('--script-dir', help="Directory of scripts to launch of instance state change. ",
-            nargs='?', type=str, default=argparse.SUPPRESS)
-    parser.add_argument('--instance-state', help="Force to consider the specified state as the one for the instance (debug purpose)",
-            nargs='?', type=str, default=argparse.SUPPRESS)
-    parser.add_argument('--stale-context-timeout', help="Define the period (in seconds) instance meta are considered fresh before to rescan them.",
-            nargs='?', type=int, default=argparse.SUPPRESS)
-    parser.add_argument('--force', help="Force operations despite lack of pre-requisites (ex: no Targetgroup used).",
-            nargs='?', type=bool, default=argparse.SUPPRESS)
-    parser.add_argument('--log-file', help="File where to write operation logs.",
-            nargs='?', type=str, default=argparse.SUPPRESS)
-    parser.add_argument('--log-file-rotate', help="File where to write operation logs. Format: <timeunit>,<interval>,<retention> Default value: d,1,7 meaning rotate every day and keep 7 log backup (one week).",
-            nargs='?', type=str, default=argparse.SUPPRESS)
-    parser.add_argument('--generate-systemd', help="Generate a systemd service file at the specified location.",
-            nargs='?', type=str, default=argparse.SUPPRESS)
-    parser.add_argument('--do-not-generate-systemd', help="Force no generation of systemd file.",
-            nargs='?', type=str, default=argparse.SUPPRESS)
 
+def read_configuration():
+    global args
+    first_pass = args is None
+    args       = default_args.copy()
     if os.path.exists(args["config"]):
         try:
             c = json.load(args["config"])
@@ -341,22 +324,52 @@ WantedBy=multi-user.target
         logger.info("Generated systemd file at '%s'." % generate_systemd[1])
         sys.exit(0)
 
-    log_file = next(filter(lambda a: a[0] == "log_file", _args), None)
-    if log_file and log_file[1] is not None:
-        rotate_params = ["d", "1", "7"] # Default value for log rotate
-        log_file_rotate = next(filter(lambda a: a[0] == "log_file_rotate", _args), None)
-        if log_file_rotate:
-            params = log_file_rotate[1].split(",")
-            for i in range(0, len(params)):
-                rotate_params[i] = params[i]
-        logger.info(f"Logging to rotated file '%s' (rotation parameters={rotate_params}). Disabling logging to stdout..." % log_file[1])
-        logger.removeHandler(logger.handlers[0])
-        handler = handlers.TimedRotatingFileHandler(log_file[1],
-           when=rotate_params[0],
-           interval=int(rotate_params[1]),
-           backupCount=int(rotate_params[2]))
-        logger.addHandler(handler)
-        handler.setFormatter(logger_formatter)
+    if first_pass:
+        log_file = next(filter(lambda a: a[0] == "log_file", _args), None)
+        if log_file and log_file[1] is not None:
+            rotate_params = ["d", "1", "7"] # Default value for log rotate
+            log_file_rotate = next(filter(lambda a: a[0] == "log_file_rotate", _args), None)
+            if log_file_rotate:
+                params = log_file_rotate[1].split(",")
+                for i in range(0, len(params)):
+                    rotate_params[i] = params[i]
+            logger.info(f"Logging to rotated file '%s' (rotation parameters={rotate_params}). Disabling logging to stdout..." % log_file[1])
+            logger.removeHandler(logger.handlers[0])
+            handler = handlers.TimedRotatingFileHandler(log_file[1],
+               when=rotate_params[0],
+               interval=int(rotate_params[1]),
+               backupCount=int(rotate_params[2]))
+            logger.addHandler(handler)
+            handler.setFormatter(logger_formatter)
+
+LOOP_DURATION=5
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description="CloneSquad Instance watcher")
+    parser.add_argument('--api-polling-period', help="Number of seconds between polling of CloneSquad API for status change", 
+            nargs='?', type=int, default=argparse.SUPPRESS)
+    parser.add_argument('--on-draining-block-new-connections-to-ports', help="Specify a list of ports where, on DRAINING state, to install IPTable rule"
+            " to reject new connections (while allowing the current ones to finish)", 
+            nargs='*', type=int, default=argparse.SUPPRESS)
+    parser.add_argument('--config', help="Configuration file (JSON format)",
+            nargs='?', type=str, default=argparse.SUPPRESS)
+    parser.add_argument('--script-dir', help="Directory of scripts to launch of instance state change. ",
+            nargs='?', type=str, default=argparse.SUPPRESS)
+    parser.add_argument('--instance-state', help="Force to consider the specified state as the one for the instance (debug purpose)",
+            nargs='?', type=str, default=argparse.SUPPRESS)
+    parser.add_argument('--stale-context-timeout', help="Define the period (in seconds) instance meta are considered fresh before to rescan them.",
+            nargs='?', type=int, default=argparse.SUPPRESS)
+    parser.add_argument('--force', help="Force operations despite lack of pre-requisites (ex: no Targetgroup used).",
+            nargs='?', type=bool, default=argparse.SUPPRESS)
+    parser.add_argument('--log-file', help="File where to write operation logs.",
+            nargs='?', type=str, default=argparse.SUPPRESS)
+    parser.add_argument('--log-file-rotate', help="File where to write operation logs. Format: <timeunit>,<interval>,<retention> Default value: d,1,7 meaning rotate every day and keep 7 log backup (one week).",
+            nargs='?', type=str, default=argparse.SUPPRESS)
+    parser.add_argument('--generate-systemd', help="Generate a systemd service file at the specified location.",
+            nargs='?', type=str, default=argparse.SUPPRESS)
+    parser.add_argument('--do-not-generate-systemd', help="Force no generation of systemd file.",
+            nargs='?', type=str, default=argparse.SUPPRESS)
+
+    read_configuration()
 
     while True:
         try:
