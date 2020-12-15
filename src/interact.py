@@ -247,7 +247,11 @@ class Interact:
             response["statusCode"] = 400
             response["body"]       = "No information for instance id '%s'!" % instance_id
             return False
-
+        # Read ultra-fresh state of the instance directly from DynamodDB
+        state = self.context["o_ec2"].get_state(f"ec2.instance.scaling.state.{instance_id}", direct=True)
+        if state is not None and state != "":
+            log.info(f"Read instance state for {instance_id} directly for state table ({state})")
+            d["State"] = state
         response["statusCode"] = 200
         response["body"]       = Dbg.pprint(d)
         return True
