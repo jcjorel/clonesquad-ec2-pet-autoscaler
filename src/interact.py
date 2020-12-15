@@ -31,7 +31,8 @@ class QueryCache:
 
     def check_invalidation(self):
         date = self.context["o_ec2"].get_state("main.last_call_date", direct=True)
-        if date != self.last_call_date:
+        if date is None or date != self.last_call_date:
+            log.info(f"Invalidating cache ({date} != %s)." % self.last_call_date)
             self.cache          = {}
             self.last_call_date = date
             self.interact_precomputed_data = None
