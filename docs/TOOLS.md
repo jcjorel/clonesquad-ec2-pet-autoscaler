@@ -76,14 +76,14 @@ The tool takes command line arguments:
 
 * `--api-polling-period <seconds>`: Period between calls to the CloneSquad API GW to get instance status (`running`, `draining`...). Default: `10`
 * `--on-draining-block-new-connections-to-ports <port> <port>`: Activate the builtin algorithm which forbids new TCP connections to the specified ports on `draining`condition. Default: `None`
-* `--stale-context-timeout <seconds>`: Period of time where the tool used cached data about the running instance (Tags especially). Default: `300`
+* `--stale-context-timeout <seconds>`: Period of time for running instance data caching (Tags especially). Default: `300`
 * `--log-file <path_to_a_file>`: Path to the rotated log file. Default: `stderr`
 * `--log-file-rotate log_rotate_spec`: Log rotation specification. Format: TimeUnit,RotationPerTimeUnit,BackupFileCount. Default: `d,1,7`
 	* Default `d,1,7` means: Every day rotates logs and keep 7 days of rotated files.
 * `--generate-systemd <systemd_service_file>`: Path to a systemd service configuration file to create.
 * `--script-dir <directory>`: A directory containing scripts to launch on state change. Default: /etc/cs-instance-watcher.d/
 	* Place scripts under a subdirectory which hold the name of the state.
-		* Ex: */etc/cs-instance-watcher.d/draining/script_to_launch_on_draining.sh*
+		* Ex: */etc/cs-instance-watcher.d/**draining**/script_to_launch_on_draining.sh*
 
 **IAM Policy:**
 
