@@ -37,6 +37,7 @@ Pre-requisites:
 * Install Python3 and the packages `requests`, `requests-iamauth` and `boto3`.
 
 Python packages installation: 
+
 	python3 -m pip install requests requests-iamauth boto3
 
 
