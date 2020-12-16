@@ -45,7 +45,7 @@ Python packages installation:
 	* The tool does not need the DevKit and only needs the packages listed in the pre-requisites.
 2) Run the tool with appropriate arguments (See [Configuration](#Configuration)).
 
-> The tool can be safely left installed and started on any CloneSquad or non-CloneSquad managed EC2 instances.
+> Note: The tool can be safely left installed and started on any CloneSquad or non-CloneSquad managed EC2 instances.
 
 **Example:**
 
