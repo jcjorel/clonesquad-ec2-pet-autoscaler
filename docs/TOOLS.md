@@ -4,7 +4,7 @@
 
 # cs-instance-watcher
 
-**Purpose:** Optimize EC2 instance draining mode handling CloneSquad is used without TargetGroup.
+**Purpose:** Optimize EC2 instance draining mode handling when CloneSquad is used without TargetGroup.
 
 This daemon is to install and run on EC2 instances part of a CloneSquad group.
 
@@ -79,7 +79,7 @@ The tool takes command line arguments:
 * `--stale-context-timeout <seconds>`: Period of time where the tool used cached data about the running instance (Tags especially). Default: `300`
 * `--log-file <path_to_a_file>`: Path to the rotated log file. Default: `stderr`
 * `--log-file-rotate log_rotate_spec`: Log rotation specification. Format: TimeUnit,RotationPerTimeUnit,BackupFileCount. Default: `d,1,7`
-	* Default `d,1,7`means: Every day rotates logs and keep 7 days of rotated files.
+	* Default `d,1,7` means: Every day rotates logs and keep 7 days of rotated files.
 * `--generate-systemd <systemd_service_file>`: Path to a systemd service configuration file to create.
 * `--script-dir <directory>`: A directory containing scripts to launch on state change. Default: /etc/cs-instance-watcher.d/
 	* Place scripts under a subdirectory which hold the name of the state.
