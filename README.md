@@ -21,7 +21,7 @@ to never create or terminate [EC2](https://aws.amazon.com/ec2/) instances but on
 	- Support for 'persistent' [Spot instances](https://aws.amazon.com/ec2/spot/) aside of On-Demand ones in the same fleet with configurable priorities, Spot Rebalance recommendation and interruption handling,
 	- Smart management of t[3|4].xxx burstable instances (aka '[CPU Crediting mode](docs/COST_OPTIMIZATION.md#clonesquad-cpu-crediting)' to avoid overcost linked to [unlimited bursting](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/burstable-performance-instances-unlimited-mode.html)),
 	- (Optional) ['LightHouse' mode](docs/SCALING.md#vertical-scaling) allowing to run automatically cheap instance types during low activity periods,
-	- (Optional) *Extra cost optimization options for non-autoscaled resources*: [Static subfleet support](docs/SCALING.md#static-subfleet-support) both for EC2 Instances, RDS databases and TransferFamily servers. Allows simple on/off use-cases (in combination with the scheduler. See [demonstration](examples/environments/demo-scheduled-events/)).
+	- (Optional) *Extra cost optimization options for non-autoscaled resources*: [Subfleet support](docs/SCALING.md#static-subfleet-support) both for EC2 Instances, RDS databases and TransferFamily servers. Allows non-autoscaled use-cases (in combination with the scheduler. See [demonstration](examples/environments/demo-scheduled-events/)).
 * Resilience
 	- Manual or automatic Availability Zone eviction (automatic mode based on [*describe_availability_zones()* AWS standard API](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ec2.html#EC2.Client.describe_availability_zones)),
 	- (Optional) Instance bouncing: Frictionless fleet rebalancing and [AWS hypervisor maintenance](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/monitoring-instances-status-check_sched.html) by performing a permanent rolling state cycle (periodic start/stop of instances),
@@ -31,7 +31,7 @@ to never create or terminate [EC2](https://aws.amazon.com/ec2/) instances but on
 	- Configuration hierarchy for complex dynamic settings,
 	- [API Gateway](docs/INTERACTING.md#interacting-with-clonesquad) to monitor and make some basic operations.
 * Observability
-	- (Optional) CloudWatch dashboard (*Note: activated by default*),
+	- (Optional) 2 x CloudWatch dashboards (*Note: activated by default*),
 	- [Events & Notifications](docs/EVENTS_AND_NOTIFICATIONS.md) (Lambda/SQS/SNS targets) framework to react to Squad events (ex: Register a just-started instance to an external monitoring solution and/or DNS),
 	- [Extensive debuggability](docs/BUILD_RELEASE_DEBUG.md#debugging) with encountered scaling issues and exceptions exported to S3 (with contextual CloudWatch dashboard PNG snapshots).
 
@@ -84,7 +84,7 @@ The default configuration has autoscaling in/out active and a directive defined 
 
 Better benefits can be obtained by using [vertical scaling](docs/SCALING.md#vertical-scaling) and instance type priorities.
 
-As general concept, the CloneSquad configuration can be done dynamically through a DynamoDB table or using a cascading set of YAML files located on a external Web servers, one or more S3 buckets requiring SigV4 authentication or finally directly integrated within the CloneSquad deployment for maximum resiliency toward external runtime dependencies. See [Configuration reference](docs/CONFIGURATION_REFERENCE.md) for more information.
+As general concept, the CloneSquad configuration can be done dynamically through a DynamoDB table or using a cascading set of YAML files located on a external Web servers, S3 buckets requiring SigV4 authentication or finally directly embedded within the CloneSquad deployment for maximum resiliency toward external runtime dependencies. See [Configuration reference](docs/CONFIGURATION_REFERENCE.md) for more information.
 
 ## Costs
 
@@ -116,8 +116,6 @@ metrics will generate a significant part of the demonstration bill and may not b
 	This early release is meant to understand and validate the original concept of CloneSquad (please send feedbacks to jeancharlesjorel@gmail.com)
 * Think about an automatic testing capability (currently, tests are manuals),
 * Implement a CI/CD pipeline for release (beyond the existing [release-everything script](scripts/release-everything)...),
-* There may be a cost benefit to move the 'Main' Lambda to an ECS Fargate Spot task. With limited effort, we could do this move while
-keeping the 'Main' Lambda as automatic fallback in case of Spot interruption. To be investigated.
 
 
 ## Contributing
