@@ -13,7 +13,7 @@ This scripts allows to react on instance state change from the CloneSquad point 
 > Without `cs-instance-watcher`, **in a TargetGroup free usage and with a front-end external Load-Balancer**, 
 users could see latencies, timeouts or sharp disconnections due to abrupt draining instance shutdowns.
 
-Even the tool is designed to track and possibly react to any state transition, it is 
+Even if the tool is designed to track and possibly react to any state transition, it is 
 meant to react especially to the 'draining' state:
 When no TargetGroup is used, a possible use-case is that a load-balancer (different 
 from an AWS ALB/NLB/CLB) is serving CloneSquad managed instances.
