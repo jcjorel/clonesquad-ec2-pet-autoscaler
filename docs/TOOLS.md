@@ -80,13 +80,33 @@ The tool takes command line arguments:
 * `--log-file <path_to_a_file>`: Path to the rotated log file Default: `stderr`
 * `--log-file-rotate log_rotate_spec`: Log rotation specification. Format: TimeUnit,RotationPerTimeUnit,BackupFileCount. Default: `d,1,7`
 * `--generate-systemd <systemd_service_file>`: Path to a systemd service configuration file to create.
-* `--script-dir <directory>: A directory containing scripts to launch on state change. Default: /etc/cs-instance-watcher.d/
+* `--script-dir <directory>`: A directory containing scripts to launch on state change. Default: /etc/cs-instance-watcher.d/
 	* Place scripts under a subdirectory which hold the name of the state.
+		* Ex: /etc/cs-instance-watcher.d/draining/script_to_launch_on_draining.sh
 
-Ex: 
+**IAM Policy:**
 
-	/etc/cs-instance-watcher.d/draining/script_to_launch_on_draining.sh
+The `cs-instance-watcher` tool requires the following IAM Policy in the EC2 attached role.
 
-
+	{
+	    "Version": "2012-10-17",
+	    "Statement": [
+	        {
+	            "Sid": "csinstancewatcherlambda",
+	            "Effect": "Allow",
+	            "Action": "lambda:InvokeFunction",
+	            "Resource": "arn:aws:lambda:*:*:function:CloneSquad-Main-*"
+	        },
+	        {
+	            "Sid": "csinstancewatcherservices",
+	            "Effect": "Allow",
+	            "Action": [
+	                "ec2:DescribeInstances",
+	                "sts:GetCallerIdentity"
+	            ],
+	            "Resource": "*"
+	        }
+	    ]
+	}
 
 
