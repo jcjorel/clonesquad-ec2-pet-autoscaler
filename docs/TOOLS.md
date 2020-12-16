@@ -36,6 +36,7 @@ Pre-requisites:
 * collect the port(s) to blacklist on 'draining' instance condition (if use of the builtin port blacklisting feature),
 * Install Python3 and the packages `requests`, `requests-iamauth` and `boto3`.
 
+Install command:
 
 	python3 -m pip install requests requests-iamauth boto3
 
@@ -44,7 +45,7 @@ Pre-requisites:
 	* The tool does not need the DevKit and only needs the packages listed in the pre-requisites.
 2) Run the tool with appropriate arguments (See [Configuration](#Configuration)).
 
-> The tool can be safely left installed on any CloneSquad or non-CloneSquad managed EC2 instances.
+> The tool can be safely left installed and started on any CloneSquad or non-CloneSquad managed EC2 instances.
 
 **Example:**
 
