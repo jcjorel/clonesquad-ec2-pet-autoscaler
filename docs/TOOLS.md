@@ -39,10 +39,10 @@ Pre-requisites:
 	python3 -m pip install requests requests-iamauth boto3
 
 1) Copy the tool file [here](../tools/cs-instance-watcher) to the EC2 instance.
-	* The tool do not need the DevKit and only need the packages listed in the pre-requisistes.
-2) Run the tool with appropriate arguments.
+	* The tool does not need the DevKit and only needs the packages listed in the pre-requisites.
+2) Run the tool with appropriate arguments (See [Configuration](#Configuration)).
 
-> The tool can be left installed on any CloneSquad or non-CloneSquad managed EC2 instances safely.
+> The tool can be safely left installed on any CloneSquad or non-CloneSquad managed EC2 instances.
 
 **Example:**
 
@@ -82,7 +82,7 @@ The tool takes command line arguments:
 * `--generate-systemd <systemd_service_file>`: Path to a systemd service configuration file to create.
 * `--script-dir <directory>`: A directory containing scripts to launch on state change. Default: /etc/cs-instance-watcher.d/
 	* Place scripts under a subdirectory which hold the name of the state.
-		* Ex: /etc/cs-instance-watcher.d/draining/script_to_launch_on_draining.sh
+		* Ex: */etc/cs-instance-watcher.d/draining/script_to_launch_on_draining.sh*
 
 **IAM Policy:**
 
