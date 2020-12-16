@@ -96,7 +96,7 @@ The `cs-instance-watcher` tool requires the following IAM Policy in the EC2 atta
 	            "Sid": "csinstancewatcherlambda",
 	            "Effect": "Allow",
 	            "Action": "lambda:InvokeFunction",
-	            "Resource": "arn:aws:lambda:*:*:function:CloneSquad-Main-*"
+	            "Resource": "arn:aws:lambda:*:*:function:CloneSquad-Discovery-*"
 	        },
 	        {
 	            "Sid": "csinstancewatcherservices",
