@@ -36,8 +36,7 @@ Pre-requisites:
 * collect the port(s) to blacklist on 'draining' instance condition (if use of the builtin port blacklisting feature),
 * Install Python3 and the packages `requests`, `requests-iamauth` and `boto3`.
 
-Install command:
-
+ 
 	python3 -m pip install requests requests-iamauth boto3
 
 
