@@ -10,8 +10,8 @@ This daemon is to install and run on EC2 instances part of a CloneSquad group.
 
 This scripts allows to react on instance state change from the CloneSquad point of view. 
 
-> Without usage of `cs-instance-watcher`, **in a TargetGroup free usage and with a front-end external Load-Balancer**, 
-users could see latencies, timeouts or sharp disconnections due to draining instances shutdown abruptly.
+> Without `cs-instance-watcher`, **in a TargetGroup free usage and with a front-end external Load-Balancer**, 
+users could see latencies, timeouts or sharp disconnections due to abrupt draining instance shutdowns.
 
 Even the tool is designed to track and possibly react to any state transition, it is 
 meant to react especially to the 'draining' state:
@@ -23,9 +23,9 @@ In order to help non-AWS Load-Balancer detects the draining instance condition, 
 toward a user-supplied list of ports while allowing the current established ones to continue.
 The external load-balancer health-checks will thus fail as soon as the instance
 falls in the 'draining' state allowing a smooth redirection toward other serving
-instances without user noticing the event.
+instances without users noticing the event.
 
-Users can also decide to write their own logic for reacting to 'draining' state (See [Configuration](#Configuration)).
+Users can also decide to write their own logic for reacting to 'draining' or other state (See [Configuration](#Configuration)).
 
 
 ## Installation
