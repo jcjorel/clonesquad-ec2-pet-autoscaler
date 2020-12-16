@@ -36,7 +36,9 @@ Pre-requisites:
 * collect the port(s) to blacklist on 'draining' instance condition (if use of the builtin port blacklisting feature),
 * Install Python3 and the packages `requests`, `requests-iamauth` and `boto3`.
 
+
 	python3 -m pip install requests requests-iamauth boto3
+
 
 1) Copy the tool file [here](../tools/cs-instance-watcher) to the EC2 instance.
 	* The tool does not need the DevKit and only needs the packages listed in the pre-requisites.
