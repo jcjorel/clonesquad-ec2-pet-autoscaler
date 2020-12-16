@@ -257,7 +257,7 @@ def loop():
             script_dir = f"%s/{instance_state}" % args["script_dir"]
             logger.info(f"State changed from '{last_instance_state}' to '{instance_state}'. Looking at directory '{script_dir}' for scripts to launch...")
             for script in glob.glob(f"{script_dir}/*"):
-                if os.path.exists(script):
+                if os.path.isfile(script):
                     try:
                         logger.info(f"{script}: %s" % sys_exec([script, instance_state, last_instance_state]))
                     except Exception as e:
