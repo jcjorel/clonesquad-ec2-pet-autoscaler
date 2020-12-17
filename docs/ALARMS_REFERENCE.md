@@ -45,6 +45,20 @@ metric is between 0.0 (BaselineThreshold) and 75.0 (Alarm Threshold). More detai
 > Tip: When defining their custom alarms, it is recommended to perform performance tests to determine the valid operational range
 of the underlying metrics to correctly inform CloneSquad of the expected min (i.e. BaselineThreshold) and max (i.e. AlarmThreshold) values.
 
+## Unmanaged alarms
+
+CloneSquad can use Cloudwatch Alarms that are not created/terminated by itself to take scaling decisions. 
+Typical use-case is to leverage *outside-of-the-fleet* metrics like response times of Load Balancers, length of SQS queues or 
+Custom metrics specific to applications.
+
+Ex:
+
+	cloudwatch.ec2.alarmXX.configuration_url: alarmname:<Cloudwatch_alarm_name>[,BaselineThreshold=0.200[,Divider=1]]
+	
+The main difference with managed alarms is that there is no alarm specification YAML file; only a Cloudwatch Alarm name.
+
+It is NOT an error to define a CloneSquad alarm pointing to a non-existing Cloudwatch alarm: It will be safely ignored.
+
 
 ## How it works?
 
@@ -116,20 +130,6 @@ time that other alarm sources.
 
 Note: Technically, in order to reduce Cloudwatch cost associated with GetMetricData API calls, the calculation *Sum(NonTriggeredAlarmGeneratedPoints_withNoDividerMeta ) / NbOfServingInstances* is working with cached data as much as possible synthetized by a weighted algorithm based on data age (recent data have more weight than older ones). This algorithm is
 influenced by the [`cloudwatch.metrics.time_for_full_metric_refresh`](CONFIGURATION_REFERENCE.md#cloudwatchmetricstime_for_full_metric_refresh) parameter.
-
-## Unmanaged alarms
-
-CloneSquad can use Cloudwatch Alarms that are not created/terminated by itself to take scaling decisions. 
-Typical use-case is to leverage *outside-of-the-fleet* metrics like response times of Load Balancers, length of SQS queues or 
-Custom metrics specific to applications.
-
-Ex:
-
-	cloudwatch.ec2.alarmXX.configuration_url: alarmname:<Cloudwatch_alarm_name>[,BaselineThreshold=0.200[,Divider=1]]
-	
-The main difference with managed alarms is that there is no alarm specification YAML file; only a Cloudwatch Alarm name.
-
-It is NOT an error to define a CloneSquad alarm pointing to a non-existing Cloudwatch alarm: It will be safely ignored.
 
 
 
