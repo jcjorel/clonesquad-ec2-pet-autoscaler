@@ -53,7 +53,7 @@ If you want CloneSquad to disreguard the 'CPU Credit' status of burstabled insta
 [`ec2.schedule.max_cpu_crediting_instances`](CONFIGURATION_REFERENCE.md#ec2schedulemax_cpu_crediting_instances) to `0%`. Once set, burstable instances
 would be stopped immediatly as any other instance types.
 
-## I'am NOT using AWS ALB/NLB/CLB but a Third-Party Load-Balancer to server requests to my CloneSquad. Is there any specific recommendations in this context?
+## I'am NOT using AWS ALB/NLB/CLB but a Third-Party Load-Balancer to server requests toward my CloneSquad fleet. Are there any specific recommendations in this context?
 
 Yes, there are. When CloneSquad does not manage TargetGroups (i.e. not served by ALB/NLB/CLB), it does not have access to a builtin 'draining' mechanism. Said
 differently, when CloneSquad is draining an EC2 instances, when used with TargetGroups, AWS mechanisms will take care to stop sending new connections to
