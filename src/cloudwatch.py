@@ -141,6 +141,8 @@ See [Alarm specification documentation](ALARMS_REFERENCE.md)  for more details.
             prefix = "alarmname:"
             if url.startswith(prefix):
                 alarm_defs["AlarmName"] = url[len(prefix):]
+            elif url.startswith("ignore:"):
+                continue # This entry need to be ignored.
             else:
                 log.log(log.NOTICE, "Read Alarm definition: %s" % r["Value"])
                 try:
