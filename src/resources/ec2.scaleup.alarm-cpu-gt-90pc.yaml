@@ -18,19 +18,3 @@ Threshold: 90.0
 ComparisonOperator: GreaterThanOrEqualToThreshold
 TreatMissingData: missing
 
-################################################
-# /!\ DO NOT MODIFY BELOW PARAMETERS
-#
-ActionsEnabled: True
-Dimensions: 
-- Name: InstanceId
-  Value: {InstanceId}
-OKActions: 
-- {GenericOkActions_SNSTopicArn}
-AlarmActions: 
-- {ScaleUp_SNSTopicArn}
-InsufficientDataActions: 
-- {GenericInsufficientDataActions_SNSTopicArn}
-Tags:
-  - Key: clonesquad:group-name
-    Value: {GroupName}

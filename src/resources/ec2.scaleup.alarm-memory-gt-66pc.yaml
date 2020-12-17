@@ -1,19 +1,16 @@
-ActionsEnabled: True
-OKActions: 
-- {GenericOkActions_SNSTopicArn}
-AlarmActions: 
-- {ScaleUp_SNSTopicArn}
-InsufficientDataActions: 
-- {GenericInsufficientDataActions_SNSTopicArn}
+#
+# This is a CloneSquad managed alarm definition tracking the 'Memeory utilization' of EC2 instances managed by CloneSquad. 
+#   All these arguments are passed to CloudWatch.PutMetricAlarm API (See https://docs.aws.amazon.com/AmazonCloudWatch/latest/APIReference/API_PutMetricAlarm.html)
+#
+#   Before to be sent to this API, CloneSquad performs some variable substitutions (InstanceId, *_SNSTopicArn, GroupName).
+#
+#   A reference to this file must be set in the CloneSquad configuration (See docs/CONFIGURATION_REFERENCE.md#cloudwatchalarm00configuration_url)
+#
+#
 Statistic: Average
 Period: 60
-
 Namespace: CWAgent
 MetricName: mem_used_percent
-Dimensions: 
-- Name: InstanceId
-  Value: {InstanceId}
-
 Unit: Percent
 EvaluationPeriods: 2
 DatapointsToAlarm: 2
@@ -21,6 +18,3 @@ Threshold: 66.0
 ComparisonOperator: GreaterThanOrEqualToThreshold
 TreatMissingData: missing
 
-Tags:
-  - Key: clonesquad:group-name
-    Value: {GroupName}

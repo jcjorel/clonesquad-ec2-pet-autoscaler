@@ -149,7 +149,7 @@ See [Alarm specification documentation](ALARMS_REFERENCE.md)  for more details.
                         raise Exception("URL content = <None>")
                     alarm_defs["Content"] = str(resp, "utf-8")
                 except Exception as e:
-                    log.exception("Failed to load Alarm definition '%s' : %e" % (r["Value"], e))
+                    log.exception(f"Failed to load Alarm definition '%s' : {e}" % r["Value"])
                     continue
             alarm_definitions[index] = alarm_defs
 
@@ -249,7 +249,7 @@ See [Alarm specification documentation](ALARMS_REFERENCE.md)  for more details.
             instance_id   = i["InstanceId"]
             if (now - i["LaunchTime"]).total_seconds() < instance_minimum_age_for_cpu_credit_polling:
                 continue
-            cached_metric = self.get_metric_by_id("CPUCreditBalance/%s" % instance_id)
+            cached_metric = self.get_metric_by_id(f"CPUCreditBalance/{instance_id}")
             if cached_metric is not None:
                 # Note: Polling of CPU Credit Balance is a bit tricky as this API takes a lot of time to update and sometime
                 #   do send back results from time to time. So we need to try multiple times...
@@ -271,7 +271,7 @@ See [Alarm specification documentation](ALARMS_REFERENCE.md)  for more details.
                     "Period": 300,
                     "Statistic"  : "Average"
                 })
-        log.log(log.NOTICE, "Will poll %d instances for CPU Credit balance." % cpu_credit_polling)
+        log.log(log.NOTICE, f"Will poll {cpu_credit_polling} instances for CPU Credit balance.")
 
         # Make request to CloudWatch
         query_counter  = self.ec2.get_state_int("cloudwatch.metric.query_counter", default=0)
@@ -297,7 +297,7 @@ See [Alarm specification documentation](ALARMS_REFERENCE.md)  for more details.
 
             for r in results:
                 if r["StatusCode"] != "Complete":
-                    log.error("Failed to retrieve metrics: %s" % q)
+                    log.error(f"Failed to retrieve metrics: {q}")
                     continue
                 metric_id = query["IdMapping"][r["Id"]]
                 if len(r["Timestamps"]) == 0:
@@ -309,7 +309,7 @@ See [Alarm specification documentation](ALARMS_REFERENCE.md)  for more details.
                 log.debug(r)
                 metric_results.append(r)
         if len(no_metric_ids):
-            log.info("No metrics returned for alarm '%s'" % no_metric_ids)
+            log.info(f"No metrics returned for alarm '{no_metric_ids}'")
 
         # Merge with existing cache metric
         metric_cache      = self.metric_cache
@@ -417,8 +417,8 @@ See [Alarm specification documentation](ALARMS_REFERENCE.md)  for more details.
             age_secs         = (now - instance["LaunchTime"]).total_seconds()
             min_instance_age = Cfg.get_duration_secs("cloudwatch.alarms.min_instance_age")
             if age_secs < min_instance_age:
-                log.log(log.NOTICE, "Instance '%s' too young. Wait %d seconds before to set an alarm..." % 
-                        (instance_id, min_instance_age - age_secs))
+                log.log(log.NOTICE, f"Instance '{instance_id}' too young. Wait %d seconds before to set an alarm..." % 
+                        (min_instance_age - age_secs))
                 continue
 
             #Update alarms for this instance
@@ -435,8 +435,26 @@ See [Alarm specification documentation](ALARMS_REFERENCE.md)  for more details.
                     kwargs["InstanceId"] = instance_id
                     alarm_template = self.alarm_definitions[alarm_definition]["Content"].format(**kwargs)
                     alarm = yaml.safe_load(alarm_template)
+                    # Add technical information to the alarm if not present in the loaded document.
+                    tech_details = {
+                        "ActionsEnabled": True,
+                        "Dimensions": [{
+                            "Name": "InstanceId",
+                            "Value": instance_id
+                            }],
+                            "OKActions": [self.context["GenericOkActions_SNSTopicArn"]],
+                            "AlarmActions": [self.context["ScaleUp_SNSTopicArn"]],
+                            "InsufficientDataActions": [self.context["GenericInsufficientDataActions_SNSTopicArn"]],
+                            "Tags": [{
+                                "Key": "clonesquad:group-name",
+                                "Value": self.context["GroupName"]
+                                }]
+                        }
+                    for d in tech_details:
+                        if d not in alarm: 
+                            alarm[d] = tech_details[d]
                 except Exception as e:
-                    log.exception("[ERROR] Failed to read YAML alarm file '%s' : %s" % (alarm_template, e))
+                    log.exception(f"[ERROR] Failed to read YAML alarm file '{alarm_template}' : {e}")
                     continue
                 alarm["AlarmName"] = alarm_name
 
@@ -460,13 +478,13 @@ See [Alarm specification documentation](ALARMS_REFERENCE.md)  for more details.
                     # Check if we updated this alarm very recently
                     delta = datetime.now(timezone.utc) - existing_alarm["AlarmConfigurationUpdatedTimestamp"] 
                     if delta < timedelta(minutes=1):
-                        log.debug("Alarm '%s' updated to soon" % alarm_name)
+                        log.debug(f"Alarm '{alarm_name}' updated to soon")
                         continue
 
                 nb_of_updated_alarms += 1
                 if nb_of_updated_alarms > max_update_per_batch: break
 
-                log.log(log.NOTICE, "Updating/creating CloudWatch Alarm '%s' : %s" % (alarm_name, alarm))
+                log.log(log.NOTICE, f"Updating/creating CloudWatch Alarm '{alarm_name}' : {alarm}")
                 resp = client.put_metric_alarm(**alarm)
                 log.debug(Dbg.pprint(resp))
 
@@ -478,7 +496,7 @@ See [Alarm specification documentation](ALARMS_REFERENCE.md)  for more details.
             if alarm_name not in valid_alarms:
                 nb_of_updated_alarms += 1
                 if nb_of_updated_alarms > max_update_per_batch: break
-                log.debug("Garbage collection orphan Cloudwatch Alarm '%s'" % alarm_name)
+                log.debug(f"Garbage collection orphan Cloudwatch Alarm '{alarm_name}'")
                 resp = client.delete_alarms(AlarmNames=[alarm_name])
                 log.debug(resp)
                 nb_of_updated_alarms += 1
@@ -507,7 +525,7 @@ See [Alarm specification documentation](ALARMS_REFERENCE.md)  for more details.
                 }]
         if dimensions is not None:
             m["Dimensions"].extend(dimensions)
-        log.log(log.NOTICE, "Metric[%s] = %s (Dimensions=%s)" % (name, value, dimensions))
+        log.log(log.NOTICE, f"Metric[{name}] = {value} (Dimensions={dimensions})")
 
     @xray_recorder.capture()
     def send_metrics(self):
@@ -523,13 +541,13 @@ See [Alarm specification documentation](ALARMS_REFERENCE.md)  for more details.
             metric_name   = m["MetricName"]
             match_pattern = next(filter(lambda em: re.match(em["_"], metric_name), excluded_metrics), None)
             if match_pattern in excluded_metrics:
-                log.log(log.NOTICE, "Metric '%s' excluded by keyword '%s' in 'cloudwatch.metrics.excluded'!" % (metric_name, match_pattern["_"]))
+                log.log(log.NOTICE, f"Metric '{metric_name}' excluded by keyword '%s' in 'cloudwatch.metrics.excluded'!" % match_pattern["_"])
                 continue
             if "Value" not in m:
-                log.warning("Missing value for metric '%s'!" % metric_name)
+                log.warning(f"Missing value for metric '{metric_name}'!")
                 continue
             if m["Value"] is None:
-                log.debug("Metric '%s' is disabled" % metric_name)
+                log.debug(f"Metric '{metric_name}' is disabled")
                 continue
             metrics.append(m)
 
@@ -569,7 +587,7 @@ See [Alarm specification documentation](ALARMS_REFERENCE.md)  for more details.
                 )
                 r[title] = str(base64.b64encode(response["MetricWidgetImage"]),"utf-8")
             except Exception as e:
-                log.exception("Failed to retrieve CloudWatch graph image for '%s'! : % e" % (title, e))
+                log.exception(f"Failed to retrieve CloudWatch graph image for '{title}'! : {e}")
         return r
 
     def load_dashboard(self):
