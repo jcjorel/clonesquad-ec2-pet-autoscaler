@@ -55,7 +55,7 @@ would be stopped immediatly as any other instance types.
 
 ## I'am NOT using AWS ALB/NLB/CLB but a Third-Party Load-Balancer to server requests toward my CloneSquad fleet. Are there any specific recommendations in this context?
 
-Yes, there are. When CloneSquad does not manage TargetGroups (i.e. not served by ALB/NLB/CLB), it does not have access to a builtin 'draining' mechanism. Said
+Yes, there are. When CloneSquad does not manage TargetGroups (i.e. not serving instances with ALB/NLB/CLB), it does not have access to a builtin 'draining' mechanism. Said
 differently, when CloneSquad is draining an EC2 instances, when used with TargetGroups, AWS mechanisms will take care to stop sending new connections to
 drained instances and implement a smart and controlled grace period to finish serving the currently active ones.
 
