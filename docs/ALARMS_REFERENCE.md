@@ -42,7 +42,7 @@ keys:
 This default alarm also defines a BaselineThreshold=0.0: It gives an indication to CloneSquad algorithm that the scale of the
 metric is between 0.0 (BaselineThreshold) and 75.0 (Alarm Threshold). More details in [How it works? section](#how-it-works).
 
-> Tip: When defining their custom alarms, it is recommended to perform performance tests to determine the effective expected operational range
+> Tip: When defining their custom alarms, it is recommended to perform performance tests to determine the valid operational range
 of the underlying metrics to correctly inform CloneSquad of the expected min (i.e. BaselineThreshold) and max (i.e. AlarmThreshold) values.
 
 
