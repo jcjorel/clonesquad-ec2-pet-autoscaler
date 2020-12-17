@@ -57,7 +57,7 @@ Ex:
 	
 The main difference with managed alarms is that there is no alarm specification YAML file; only a Cloudwatch Alarm name.
 
-It is NOT an error to define a CloneSquad alarm pointing to a non-existing Cloudwatch alarm: It will be safely ignored.
+> Note: It is NOT an error to define a CloneSquad alarm pointing to a non-existing Cloudwatch alarm: It will be safely ignored.
 
 
 ## How it works?
