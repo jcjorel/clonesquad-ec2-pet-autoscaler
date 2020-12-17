@@ -59,7 +59,7 @@ Yes, there are. When CloneSquad does not manage TargetGroups (i.e. not serving i
 differently, when CloneSquad is draining an EC2 instances and when used with TargetGroups, AWS mechanisms will take care to stop sending new connections to
 drained instances and implement a smart and controlled grace period to finish serving the currently active ones.
 
-When used with a Third-Party Load-Balancer, it is recommended to install the tool [`cs-instance-watcher`](TOOL.md#cs-instance-watcher) on CloneSquad managed
+When used with a Third-Party Load-Balancer, it is recommended to install the tool [`cs-instance-watcher`](TOOLS.md#cs-instance-watcher) on CloneSquad managed
 EC2 instances. This tool can react to the instance going in 'draining' state by launching user-defined scripts and/or by forbidding new TCP connections
 to a user defined list of ports. This latest option will help the Third-Party Load-Balancer detects that the 'draining' instances is unhealthy and should
 be removed from the serving pool before the instances is effectively shutdown.
