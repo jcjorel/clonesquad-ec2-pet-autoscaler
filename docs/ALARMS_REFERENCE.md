@@ -29,15 +29,15 @@ CloneSquad will scale out when the score is above 1.0 and scale in when below 0.
 You can define up to 5 alarm definitions (either per-instance managed or externally defined). These 5 alarm slots are reflected in the configuration
 keys:
 
-* cloudwatch.ec2.alarm00.configuration_url: ...
-* cloudwatch.ec2.alarm01.configuration_url: ...
-* cloudwatch.ec2.alarm02.configuration_url: ...
-* cloudwatch.ec2.alarm03.configuration_url: ...
-* cloudwatch.ec2.alarm04.configuration_url: ...
+* cloudwatch.alarm00.configuration_url: ...
+* cloudwatch.alarm01.configuration_url: ...
+* cloudwatch.alarm02.configuration_url: ...
+* cloudwatch.alarm03.configuration_url: ...
+* cloudwatch.alarm04.configuration_url: ...
 
 **By default**, CloneSquad comes with alarm #00 pre-defined with a per-instance metric triggering when instance CPU reachs 75%.
 
-	cloudwatch.ec2.alarm00.configuration_url: internal:ec2.scaleup.alarm-cpu-gt-75pc.yaml,Points=1001,BaselineThreshold=0.0
+	cloudwatch.alarm00.configuration_url: internal:ec2.scaleup.alarm-cpu-gt-75pc.yaml,Points=1001,BaselineThreshold=0.0
 
 This default alarm also defines a BaselineThreshold=0.0: It gives an indication to CloneSquad algorithm that the scale of the
 metric is between 0.0 (BaselineThreshold) and 75.0 (Alarm Threshold). More details in [How it works? section](#how-it-works).
@@ -53,7 +53,7 @@ Custom metrics specific to applications.
 
 Ex:
 
-	cloudwatch.ec2.alarmXX.configuration_url: alarmname:<Cloudwatch_alarm_name>[,BaselineThreshold=0.200[,Divider=1]]
+	cloudwatch.alarmXX.configuration_url: alarmname:<Cloudwatch_alarm_name>,BaselineThreshold=0.200
 	
 The main difference with managed alarms is that there is no alarm specification YAML file; only a Cloudwatch Alarm name.
 
@@ -69,7 +69,7 @@ Example:
 	##
 	# YAML file declaring an Alarm (load it with cs-kvtable tool or reference it as an ConfigurationURL)
 	#
-	cloudwatch.ec2.alarm00.configuration_url: internal:ec2.scaleup.alarm-cpu-gt-75pc.yaml,Points=1001,BaselineThreshold=0.0
+	cloudwatch.alarm00.configuration_url: internal:ec2.scaleup.alarm-cpu-gt-75pc.yaml,Points=1001,BaselineThreshold=0.0
 
 This example declares the Alarm #00 using alarm specification described in internal file [ec2.scaleup.alarm-cpu-gt-75pc.yaml](../src/resources/ec2.scaleup.alarm-cpu-gt-75pc.yaml). Note: This file is part of the CloneSquad delivery inside the Main Lambda filesystem.   
 
@@ -125,7 +125,7 @@ serving instances (so less influent).
 
 An example of use of this `Divider` meta is demonstrated in the [demo-loadbalancers](../examples/environments/demo-loadbalancers/configure-lb-responsetime-alarm.yaml) example directory. It defines 2 CloneSquad 
 unmanaged alarms (tracking 2 LoadBalancer Response times). By setting to 1 the Divider, the Load balancer response times
-will generate more points than alarms tracking the CPU Utilization defined on each instances by the directive `cloudwatch.ec2.alarm00.configuration_url` and, so, scaling decisions will be more influenced by the Load Balancer response
+will generate more points than alarms tracking the CPU Utilization defined on each instances by the directive `cloudwatch.alarm00.configuration_url` and, so, scaling decisions will be more influenced by the Load Balancer response
 time that other alarm sources.
 
 Note: Technically, in order to reduce Cloudwatch cost associated with GetMetricData API calls, the calculation *Sum(NonTriggeredAlarmGeneratedPoints_withNoDividerMeta ) / NbOfServingInstances* is working with cached data as much as possible synthetized by a weighted algorithm based on data age (recent data have more weight than older ones). This algorithm is
