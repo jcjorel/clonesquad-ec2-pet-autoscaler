@@ -458,19 +458,6 @@ without any TargetGroup but another external health instance source exists).
                     except Exception as e:
                         log.warning("Got Exception while trying to start instance '%s' : %s" % (i, e))
                         self.set_scaling_state(i, "error", ttl=Cfg.get_duration_secs("ec2.state.error_ttl"))
-                # Mark the instance in error only if the status is not 'running'
-                #   With Spot instances, from time-to-time, we catch an 'InsufficientCapacityError' even the
-                #   instance succeeded to start. We issue a describe_instances to check the real state of this
-                #   instance to confirm/infirm the status
-                #if response is not None:
-                #    response = R(lambda args, kwargs, r: "Reservations" in r and len(response["Reservations"]["Instances"]),
-                #        client.describe_instances, InstanceIds=[i]
-                #    )
-                #if (response is None or "Reservations" not in response
-                #        or len(response["Reservations"][0]["Instances"]) == 0 
-                #        or response["Reservations"][0]["Instances"][0]["State"]["Name"] not in ["pending", "running"]):
-                #    self.set_scaling_state(i, "error", ttl=Cfg.get_duration_secs("ec2.state.error_ttl"))
-                #    continue
 
 
     def stop_instances(self, instance_ids_to_stop):
