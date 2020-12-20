@@ -1,3 +1,9 @@
+v0.10.0:
+- (Improvment/Minor) cs-instance-watcher: Added support for clonesquad:excluded and associated tags.
+- (Improvment/Minor) cs-instance-watcher: Set API polling period to 5s (instead of 10s). 
+- (Improvment/Minor) Removed unneeded parameters from Alarm specifications. (plus log message beatify in cloudwatch.py)
+- (Improvment/Minor) Added ignore: protocol scheme to CloudWatch alarm configuration ignore.
+
 v0.9.1:
 - (Bug/Major) Fix CloudFormation template update regression. Add a 'Dummy' parameter to force customresource recreation on update.
 
