@@ -68,17 +68,17 @@ def sys_exec(cmd, silent=False):
 
 
 
-def on_draining_block_new_connections_to_ports(instance_state):
+def on_draining_block_new_connections_to_ports(instance_state, excluded):
     ports  = args["on_draining_block_new_connections_to_ports"]
     if args["instance_state"] != "":
         instance_state = args["instance_state"] # Override
-    if instance_state not in ["stopping", "draining"]:
+    if instance_state not in ["stopping", "draining"] and not excluded:
         if len(ports):
             logger.info("on_draining_block_new_connections_to_ports: Instance not in 'draining' or 'stopping' "
                 f"state (current state is '{instance_state}'): No port blacklist.")
         ports = [] # When not in draining state, no port are blacklisted
     else:
-        logger.info(f"Configuring 'on_draining_block_new_connections_to_ports' built-in behavior for ports: {ports}")
+        logger.info(f"Configuring 'on_draining_block_new_connections_to_ports' built-in behavior for ports (excluded={excluded}): {ports}")
     # Always run an 'iptables -L' to ensure iptables kernel modules are loaded.
     sys_exec(["iptables", "-L"], silent=True)
     output = sys_exec(["iptables-save"], silent=True)
@@ -250,7 +250,17 @@ def loop():
         #COUNT += 1
 
         # Call built-in behavior
-        on_draining_block_new_connections_to_ports(instance_state)
+        tag_excluded       = next(filter(lambda t: t["Key"] == "clonesquad:excluded", tags), None)
+        tag_force_excluded = next(filter(lambda t: t["Key"] == "clonesquad:force-excluded-instance-in-targetgroups", tags), None)
+        excluded = False
+        if (("Excluded" in payload and payload["Excluded"] in ["True", "true"]) or 
+            (tag_excluded is not None and tag_excluded["Value"] in ["True", "true"])):
+            logger.info("Detected instance tag 'clonesquad:excluded' with 'True' value!")
+            if tag_force_excluded is not None and tag_force_excluded["Value"] in ["True", "true"]:
+                logger.info("Detected instance tag 'clonesquad:force-excluded-instance-in-targetgroups' with 'True' value! Ignoring exclusion directive!")
+            else:
+                excluded = True
+        on_draining_block_new_connections_to_ports(instance_state, excluded)
 
         # React to instance state change
         if instance_state != last_instance_state and last_instance_state is not None:
@@ -261,7 +271,7 @@ def loop():
                     try:
                         logger.info(f"{script}: %s" % sys_exec([script, instance_state, last_instance_state]))
                     except Exception as e:
-                        log.error(f"Got an Exception while starting '{script}'! : {e}")
+                        logger.error(f"Got an Exception while starting '{script}'! : {e}")
         last_instance_state = instance_state
 
         wait_time = max(1, min(60, args["api_polling_period"]) - (seconds() - last_poll_time))
@@ -275,10 +285,10 @@ def seconds():
 
 args         = None
 default_args = {
-    "api_polling_period": 10,
+    "api_polling_period": 5,
     "on_draining_block_new_connections_to_ports": [],
     "instance_state": "",
-    "stale_context_timeout": 300,
+    "stale_context_timeout": 30,
     "config": "/etc/cs-instance-watcher.json",
     "script_dir": "/etc/cs-instance-watcher.d",
     "force": False
