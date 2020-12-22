@@ -9,6 +9,7 @@ import kvtable
 from kvtable import KVTable
 from datetime import datetime
 import traceback
+import time
 
 import misc
 import config as Cfg
@@ -110,6 +111,7 @@ def _record_call(prefix, need_shortterm_record, is_success_func, f, *args, **kwa
         log.exception('Failed to create record["Metadata"]["TargetGroups"] : %s' % e)
     xray_recorder.end_subsegment()
 
+    # Compress the metadata field
     for key in ["Metadata"]:
         zipped_bytes  = gzip.compress(bytes(json.dumps(record[key], default=str), "utf-8"))
         record[key] = str(base64.b64encode(zipped_bytes), "utf-8")
@@ -268,6 +270,7 @@ improve CloneSquad over time by allowing easy sharing of essential data for remo
                """
            },
            "notify.event.keep_acked_records"    : "0",
+           "notify.event.seconds_between_sending"    : "5",
            "notify.debug.obfuscate_s3_reports" : "1",
            "notify.debug.send_s3_reports"      : "1"
         })
@@ -334,13 +337,6 @@ improve CloneSquad over time by allowing easy sharing of essential data for remo
             notification_message[arn]["region"]       = m[2]
             notification_message[arn]["account_id"]   = m[3]
             notification_message[arn]["service_path"] = m[4]
-            notification_message[arn]["content"]      = {
-                        "Date" : misc.utc_now(),
-                        "Metadata": {
-                            "AckLambdaARN" : self.context["InteractLambdaArn"],
-                            "AckSQSUrl"    : self.context["InteractSQSUrl"]
-                            }
-                    }
 
         if len(notification_message) == 0:
             return 
@@ -362,40 +358,67 @@ improve CloneSquad over time by allowing easy sharing of essential data for remo
         if len(events) == 0:
             return
 
-        event_types = []
-        for e in events:
-            if e["EventType"] not in event_types: event_types.append(e["EventType"])
-
+        # Send events from the older to the younger
+        msg = {
+            "Date" : misc.utc_now(),
+            "Metadata": {
+            "AckLambdaARN" : self.context["InteractLambdaArn"],
+            "AckSQSUrl"    : self.context["InteractSQSUrl"]
+            }
+        }
         events_r = events.copy()
         events_r.reverse()
-
-        for arn in notification_message.keys():
+        while len(events_r):
+            events_to_send    = len(events_r)
+            msg["Events"]     = events_r[:events_to_send]
+            content_str       = json.dumps(msg, default=str)
             # Verify that message is not too big to send
-            content           = notification_message[arn]["content"]
-            content["Events"] = events
-            service           = notification_message[arn]["service"]
-            region            = notification_message[arn]["region"]
-            account_id        = notification_message[arn]["account_id"]
-            service_path      = notification_message[arn]["service_path"]
-            truncated_message = "Truncated to fit message size < 256kB"
-
-            content_str = json.dumps(content, default=str)
             while len(content_str) >= 256*1024:
-                for e in events_r:
-                    if e["Metadata"] != truncated_message:
-                        e["Metadata"] = truncated_message
-                        break
-                content_str = json.dumps(content, default=str)
+                if events_to_send >= 2:
+                    if "Metadata" in events_r[events_to_send-1] and events_r[events_to_send-2]["Metadata"] == events_r[events_to_send-1]["Metadata"]:
+                        del events_r[events_to_send-1]["Metadata"] # Do not repeat the same metadata field than the older one
+                    else:
+                        events_to_send -= 1
+                else:
+                    events_to_send -= 1
+                msg["Events"] = events_r[:events_to_send]
+                content_str   = json.dumps(msg, default=str)
 
-            try:
-                if service == "lambda":
-                    self.call_lambda(arn, region, account_id, service_path, content_str, event_types)
-                elif service == "sqs":
-                    self.call_sqs(arn, region, account_id, service_path, content_str, event_types)
-                elif service == "sns":
-                    self.call_sns(arn, region, account_id, service_path, content_str, event_types)
-            except Exception as e:
-                log.warning("Failed to notify '%s'! Got Exception: %s" % (arn, e))
+            if events_to_send != len(events_r) and "Metadata" not in events_r[events_to_send]:
+                # We can't let the first message of the next sending without Metadata field
+                events_to_send -= 1
+                msg["Events"]   = events_r[:events_to_send]
+                content_str     = json.dumps(msg, default=str)
+
+            event_types = []
+            [event_types.append(e["EventType"]) for e in events_r[:events_to_send] if e["EventType"] not in event_types]
+            
+            log.log(log.NOTICE, "Notification payload size: %s" % len(content_str))
+            for arn in notification_message.keys():
+                service           = notification_message[arn]["service"]
+                region            = notification_message[arn]["region"]
+                account_id        = notification_message[arn]["account_id"]
+                service_path      = notification_message[arn]["service_path"]
+
+                try:
+                    if service == "lambda":
+                        self.call_lambda(arn, region, account_id, service_path, content_str, event_types)
+                    elif service == "sqs":
+                        self.call_sqs(arn, region, account_id, service_path, content_str, event_types)
+                    elif service == "sns":
+                        self.call_sns(arn, region, account_id, service_path, content_str, event_types)
+                except Exception as e:
+                    log.warning("Failed to notify '%s'! Got Exception: %s" % (arn, e))
+
+            events_r = events_r[events_to_send:]
+            if len(events_r):
+                # To help ordering of messages. Wait wait a few seconds...
+                seconds_to_wait = Cfg.get_int("notify.event.seconds_between_sending")
+                log.warning("Had to split the notification messages as too big to fit in 256kB. "
+                        f"Wait {seconds_to_wait} seconds before to send the remaining events. "
+                        "Note: This can happen when no user notification target is acknowledging the event and so they stack for a while. "
+                        "Please consider acknowledging all events as soon as generated.")
+                time.sleep(seconds_to_wait)
 
     @xray_recorder.capture()
     def call_lambda(self, arn, region, account_id, service_path, content, e):
