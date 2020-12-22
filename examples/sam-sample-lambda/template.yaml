@@ -14,6 +14,7 @@ Resources:
       CodeUri: src/
       Handler: sample-clonesquad-notification/app.lambda_handler
       Runtime: python3.7
+      MemorySize: 512
       Policies:
          - LambdaInvokePolicy: 
               FunctionName: "*"

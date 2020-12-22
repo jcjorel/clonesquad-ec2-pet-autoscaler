@@ -1,4 +1,6 @@
 import json
+import gzip
+import base64
 import boto3
 
 def lambda_handler(event, context):
@@ -21,25 +23,64 @@ def lambda_handler(event, context):
     print("Event:")
     print(json.dumps(event, default=str))
 
+
     # Acknowledge the events to avoid be called back again
     sqs_client  = boto3.client("sqs")
-    ack_sqs_url = event["Metadata"]["AckSQSUrl"]
+    ack_sqs_url = None
+    if "Metadata" in event and "AckSQSUrl" in event["Metadata"]:
+        ack_sqs_url = event["Metadata"]["AckSQSUrl"]
+    else:
+        print("[ERROR] No 'AckSQSUrl' in event!! (???)")
 
-    for event in event["Events"]:
-        event_date = event["EventDate"]
 
-        # Do business logic here
+    metadata    = None
+    for e in event["Events"]:
+        event_date = e["EventDate"]
 
-        # Publish to the notification SQS queue to ack this event.
-        #   Note: Multiple events could be acked together in a single 
-        #         push if needed/prefered
-        payload = json.dumps({
-                    "OpType" : "Notify/AckEvent",
-                    "Events" : [event_date]})
+        if "Metadata" in e:
+            # Gunzip the Metadata field if present in the event
+            #   Note: Metadata field is only present if it has a different value than the previous event
+            uncompressed_metadata = str(gzip.decompress(base64.b64decode(e["Metadata"])), "utf-8")
+            print("Metadata content: (512 first bytes...)")
+            print(uncompressed_metadata[:512])
+            print(f"Metadata for the event '{event_date} is %d bytes long." % len(uncompressed_metadata))
+            metadata              = json.loads(uncompressed_metadata)
+        event_type = e["EventType"]
+        input_data = json.loads(e["InputData"])
+        print(f"Received event {event_date} - {event_type} - {input_data}")
 
-        print("Sending to SQS queue '%s' for Event '%s'..." % (ack_sqs_url, event_date))
-        response = sqs_client.send_message(
-            QueueUrl=ack_sqs_url,
-            MessageBody=payload)
+        # DEMO - DEMO - DEMO - DELETE ME!
+        if event_type in ["start_instances", "stop_instances"]:
+            instance_ids           = input_data['**kwargs']["InstanceIds"]
+            print(f"DEMO - Received event {event_type} for instance ids {instance_ids}!")
+            describe_instance_data = metadata["EC2"]["AllInstanceDetails"]
+            instances              = [i for i in describe_instance_data if i["InstanceId"] in instance_ids]
+            for instance in instances:
+                instance_id       = instance["InstanceId"]
+                # Display the name of the instance (if any)
+                instance_name_tag = next(filter(lambda t: t["Key"] == "Name", instance["Tags"]), None)
+                if instance_name_tag is not None:
+                    instance_name = instance_name_tag["Value"]
+                    print(f"Instance name for '{instance_id}' : {instance_name}")
+                # Display the Tags of each instance
+                print("DEMO - %s : Tags=%s" % (instance_id, instance["Tags"]))
+        # DEMO - DEMO - DEMO - DELETE ME!
+
+        ####################################
+        # Put your business logic here !!!
+        ####################################
+
+        if ack_sqs_url is not None:
+            # Publish to the notification SQS queue to ack this event.
+            #   Note: Multiple events could be acked together in a single 
+            #         push if needed/prefered
+            payload = json.dumps({
+                        "OpType" : "Notify/AckEvent",
+                        "Events" : [event_date]})
+
+            print("Sending to SQS queue '%s' for Event '%s'..." % (ack_sqs_url, event_date))
+            response = sqs_client.send_message(
+                QueueUrl=ack_sqs_url,
+                MessageBody=payload)
 
 
