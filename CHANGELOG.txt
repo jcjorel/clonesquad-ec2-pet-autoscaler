@@ -1,3 +1,7 @@
+v0.11.0:
+- (Improvment/Minor) More demonstration code in the Event Lambda example. Display Name of the instance of start_instances/stop_instances events.
+- (Improvment/Major) Redesigned notification sending code to avoid message truncation due to 256kB limit for Lambda, SQS and SNS payload.
+
 v0.10.0:
 - (Improvment/Minor) cs-instance-watcher: Added support for clonesquad:excluded and associated tags.
 - (Improvment/Minor) cs-instance-watcher: Set API polling period to 5s (instead of 10s). 
