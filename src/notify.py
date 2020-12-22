@@ -368,7 +368,7 @@ improve CloneSquad over time by allowing easy sharing of essential data for remo
         }
         events_r = events.copy()
         events_r.reverse()
-        while len(events_r):
+        while len(notification_message.keys()) and len(events_r):
             events_to_send    = len(events_r)
             msg["Events"]     = events_r[:events_to_send]
             content_str       = json.dumps(msg, default=str)
