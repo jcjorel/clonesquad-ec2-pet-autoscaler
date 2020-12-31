@@ -91,8 +91,8 @@ Ex:
 	cron(0 7 * * ? *),subfleet.mysubfleetname.state=running
 	cron(0 19 * * ? *),subfleet.mysubfleetname.state=stopped
 
-EC2 resources are subject to an additional configuration key named [`subfleet.<subfleetname>.ec2.schedule.desired_instance_count`](docs/CONFIGURATION_REFERENCE.md#subfleetsubfleetnameec2scheduledesired_instance_count) which have a 
-similar semantic than in the Main fleet: It controls the number of running instances while [`subfleet.<subfleetname>.state`](docs/CONFIGURATION_REFERENCE.md#subfleetsubfleetnamestate)
+EC2 resources are subject to an additional configuration key named [`subfleet.<subfleetname>.ec2.schedule.desired_instance_count`](CONFIGURATION_REFERENCE.md#subfleetsubfleetnameec2scheduledesired_instance_count) which have a 
+similar semantic than in the Main fleet: It controls the number of running instances while [`subfleet.<subfleetname>.state`](CONFIGURATION_REFERENCE.md#subfleetsubfleetnamestate)
 is set to `running`. Unlike with the main fleet parameter variant, the value `-1` is invalid (and so, does not mean autoscaling). When this parameter is set 
 to a value different than `100%`, standard remediation mechanisms are activated (AZ instance balancing, faulty instance replacement, instance bouncing, 
 spot interruption handling and replacement...)
