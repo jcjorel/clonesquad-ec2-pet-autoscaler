@@ -10,7 +10,7 @@ Per design, CloneSquad only performs start and stop on existing EC2 instances (i
 
 ## Features and Benefits (Please also read the [FAQ](docs/FAQ.md))
 
-### Main fleet: (see also [Autoscaling documentation](docs/SCALING.md))
+#### Main fleet: (see also [Autoscaling documentation](docs/SCALING.md))
 	- Automatic autoscaling mode based on [internal and/or user-defined CloudWatch alarms & metrics](docs/ALARMS_REFERENCE.md),
 	- [Desired instance count](docs/CONFIGURATION_REFERENCE.md#ec2scheduledesired_instance_count) mode,
 		* Define the precise amount of expected serving EC2 instances (specified in absolute or percentage)
@@ -20,13 +20,13 @@ Per design, CloneSquad only performs start and stop on existing EC2 instances (i
 	- (Optional) ['LightHouse' mode](docs/SCALING.md#vertical-scaling) to run automatically cheap instance types during low activity periods,
 	- (Optional) One dedicated CloudWatch dashboard (*Note: activated by default*),
 
-### [Subfleet(s)](docs/SCALING.md#subfleet-support):
+#### [Subfleet(s)](docs/SCALING.md#subfleet-support):
 	- Typical use-case: See [demonstration](examples/environments/demo-scheduled-events/).
 	- (Optional) Manage `running` or `stopped` states of groups of EC2 Instances, RDS databases and TransferFamily servers,
 		* **Autoscaling and Health check of resources are not supported like in the Main fleet:** Only [desired instance count](docs/CONFIGURATION_REFERENCE.md#subfleetsubfleetnameec2scheduledesired_instance_count) mode is supported to control the amount of EC2 resources to start in each subfleet.
 	- (Optional) One subfleet dedicated CloudWatch dashboard (*Note: activated by default*),
 
-### Characteristics shared by all kinds of fleet:
+#### Characteristics shared by all kinds of fleet:
 	- **Always-on Availability Zone instance balancing algorithm,**
 	- Automatic replacement of unhealthy/unavail/impaired instances,
 	- Support for 'persistent' [Spot instances](https://aws.amazon.com/ec2/spot/) aside of On-Demand ones in the same fleet with configurable priorities, Spot Rebalance recommendation and interruption handling,
