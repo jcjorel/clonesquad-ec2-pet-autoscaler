@@ -76,7 +76,8 @@ type for non-LightHouse ones.*
 
 # Subfleet support
 
-CloneSquad can manage subfleets of EC2 and RDS instances. This support is added to complement the cost reduction benefits of the autoscaling feature.
+CloneSquad can manage subfleets of EC2, RDS instances and TransferFamily servers. This support is added to complement the cost reduction benefits 
+of the autoscaling feature provided by the main fleet.
 The subfleets are a set of resources using the special tag `clonesquad:subfleet-name` that will be managed differently than ones
 not tagged this way.
 
@@ -89,6 +90,12 @@ Ex:
 
 	cron(0 7 * * ? *),subfleet.mysubfleetname.state=running
 	cron(0 19 * * ? *),subfleet.mysubfleetname.state=stopped
+
+EC2 resources are subject to an additional configuration key named [`subfleet.<subfleetname>.ec2.schedule.desired_instance_count`](#subfleetsubfleetnameec2scheduledesired_instance_count) which have a 
+similar semantic than in the Main fleet: It controls the number of running instances while [`subfleet.<subfleetname>.state`](#subfleetsubfleetnamestate)
+is set to `running`. Unlike with the main fleet parameter variant, the value `-1` is invalid (and so, does not mean autoscaling). When this parameter is set 
+to a value different than `100%`, standard remediation mechanisms are activated (AZ instance balancing, faulty instance replacement, instance bouncing, 
+spot interruption handling and replacement...)
 
 Note: The subfleets resources have a dedicated widget in the CloneSquad dashboard. Notice that resources are NOT part of graphed 
 resources of others widgets. For instance, if a subfleet instance is entering 'CPU Crediting state', it won't appear in the 'TargetGroup and other statuses'

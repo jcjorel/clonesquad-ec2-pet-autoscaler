@@ -21,7 +21,7 @@ Per design, CloneSquad only performs start and stop on existing EC2 instances (i
 	- (Optional) One dedicated CloudWatch dashboard (*Note: activated by default*),
 
 * [Subfleet(s)](docs/SCALING.md#subfleet-support):
-	- Manage states of groups of *EC2 Instances* (and also *RDS databases* and *TransferFamily servers*),
+	- Manage groups of *EC2 Instances* (and also *RDS databases* and *TransferFamily servers*),
 		* [Desired instance count](docs/CONFIGURATION_REFERENCE.md#subfleetsubfleetnameec2scheduledesired_instance_count) mode is supported to control the amount of EC2 resources to start in each subfleet. **Especially, Autoscaling and Health check of resources are not supported like in the Main fleet:**
 	- (Optional) One subfleet dedicated CloudWatch dashboard (*Note: activated by default*),
 
