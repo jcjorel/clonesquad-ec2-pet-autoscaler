@@ -11,33 +11,36 @@ Per design, CloneSquad only performs start and stop on existing EC2 instances (i
 ## Features and Benefits (Please also read the [FAQ](docs/FAQ.md))
 
 #### Main fleet: (see also [Autoscaling documentation](docs/SCALING.md))
-	- Automatic autoscaling mode based on [internal and/or user-defined CloudWatch alarms & metrics](docs/ALARMS_REFERENCE.md),
-	- [Desired instance count](docs/CONFIGURATION_REFERENCE.md#ec2scheduledesired_instance_count) mode,
-		* Define the precise amount of expected serving EC2 instances (specified in absolute or percentage)
-	- Multi targetgroup support (associated to one or multiple ALB or NLB) at the same time (w/ smart instance draining before shutdown),
-		* Note: CloneSquad can also work *without* any managed TargetGroup if not applicable to user use-case.
-	- (Optional) [Vertical scaling](docs/SCALING.md#vertical-scaling) (by leveraging instance type distribution in the fleet),
-	- (Optional) ['LightHouse' mode](docs/SCALING.md#vertical-scaling) to run automatically cheap instance types during low activity periods,
-	- (Optional) One dedicated CloudWatch dashboard (*Note: activated by default*),
+
+- Automatic autoscaling mode based on [internal and/or user-defined CloudWatch alarms & metrics](docs/ALARMS_REFERENCE.md),
+- [Desired instance count](docs/CONFIGURATION_REFERENCE.md#ec2scheduledesired_instance_count) mode,
+	* Define the precise amount of expected serving EC2 instances (specified in absolute or percentage)
+- Multi targetgroup support (associated to one or multiple ALB or NLB) at the same time (w/ smart instance draining before shutdown),
+	* Note: CloneSquad can also work *without* any managed TargetGroup if not applicable to user use-case.
+- (Optional) [Vertical scaling](docs/SCALING.md#vertical-scaling) (by leveraging instance type distribution in the fleet),
+- (Optional) ['LightHouse' mode](docs/SCALING.md#vertical-scaling) to run automatically cheap instance types during low activity periods,
+- (Optional) One dedicated CloudWatch dashboard (*Note: activated by default*),
 
 #### [Subfleet(s)](docs/SCALING.md#subfleet-support):
-	- Typical use-case: See [demonstration](examples/environments/demo-scheduled-events/).
-	- (Optional) Manage `running` or `stopped` states of groups of EC2 Instances, RDS databases and TransferFamily servers,
-		* **Autoscaling and Health check of resources are not supported like in the Main fleet:** Only [desired instance count](docs/CONFIGURATION_REFERENCE.md#subfleetsubfleetnameec2scheduledesired_instance_count) mode is supported to control the amount of EC2 resources to start in each subfleet.
-	- (Optional) One subfleet dedicated CloudWatch dashboard (*Note: activated by default*),
+
+- Typical use-case: See [demonstration](examples/environments/demo-scheduled-events/).
+- (Optional) Manage `running` or `stopped` states of groups of EC2 Instances, RDS databases and TransferFamily servers,
+	* **Autoscaling and Health check of resources are not supported like in the Main fleet:** Only [desired instance count](docs/CONFIGURATION_REFERENCE.md#subfleetsubfleetnameec2scheduledesired_instance_count) mode is supported to control the amount of EC2 resources to start in each subfleet.
+- (Optional) One subfleet dedicated CloudWatch dashboard (*Note: activated by default*),
 
 #### Characteristics shared by all kinds of fleet:
-	- **Always-on Availability Zone instance balancing algorithm,**
-	- Automatic replacement of unhealthy/unavail/impaired instances,
-	- Support for 'persistent' [Spot instances](https://aws.amazon.com/ec2/spot/) aside of On-Demand ones in the same fleet with configurable priorities, Spot Rebalance recommendation and interruption handling,
-	- Manual or automatic Availability Zone eviction (automatic mode based on [*describe_availability_zones()* AWS standard API](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ec2.html#EC2.Client.describe_availability_zones)),
-	- (Optional) Smart management of t[3|4].xxx burstable instances (aka '[CPU Crediting mode](docs/COST_OPTIMIZATION.md#clonesquad-cpu-crediting)' to avoid overcost linked to [unlimited bursting](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/burstable-performance-instances-unlimited-mode.html)),
-	- (Optional) Instance bouncing: Frictionless fleet rebalancing and [AWS hypervisor maintenance](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/monitoring-instances-status-check_sched.html) by performing a permanent rolling state cycle (periodic start/stop of instances),
-	- Integrated [event scheduler](docs/SCHEDULER.md) ('cron' or 'rate' based) for complex scaling scenario,
-	- Configuration hierarchy for complex dynamic settings,
-	- [API Gateway](docs/INTERACTING.md#interacting-with-clonesquad) to monitor and manage fleets,
-	- [Events & Notifications](docs/EVENTS_AND_NOTIFICATIONS.md) (Lambda/SQS/SNS targets) framework to react to Squad events (ex: Register a just-started instance to an external monitoring solution and/or DNS),
-	- [Extensive debuggability](docs/BUILD_RELEASE_DEBUG.md#debugging) with encountered scaling issues and exceptions exported to S3 (with contextual CloudWatch dashboard PNG snapshots).
+
+- **Always-on Availability Zone instance balancing algorithm,**
+- Automatic replacement of unhealthy/unavail/impaired instances,
+- Support for 'persistent' [Spot instances](https://aws.amazon.com/ec2/spot/) aside of On-Demand ones in the same fleet with configurable priorities, Spot Rebalance recommendation and interruption handling,
+- Manual or automatic Availability Zone eviction (automatic mode based on [*describe_availability_zones()* AWS standard API](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ec2.html#EC2.Client.describe_availability_zones)),
+- (Optional) Smart management of t[3|4].xxx burstable instances (aka '[CPU Crediting mode](docs/COST_OPTIMIZATION.md#clonesquad-cpu-crediting)' to avoid overcost linked to [unlimited bursting](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/burstable-performance-instances-unlimited-mode.html)),
+- (Optional) Instance bouncing: Frictionless fleet rebalancing and [AWS hypervisor maintenance](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/monitoring-instances-status-check_sched.html) by performing a permanent rolling state cycle (periodic start/stop of instances),
+- Integrated [event scheduler](docs/SCHEDULER.md) ('cron' or 'rate' based) for complex scaling scenario,
+- Configuration hierarchy for complex dynamic settings,
+- [API Gateway](docs/INTERACTING.md#interacting-with-clonesquad) to monitor and manage fleets,
+- [Events & Notifications](docs/EVENTS_AND_NOTIFICATIONS.md) (Lambda/SQS/SNS targets) framework to react to Squad events (ex: Register a just-started instance to an external monitoring solution and/or DNS),
+- [Extensive debuggability](docs/BUILD_RELEASE_DEBUG.md#debugging) with encountered scaling issues and exceptions exported to S3 (with contextual CloudWatch dashboard PNG snapshots).
 
 ## Installing / Getting started
 
