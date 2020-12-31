@@ -11,7 +11,7 @@ Per design, CloneSquad only performs start and stop on existing EC2 instances (i
 ## Features and Benefits (Please also read the [FAQ](docs/FAQ.md))
 
 * [Main fleet](docs/SCALING.md):
-	- Automatic autoscaling mode based on [CloudWatch alarms & metrics](docs/ALARMS_REFERENCE.md),
+	- Automatic autoscaling mode (based on [CloudWatch alarms & metrics](docs/ALARMS_REFERENCE.md)),
 	- [Desired instance count](docs/CONFIGURATION_REFERENCE.md#ec2scheduledesired_instance_count) mode,
 		* Define the precise amount of expected serving EC2 instances (specified in absolute or percentage)
 	- Multi targetgroup support (associated to one or multiple ALB or NLB) at the same time (w/ smart instance draining before shutdown),
