@@ -7,7 +7,7 @@ Per design, CloneSquad only performs start and stop on existing EC2 instances (i
 
 > CloneSquad is designed to be used when [AWS Auto Scaling](https://aws.amazon.com/autoscaling/) cannot be: EC2 instances in the main **autoscaled** fleet can leverage standard AWS [ALB/NLBs](https://aws.amazon.com/elasticloadbalancing/), target groups and health checks mechanisms.
 
-CloneSquad is a ServerLess software relying on Lambda, SQS, SNS and DynamoDB AWS services.
+CloneSquad is a ServerLess solution relying on Lambda, SQS, SNS and DynamoDB AWS services.
 
 ## Features and Benefits (Please also read the [FAQ](docs/FAQ.md))
 
