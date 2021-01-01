@@ -69,7 +69,7 @@ aws cloudformation wait stack-create-complete --stack-name MyFirstCloneSquad-${C
 This CloneSquad deployment is now ready to manage all EC2 instances and EC2 Targetgroups tagged with key `clonesquad:group-name` and value `test`.
 
 
-You should see a `CloneSquad-test` dashboard in the CloudWatch console looking like this *(but blank, without any graphs)*:
+You should see a dashboard named `CS-test` in the CloudWatch console looking like this *(but blank, without any graphs)*:
 
 ![CloudWatch dashboard](examples/environments/demo-loadbalancers/scaling_demo_capture.png)
 
