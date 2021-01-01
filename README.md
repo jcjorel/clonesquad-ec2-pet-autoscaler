@@ -1,13 +1,14 @@
 
 # CloneSquad, an AWS EC2 Pet Autoscaler
 
-CloneSquad tool provides Elasticity to **Pet** EC2 instances: A single CloneSquad deployment can manage one **autoscaled** main fleet and any amount of *manually* scaled subfleets.
+CloneSquad provides Elasticity to **Pet** EC2 instances: A single CloneSquad deployment can manage one **autoscaled** main fleet and any amount of *manually* scaled subfleets.
 
 Per design, CloneSquad only performs start and stop on existing EC2 instances (i.e. it never creates or terminates instances): It uses a small set of tags to identify which EC2 instances are under its control.
 
 > CloneSquad is designed to be used when [AWS Auto Scaling](https://aws.amazon.com/autoscaling/) cannot be: The EC2 instances in the main **autoscaled** fleet can leverage standard AWS [ALB/NLBs](https://aws.amazon.com/elasticloadbalancing/), target groups and health checks mechanisms.
 
-CloneSquad is a ServerLess solution relying on Lambda, SQS, SNS and DynamoDB AWS services.
+CloneSquad is a ServerLess solution relying on CloudFormation, Lambda, SQS, SNS and DynamoDB AWS services: Deploy it as many times as needed per acccount 
+and per region depending on your autoscaling needs.
 
 ## Features and Benefits (Please also read the [FAQ](docs/FAQ.md))
 
