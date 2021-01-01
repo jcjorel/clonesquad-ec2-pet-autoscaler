@@ -1,38 +1,44 @@
 
 # CloneSquad, an AWS EC2 Pet Autoscaler
-> An Autoscaler and Fleet Manager for mutable architectures on AWS [EC2](https://aws.amazon.com/what-is-cloud-computing/)
 
-Because mutables architectures are still highly common and as they are encountered in most Cloud migrations, CloneSquad is a Serverless Autoscaler software with the main goal to get the most of the [Cloud benefits](https://aws.amazon.com/what-is-cloud-computing/) while taking the constraint
-to never create or terminate [EC2](https://aws.amazon.com/ec2/) instances but only by doing start/stop of existing ones (aka **Pet** machines).
+CloneSquad provides Elasticity to **Pet** EC2 instances: A single CloneSquad deployment can manage one **autoscaled** main fleet and any amount of *manually* scaled subfleets.
 
-> CloneSquad is designed to be used when [AWS Auto Scaling](https://aws.amazon.com/autoscaling/) cannot be: It manages as well EC2 [ALB/NLBs](https://aws.amazon.com/elasticloadbalancing/), target groups and health checks mechanisms.
+Per design, CloneSquad only performs start and stop on existing EC2 instances (i.e. it never creates or terminates instances): It uses a small set of tags to identify which EC2 instances are under its control.
 
+> CloneSquad is designed to be used when [AWS Auto Scaling](https://aws.amazon.com/autoscaling/) cannot be: The EC2 instances in the main **autoscaled** fleet can leverage standard AWS [ALB/NLBs](https://aws.amazon.com/elasticloadbalancing/), target groups and health checks mechanisms.
+
+CloneSquad is a ServerLess solution relying on CloudFormation, Lambda, SQS, SNS and DynamoDB AWS services: *It can be deployed as many times as needed **per acccount** 
+and **per region** depending on your autoscaling needs.*
 
 ## Features and Benefits (Please also read the [FAQ](docs/FAQ.md))
-* Scaling (see [Documentation details](docs/SCALING.md))
-	- Automatic autoscaling based on [internal and/or user-defined alarms & metrics](docs/ALARMS_REFERENCE.md),
-	- [Desired instance count](docs/CONFIGURATION_REFERENCE.md#ec2scheduledesired_instance_count) mode (ex: temporarily force 100% of instances to run and allow mutable update),
-	- Always-on Availability Zone instance balancing algorithm,
-	- Multi targetgroup support (associated to one or multiple ALB or NLB) at the same time (w/ smart instance draining before shutdown),
+
+* Main fleet:
+	- [Autoscaling](docs/SCALING.md) mode,
+		* Automatically start/stop EC2 instances based on [CloudWatch alarms & metrics](docs/ALARMS_REFERENCE.md)
+	- [Desired instance count](docs/CONFIGURATION_REFERENCE.md#ec2scheduledesired_instance_count) mode,
+		* Define the precise amount of expected serving EC2 instances (specified in absolute or percentage)
+	- Multi targetgroup support (associated to one or multiple ALB or NLB at the same time),
 		* Note: CloneSquad can also work *without* any managed TargetGroup if not applicable to user use-case.
-	- Automatic replacement of unhealthy/unavail/impaired instances,
 	- (Optional) [Vertical scaling](docs/SCALING.md#vertical-scaling) (by leveraging instance type distribution in the fleet),
-* Cost optimization
+	- (Optional) ['LightHouse' mode](docs/SCALING.md#vertical-scaling) to run automatically cheap instance types during low activity periods,
+	- (Optional) One dedicated CloudWatch dashboard.
+
+* [Subfleet(s)](docs/SCALING.md#subfleet-support):
+	- Manage groups of *EC2 Instances* **with NO autoscaling need** (i.e. scaled manually based on time scheduling or other external scaling decision mechanisms and managed through the API Gateway),
+		* [Desired instance count](docs/CONFIGURATION_REFERENCE.md#subfleetsubfleetnameec2scheduledesired_instance_count) is the only supported mode to control the amount of EC2 resources to start in each subfleet. 
+	- Manage also *RDS databases* and *TransferFamily servers* (simple start/stop),
+	- (Optional) One subfleet dedicated CloudWatch dashboard.
+
+* Characteristics shared by all kinds of fleet:
+	- **Always-on Availability Zone instance balancing algorithm,**
+	- Automatic replacement of unhealthy/unavail/impaired instances,
 	- Support for 'persistent' [Spot instances](https://aws.amazon.com/ec2/spot/) aside of On-Demand ones in the same fleet with configurable priorities, Spot Rebalance recommendation and interruption handling,
-	- Smart management of t[3|4].xxx burstable instances (aka '[CPU Crediting mode](docs/COST_OPTIMIZATION.md#clonesquad-cpu-crediting)' to avoid overcost linked to [unlimited bursting](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/burstable-performance-instances-unlimited-mode.html)),
-	- (Optional) ['LightHouse' mode](docs/SCALING.md#vertical-scaling) allowing to run automatically cheap instance types during low activity periods,
-	- (Optional) *Extra cost optimization options for non-autoscaled resources*: [Subfleet support](docs/SCALING.md#static-subfleet-support) both for EC2 Instances, RDS databases and TransferFamily servers. Allows non-autoscaled use-cases (in combination with the scheduler. See [demonstration](examples/environments/demo-scheduled-events/)).
-* Resilience
-	- Manual or automatic Availability Zone eviction (automatic mode based on [*describe_availability_zones()* AWS standard API](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ec2.html#EC2.Client.describe_availability_zones)),
+	- [Manual](docs/CONFIGURATION_REFERENCE.md#ec2azunavailable_list) or automatic Availability Zone eviction (automatic mode based on [*describe_availability_zones()* AWS standard API](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ec2.html#EC2.Client.describe_availability_zones)),
+	- (Optional) Smart management of *t[3|4].xxx* burstable instances (aka '[CPU Crediting mode](docs/COST_OPTIMIZATION.md#clonesquad-cpu-crediting)' to avoid overcost linked to [unlimited bursting](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/burstable-performance-instances-unlimited-mode.html)),
 	- (Optional) Instance bouncing: Frictionless fleet rebalancing and [AWS hypervisor maintenance](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/monitoring-instances-status-check_sched.html) by performing a permanent rolling state cycle (periodic start/stop of instances),
-* Agility
-	- Support for mixed instance type fleet,
 	- Integrated [event scheduler](docs/SCHEDULER.md) ('cron' or 'rate' based) for complex scaling scenario,
-	- Configuration hierarchy for complex dynamic settings,
-	- [API Gateway](docs/INTERACTING.md#interacting-with-clonesquad) to monitor and make some basic operations.
-* Observability
-	- (Optional) 2 x CloudWatch dashboards (*Note: activated by default*),
-	- [Events & Notifications](docs/EVENTS_AND_NOTIFICATIONS.md) (Lambda/SQS/SNS targets) framework to react to Squad events (ex: Register a just-started instance to an external monitoring solution and/or DNS),
+	- [API Gateway](docs/INTERACTING.md#interacting-with-clonesquad) to monitor and manage a CloneSquad deployent,
+	- [Events & Notifications](docs/EVENTS_AND_NOTIFICATIONS.md) (Lambda/SQS/SNS targets) framework to users react to Squad events (ex: Register a just-started instance to an external monitoring solution and/or DNS),
 	- [Extensive debuggability](docs/BUILD_RELEASE_DEBUG.md#debugging) with encountered scaling issues and exceptions exported to S3 (with contextual CloudWatch dashboard PNG snapshots).
 
 ## Installing / Getting started
@@ -61,21 +67,21 @@ aws cloudformation wait stack-create-complete --stack-name MyFirstCloneSquad-${C
 ```
 > Note: If you get the error *'fatal error: Unable to locate credentials'*, you may have forgot to set a valid IAM role on the EC2 deployment instance.
 
-This CloneSquad deployment is now ready to manage all EC2 instances and EC2 Targetgroups tagged with key *'clonesquad:group-name'* and value *'test'*.
+This CloneSquad deployment is now ready to manage all EC2 instances and EC2 Targetgroups tagged with key `clonesquad:group-name` and value `test`.
 
 
-You should see a `CloneSquad-test` dashboard in the CloudWatch console looking like this *(but blank, without any graphs)*:
+You should see a dashboard named `CS-test` in the CloudWatch console looking like this *(but blank, without any graphs)*:
 
 ![CloudWatch dashboard](examples/environments/demo-loadbalancers/scaling_demo_capture.png)
 
 #### Step 2) Give to your CloneSquad deployment some EC2 instances and Targetgroups to manage
 
-Next step is to create instances with this appropriate 'clonesquad:group-name' tag defined. For a quick demonstration using a fleet of 20 instances mixing Spot and 
+Next step is to create instances with this appropriate `clonesquad:group-name` tag defined. For a quick demonstration using a fleet of 20 instances mixing Spot and 
 On-Demand instances, go to [examples/environments/demo-instance-fleet](examples/environments/demo-instance-fleet). 
 > In order to deploy this 
 demonstration, you **MUST** configure the CloneSquad DevKit once and run the deploy script from within this container: See [instructions](docs/BUILD_RELEASE_DEBUG.md#configuring-the-devkit-to-start-demonstrations)!
 
-Optional next step is to define also the tag *'clonesquad:group-name'* with value *'test'* on one or more EC2 targetgroups: CloneSquad will
+Optional next step is to define also the tag `clonesquad:group-name` with value `test` on one or more EC2 targetgroups: CloneSquad will
 automatically manage the membership of previousy created instances to these targetgroups. The [demo-loadbalancers](examples/environments/demo-loadbalancers/) demonstration is showing this.
 
 ## Initial Configuration
@@ -106,7 +112,7 @@ parameter to configure DynamoDB tables in PROVISIONED capacity billing model ins
 	- Few cents per month (can be disabled)
 
 **WARNING: The provided demonstrations deploy EC2 Instances with AWS Cloudwatch Log agents enabled that create tens of Custom metrics (RAM...).  These custom
-metrics will generate a significant part of the demonstration bill and may not be considered as part of the CloneSquad cost.**
+metrics will generate a significant part of the demonstration CloudWatch bill and should not be considered as part of the CloneSquad cost.**
 
 ## Roadmap
 

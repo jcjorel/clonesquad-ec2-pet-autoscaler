@@ -76,19 +76,29 @@ type for non-LightHouse ones.*
 
 # Subfleet support
 
-CloneSquad can manage subfleets of EC2 and RDS instances. This support is added to complement the cost reduction benefits of the autoscaling feature.
-The subfleets are a set of resources using the special tag `clonesquad:subfleet-name` that will be managed differently than ones
-not tagged this way.
+CloneSquad can manage subfleets of EC2, RDS instances and TransferFamily servers. This support is added to complement the cost reduction benefits 
+of the autoscaling feature provided by the main fleet.
+The subfleets are sets of resources tagged with `clonesquad:group-name` but also with the special tag `clonesquad:subfleet-name`.
 
-This resources are managed in a On/Off manner through the dynamic configuration key named `subfleet.{NameOfTheSubFleet}.state` which can take one
-of these 3 values: [`stopped`, `undefined` or ``, `running`].
+> When a resource is only tagged with `clonesquad:group-name`, it belongs to the Main fleet. When a resource is tagged **BOTH** with `clonesquad:group-name` **AND**
+`clonesquad:subfleet-name`, it belongs to the specified subfleet.  
 
-Ones can use the Scheduler to change this value to manage lifecycle of subfleets.
+These subfleet resources are managed in a On/Off manner through the dynamic configuration key named `subfleet.<subfleetname>.state` which can take one
+of these 3 values: [`stopped`, `undefined` (or ``), `running`].
+
+Ones can use the CloneSquad Scheduler to change this value to manage lifecycle of subfleets.
 
 Ex:
-
+	# Start the subfleet named 'mysubfleetname' at 7AM UTC
 	cron(0 7 * * ? *),subfleet.mysubfleetname.state=running
+	# Stop the subfleet named 'mysubfleetname' at 7PM UTC
 	cron(0 19 * * ? *),subfleet.mysubfleetname.state=stopped
+
+EC2 resources are subject to an additional configuration key named [`subfleet.<subfleetname>.ec2.schedule.desired_instance_count`](CONFIGURATION_REFERENCE.md#subfleetsubfleetnameec2scheduledesired_instance_count) which have a 
+similar semantic than in the Main fleet: It controls the number of running instances while [`subfleet.<subfleetname>.state`](CONFIGURATION_REFERENCE.md#subfleetsubfleetnamestate)
+is set to `running`. Unlike with the main fleet parameter variant, the value `-1` is invalid (and so, does not mean autoscaling). When this parameter is set 
+to a value different than `100%`, standard remediation mechanisms are activated (AZ instance balancing, faulty instance replacement, instance bouncing, 
+instance eviction on faulty AZ, Spot interruption handling and replacement...)
 
 Note: The subfleets resources have a dedicated widget in the CloneSquad dashboard. Notice that resources are NOT part of graphed 
 resources of others widgets. For instance, if a subfleet instance is entering 'CPU Crediting state', it won't appear in the 'TargetGroup and other statuses'
