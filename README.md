@@ -30,7 +30,8 @@ and **per region** depending on your autoscaling needs.*
 	- (Optional) One subfleet dedicated CloudWatch dashboard.
 
 * Characteristics shared by all kinds of fleet:
-	- **Always-on Availability Zone instance balancing algorithm,**
+	- **Always-on Availability Zone instance balancing algorithm**,
+		* Ex: If multiple instances need to be running, CloneSquad will try to select instances evenly spread in different AZs.
 	- Automatic replacement of unhealthy/unavail/impaired instances,
 	- Support for 'persistent' [Spot instances](https://aws.amazon.com/ec2/spot/) aside of On-Demand ones in the same fleet with configurable priorities, Spot Rebalance recommendation and interruption handling,
 	- [Manual](docs/CONFIGURATION_REFERENCE.md#ec2azunavailable_list) or automatic Availability Zone eviction (automatic mode based on [*describe_availability_zones()* AWS standard API](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ec2.html#EC2.Client.describe_availability_zones)),
