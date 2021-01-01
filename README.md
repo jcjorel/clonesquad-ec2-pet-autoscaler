@@ -1,7 +1,7 @@
 
 # CloneSquad, an AWS EC2 Pet Autoscaler
 
-CloneSquad tool provides Elasticity to **Pet** EC2 instances: A single CloneSquad deployment can manage one **autoscaled** main fleet and any amount of *manually* scaled subfleets.
+CloneSquad ServerLess tool provides Elasticity to **Pet** EC2 instances: A single CloneSquad deployment can manage one **autoscaled** main fleet and any amount of *manually* scaled subfleets.
 
 Per design, CloneSquad only performs start and stop on existing EC2 instances (i.e. it never creates or terminates instances): It uses a small set of tags to identify which EC2 instances are under its control.
 
@@ -35,9 +35,8 @@ Per design, CloneSquad only performs start and stop on existing EC2 instances (i
 	- (Optional) Smart management of *t[3|4].xxx* burstable instances (aka '[CPU Crediting mode](docs/COST_OPTIMIZATION.md#clonesquad-cpu-crediting)' to avoid overcost linked to [unlimited bursting](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/burstable-performance-instances-unlimited-mode.html)),
 	- (Optional) Instance bouncing: Frictionless fleet rebalancing and [AWS hypervisor maintenance](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/monitoring-instances-status-check_sched.html) by performing a permanent rolling state cycle (periodic start/stop of instances),
 	- Integrated [event scheduler](docs/SCHEDULER.md) ('cron' or 'rate' based) for complex scaling scenario,
-	- Configuration hierarchy for complex dynamic settings,
-	- [API Gateway](docs/INTERACTING.md#interacting-with-clonesquad) to monitor and manage fleets,
-	- [Events & Notifications](docs/EVENTS_AND_NOTIFICATIONS.md) (Lambda/SQS/SNS targets) framework to react to Squad events (ex: Register a just-started instance to an external monitoring solution and/or DNS),
+	- [API Gateway](docs/INTERACTING.md#interacting-with-clonesquad) to monitor and manage a CloneSquad deployent,
+	- [Events & Notifications](docs/EVENTS_AND_NOTIFICATIONS.md) (Lambda/SQS/SNS targets) framework to users react to Squad events (ex: Register a just-started instance to an external monitoring solution and/or DNS),
 	- [Extensive debuggability](docs/BUILD_RELEASE_DEBUG.md#debugging) with encountered scaling issues and exceptions exported to S3 (with contextual CloudWatch dashboard PNG snapshots).
 
 ## Installing / Getting started
