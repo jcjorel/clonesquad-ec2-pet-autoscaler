@@ -66,7 +66,7 @@ aws cloudformation wait stack-create-complete --stack-name MyFirstCloneSquad-${C
 ```
 > Note: If you get the error *'fatal error: Unable to locate credentials'*, you may have forgot to set a valid IAM role on the EC2 deployment instance.
 
-This CloneSquad deployment is now ready to manage all EC2 instances and EC2 Targetgroups tagged with key *'clonesquad:group-name'* and value *'test'*.
+This CloneSquad deployment is now ready to manage all EC2 instances and EC2 Targetgroups tagged with key `clonesquad:group-name` and value *'test'*.
 
 
 You should see a `CloneSquad-test` dashboard in the CloudWatch console looking like this *(but blank, without any graphs)*:
@@ -75,12 +75,12 @@ You should see a `CloneSquad-test` dashboard in the CloudWatch console looking l
 
 #### Step 2) Give to your CloneSquad deployment some EC2 instances and Targetgroups to manage
 
-Next step is to create instances with this appropriate 'clonesquad:group-name' tag defined. For a quick demonstration using a fleet of 20 instances mixing Spot and 
+Next step is to create instances with this appropriate `clonesquad:group-name` tag defined. For a quick demonstration using a fleet of 20 instances mixing Spot and 
 On-Demand instances, go to [examples/environments/demo-instance-fleet](examples/environments/demo-instance-fleet). 
 > In order to deploy this 
 demonstration, you **MUST** configure the CloneSquad DevKit once and run the deploy script from within this container: See [instructions](docs/BUILD_RELEASE_DEBUG.md#configuring-the-devkit-to-start-demonstrations)!
 
-Optional next step is to define also the tag *'clonesquad:group-name'* with value *'test'* on one or more EC2 targetgroups: CloneSquad will
+Optional next step is to define also the tag `clonesquad:group-name` with value *'test'* on one or more EC2 targetgroups: CloneSquad will
 automatically manage the membership of previousy created instances to these targetgroups. The [demo-loadbalancers](examples/environments/demo-loadbalancers/) demonstration is showing this.
 
 ## Initial Configuration
