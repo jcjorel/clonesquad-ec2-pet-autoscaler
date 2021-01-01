@@ -78,17 +78,20 @@ type for non-LightHouse ones.*
 
 CloneSquad can manage subfleets of EC2, RDS instances and TransferFamily servers. This support is added to complement the cost reduction benefits 
 of the autoscaling feature provided by the main fleet.
-The subfleets are a set of resources using the special tag `clonesquad:subfleet-name` that will be managed differently than ones
-not tagged this way.
+The subfleets are sets of resources tagged with `clonesquad:group-name` but also with the special tag `clonesquad:subfleet-name`.
 
-This resources are managed in a On/Off manner through the dynamic configuration key named `subfleet.{NameOfTheSubFleet}.state` which can take one
-of these 3 values: [`stopped`, `undefined` or ``, `running`].
+> When a resource is only tagged with `clonesquad:group-name`, it belongs to the Main fleet. When a resource is tagged **BOTH** with `clonesquad:group-name` **AND**
+`clonesquad:subfleet-name`, it belongs to the specified subfleet.  
 
-Ones can use the Scheduler to change this value to manage lifecycle of subfleets.
+These subfleet resources are managed in a On/Off manner through the dynamic configuration key named `subfleet.<subfleetname>.state` which can take one
+of these 3 values: [`stopped`, `undefined` (or ``), `running`].
+
+Ones can use the CloneSquad Scheduler to change this value to manage lifecycle of subfleets.
 
 Ex:
-
+	# Start the subfleet named 'mysubfleetname' at 7AM UTC
 	cron(0 7 * * ? *),subfleet.mysubfleetname.state=running
+	# Stop the subfleet named 'mysubfleetname' at 7PM UTC
 	cron(0 19 * * ? *),subfleet.mysubfleetname.state=stopped
 
 EC2 resources are subject to an additional configuration key named [`subfleet.<subfleetname>.ec2.schedule.desired_instance_count`](CONFIGURATION_REFERENCE.md#subfleetsubfleetnameec2scheduledesired_instance_count) which have a 
