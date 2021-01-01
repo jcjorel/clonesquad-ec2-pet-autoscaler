@@ -33,14 +33,13 @@ and **per region** depending on your autoscaling needs.*
 	- **Always-on Availability Zone instance balancing algorithm**,
 		* Ex: If multiple instances need to be running in a given fleet, CloneSquad will try to select instances evenly spread in different AZs.
 	- Automatic replacement of unhealthy/unavail/impaired instances,
-	- Support for 'persistent' [Spot instances](https://aws.amazon.com/ec2/spot/) aside of On-Demand ones in the same fleet with configurable priorities, Spot Rebalance recommendation and interruption handling,
-	- [Manual](docs/CONFIGURATION_REFERENCE.md#ec2azunavailable_list) or automatic Availability Zone eviction (automatic mode based on [*describe_availability_zones()* AWS standard API](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ec2.html#EC2.Client.describe_availability_zones)),
+	- Support for 'persistent' [Spot instances](https://aws.amazon.com/ec2/spot/) aside of On-Demand ones in the same fleet with **configurable priorities and Spot Rebalance recommendation/interruption handling**,
+	- [Manual](docs/CONFIGURATION_REFERENCE.md#ec2azunavailable_list) or automatic instance eviction in case of an AWS Region outage affecting one or more AZs,
 	- (Optional) **Instance bouncing**: Frictionless fleet rebalancing and [AWS hypervisor maintenance](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/monitoring-instances-status-check_sched.html) by performing a permanent rolling state cycle (periodic start/stop of instances),
 	- (Optional) Smart management of *t[3|4].xxx* burstable instances (aka '[CPU Crediting mode](docs/COST_OPTIMIZATION.md#clonesquad-cpu-crediting)' to avoid overcost linked to [unlimited bursting](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/burstable-performance-instances-unlimited-mode.html)),
 	- Integrated [event scheduler](docs/SCHEDULER.md) ('cron' or 'rate' based) for complex scaling scenario,
-	- [API Gateway](docs/INTERACTING.md#interacting-with-clonesquad) to monitor and manage a CloneSquad deployent,
-	- [Events & Notifications](docs/EVENTS_AND_NOTIFICATIONS.md) (Lambda/SQS/SNS targets) framework to users react to Squad events (ex: Register a just-started instance to an external monitoring solution and/or DNS),
-	- [Extensive debuggability](docs/BUILD_RELEASE_DEBUG.md#debugging) with encountered scaling issues and exceptions exported to S3 (with contextual CloudWatch dashboard PNG snapshots).
+	- [API Gateway](docs/INTERACTING.md#interacting-with-clonesquad) to monitor and manage a CloneSquad deployment,
+	- [Events & Notifications](docs/EVENTS_AND_NOTIFICATIONS.md) (Lambda/SQS/SNS targets) framework enabling users to react to Squad events (ex: Register a just-started instance to an external monitoring solution and/or DNS),
 
 ## Installing / Getting started
 
