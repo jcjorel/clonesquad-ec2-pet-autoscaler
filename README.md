@@ -22,7 +22,7 @@ Per design, CloneSquad only performs start and stop on existing EC2 instances (i
 	- (Optional) One dedicated CloudWatch dashboard.
 
 * [Subfleet(s)](docs/SCALING.md#subfleet-support):
-	- Manage groups of *EC2 Instances* **with NO autoscaling need** (i.e. scaled manually based on time scheduling or other external scaling decision mechanisms managed through the API Gateway),
+	- Manage groups of *EC2 Instances* **with NO autoscaling need** (i.e. scaled manually based on time scheduling or other external scaling decision mechanisms and managed through the API Gateway),
 		* [Desired instance count](docs/CONFIGURATION_REFERENCE.md#subfleetsubfleetnameec2scheduledesired_instance_count) is the only supported mode to control the amount of EC2 resources to start in each subfleet. 
 	- Manage also *RDS databases* and *TransferFamily servers* (simple start/stop),
 	- (Optional) One subfleet dedicated CloudWatch dashboard.
@@ -110,7 +110,7 @@ parameter to configure DynamoDB tables in PROVISIONED capacity billing model ins
 	- Few cents per month (can be disabled)
 
 **WARNING: The provided demonstrations deploy EC2 Instances with AWS Cloudwatch Log agents enabled that create tens of Custom metrics (RAM...).  These custom
-metrics will generate a significant part of the demonstration bill and may not be considered as part of the CloneSquad cost.**
+metrics will generate a significant part of the demonstration CloudWatch bill and should not be considered as part of the CloneSquad cost.**
 
 ## Roadmap
 
