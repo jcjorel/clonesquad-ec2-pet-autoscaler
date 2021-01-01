@@ -11,19 +11,20 @@ Per design, CloneSquad only performs start and stop on existing EC2 instances (i
 ## Features and Benefits (Please also read the [FAQ](docs/FAQ.md))
 
 * Main fleet:
-	- Automatic [autoscaling](docs/SCALING.md) mode (based on [CloudWatch alarms & metrics](docs/ALARMS_REFERENCE.md)),
+	- [Autoscaling](docs/SCALING.md) mode,
+		* Automatically start/stop EC2 instances based on [CloudWatch alarms & metrics](docs/ALARMS_REFERENCE.md)
 	- [Desired instance count](docs/CONFIGURATION_REFERENCE.md#ec2scheduledesired_instance_count) mode,
 		* Define the precise amount of expected serving EC2 instances (specified in absolute or percentage)
 	- Multi targetgroup support (associated to one or multiple ALB or NLB at the same time),
 		* Note: CloneSquad can also work *without* any managed TargetGroup if not applicable to user use-case.
 	- (Optional) [Vertical scaling](docs/SCALING.md#vertical-scaling) (by leveraging instance type distribution in the fleet),
 	- (Optional) ['LightHouse' mode](docs/SCALING.md#vertical-scaling) to run automatically cheap instance types during low activity periods,
-	- (Optional) One dedicated CloudWatch dashboard (*Note: activated by default*),
+	- (Optional) One dedicated CloudWatch dashboard.
 
 * [Subfleet(s)](docs/SCALING.md#subfleet-support):
 	- Manage groups of *EC2 Instances* (and also *RDS databases* and *TransferFamily servers*),
 		* [Desired instance count](docs/CONFIGURATION_REFERENCE.md#subfleetsubfleetnameec2scheduledesired_instance_count) mode is supported to control the amount of EC2 resources to start in each subfleet. **Especially, Autoscaling and Health check of resources are not supported like in the Main fleet:**
-	- (Optional) One subfleet dedicated CloudWatch dashboard (*Note: activated by default*),
+	- (Optional) One subfleet dedicated CloudWatch dashboard.
 
 * Characteristics shared by all kinds of fleet:
 	- **Always-on Availability Zone instance balancing algorithm,**
