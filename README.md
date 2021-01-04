@@ -41,6 +41,10 @@ and **per region** depending on your autoscaling needs.*
 	- [API Gateway](docs/INTERACTING.md#interacting-with-clonesquad) to monitor and manage a CloneSquad deployment,
 	- [Events & Notifications](docs/EVENTS_AND_NOTIFICATIONS.md) (Lambda/SQS/SNS targets) framework enabling users to react to Squad events (ex: Register a just-started instance to an external monitoring solution and/or DNS),
 
+> **IMPORTANT REMARK**: This tool aims to ease handling of **'Pet'** machines when you have to do so (very frequent after a pure *Lift&Shift*
+migration into the Cloud). The author strongly advises to always consider managing resources as **'Cattle'** (with IaC, AutoScaling Groups, Stateless...).
+**As a consequence, this tool should be only useful transient while transitionning to Cloud Native best-practices**.
+
 ## Installing / Getting started
 
 Pre-requisites:
