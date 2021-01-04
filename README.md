@@ -43,7 +43,7 @@ and **per region** depending on your autoscaling needs.*
 
 > **IMPORTANT REMARK**: This solution aims to ease handling of **'Pet'** machines when you have to do so (very frequent after a pure *Lift&Shift*
 migration into the Cloud). The author strongly advises to always consider managing resources as **'Cattle'** (with IaC, AutoScaling Groups, Stateless...).
-**As a consequence, this solution should be only useful transient while transitionning to [Cloud Native best-practices](https://aws.amazon.com/getting-started/fundamentals-core-concepts/?nc1=h_ls#Performance_Efficiency)**.
+**As a consequence, this solution should be only useful transient while transitionning to [Cloud Native best-practices](https://aws.amazon.com/getting-started/fundamentals-core-concepts/#Performance_Efficiency)**.
 
 ## Installing / Getting started
 
