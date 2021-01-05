@@ -122,6 +122,16 @@ Follow the same semantic and usage than [`ec2.schedule.burstable_instance.max_cp
 
 > This parameter has no effect if [`subfleet.subfleetname.state`](#subfleetsubfleetnamestate) is set to a value different than `running`.
                  """},
+                 "subfleet.<subfleetname>.ec2.schedule.verticalscale.instance_type_distribution,Stable": {
+                         "DefaultValue": "",
+                         "Format": "MetaStringList",
+                         "Description": """Define the vertical policy of the subfleet.
+
+It has a similar semantic than [`ec2.schedule.verticalscale.instance_type_distribution`](#ec2scheduleverticalscaleinstance_type_distribution) except
+that it does not support LightHouse instance specifications.
+
+> This parameter has no effect if [`subfleet.subfleetname.state`](#subfleetsubfleetnamestate) is set to a value different than `running`.
+                 """},
                  "subfleet.<subfleetname>.ec2.schedule.metrics.enable,Stable": {
                          "DefaultValue": "1",
                          "Format": "Bool",
