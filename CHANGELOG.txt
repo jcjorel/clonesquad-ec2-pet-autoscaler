@@ -1,3 +1,7 @@
+v0.12.0:
+- (Improvment/Major) Vertical scaling is now supported in subfleets (by default, Spot instances are favored over On-Demand. Can be changed.)
+- (Improvment/Major) Vertical scaling configuration is simplified and CloneSquad won't change any more instance type by itself (brigging too much complexity).
+
 v0.11.0:
 - (Improvment/Minor) More demonstration code in the Event Lambda example. Display Name of the instance of start_instances/stop_instances events.
 - (Improvment/Major) Redesigned notification sending code to avoid message truncation due to 256kB limit for Lambda, SQS and SNS payload.
