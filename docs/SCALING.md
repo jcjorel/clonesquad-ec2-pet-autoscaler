@@ -12,10 +12,11 @@ CloneSquad manages Horizontal and (optionally) Vertical scaling.
 
 ## Horizontal scaling
 
-The Horizontal scaling starts by tagging the target EC2 instance fleet with tag 'clonesquad:group-name' and value ${GroupName}.
-The group name is the way CloneSquad knows which instances belongs to its management duties.
+Using the Horizontal scaling starts by tagging the target EC2 instance fleet with tag `clonesquad:group-name` and value `${GroupName}` as specified in CloudFormation
+template parameter.
+The group name is the way for a CloneSquad deployement to know which instances belongs to its management duties.
 
-A special tag named 'clonesquad:excluded' when set to 'True', can be defined to temporarily exclude an instance from 
+A special tag named `clonesquad:excluded` when set to `True`, can be defined to temporarily exclude an instance from 
 CloneSquad management.
 
 Major configuration keys for horizontal scaling:
