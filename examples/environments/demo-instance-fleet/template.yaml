@@ -82,9 +82,9 @@ Resources:
       Tags:
         - Key: "Name"
       {% if parameters.subfleet_specs[i]["Spot"]  %}
-          Value: !Sub "CS-${GroupName}-SpotSF{{i}}.{{j}}"
+          Value: !Sub "CS-${GroupName}-SFSpot{{i}}.{{j}}"
       {% else %}
-          Value: !Sub "CS-${GroupName}-InstSF{{i}}.{{j}}"
+          Value: !Sub "CS-${GroupName}-SFInst{{i}}.{{j}}"
       {% endif %}
         - Key: "clonesquad:group-name"
           Value: !Ref GroupName

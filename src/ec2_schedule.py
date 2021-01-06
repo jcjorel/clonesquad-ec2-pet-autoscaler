@@ -177,9 +177,9 @@ On-Demand) are handled the same way.
                          
 This parameter is a [MetaStringList](#MetaStringList)
 
-    Ex: t3.medium,count=3,lighthouse;c5.large,spot;c5.large;c5.xlarge
+    Ex: t3.medium,lighthouse;c5.large,spot;c5.large;c5.xlarge
 
-Please consider reading [detailed decumentation about vertical scaling](SCALING.md) to ensure proper use.
+Please consider reading [detailed decumentation about vertical scaling](SCALING.md#vertical-scaling) to ensure proper use.
                          """
                  },
                  "ec2.schedule.verticalscale.lighthouse_replacement_graceperiod" : "minutes=2",
@@ -413,6 +413,7 @@ By default, the dashboard is enabled.
         self.cpu_exhausted_instances                = self.get_cpu_exhausted_instances()
         self.instances_with_issues                  = self.get_instances_with_issues()
         self.useable_instances                      = self.get_useable_instances()
+        self.useable_instance_count                 = self.get_useable_instance_count()
         self.useable_instances_wo_excluded_draining = self.get_useable_instances(instances=self.instances_wo_excluded, ScalingState="-draining")
         self.serving_instances                      = self.get_useable_instances(exclude_initializing_instances=True)
 
@@ -651,7 +652,6 @@ By default, the dashboard is enabled.
         """
         self.generate_instance_transition_events()
         self.manage_spot_events()
-        self.compute_instance_type_plan()
         self.shelve_extra_lighthouse_instances()
         self.scale_desired()
         self.scale_bounce()
@@ -780,7 +780,7 @@ By default, the dashboard is enabled.
     #### LOW LEVEL INSTANCE HANDLING ##############
     ###############################################
 
-    def filter_stopped_instance_candidates(self, active_instances, stopped_instances):
+    def sort_and_filter_stopped_instance_candidates(self, active_instances, stopped_instances):
         # Filter out Spot instance types that we know under interruption or close to interruption
         candidate_instances = self.ec2.filter_spot_instances(stopped_instances, filter_out_instance_types=self.excluded_spot_instance_types)
         if len(candidate_instances) != len(stopped_instances):
@@ -811,7 +811,7 @@ By default, the dashboard is enabled.
         stopped_instances = self.ec2.get_instances(State="stopped", ScalingState="-excluded", azs_filtered_out=disabled_azs)
 
         # Get a list of startable instances
-        stopped_instances = self.filter_stopped_instance_candidates(active_instances, stopped_instances)
+        stopped_instances = self.sort_and_filter_stopped_instance_candidates(active_instances, stopped_instances)
 
         # Let the scaleout algorithm influence the instance selection
         stopped_instances = self.scaleup_sort_instances(stopped_instances, 
@@ -1099,7 +1099,7 @@ By default, the dashboard is enabled.
                 self.scaling_state_changed = True
 
     def manage_subfleets(self):
-        """Manage start/stop actions forsubfleet instances
+        """Manage start/stop actions for subfleet instances
         """
         instances = self.subfleet_instances
         subfleets = {}
@@ -1134,6 +1134,34 @@ By default, the dashboard is enabled.
             subfleets[subfleet_name]["expected_state"] = expected_state
             subfleets[subfleet_name]["All"].append(i)
 
+        def _verticalscale_sort_and_warn(subfleet, candidates, reverse=False):
+            """ Take into account vertical scaling policy if it exists for the subfleet.
+                Warn the user if inconsistencies are detected.
+            """
+            vertical_sorted_instances = self.verticalscaling_sort_instances(
+                    Cfg.get(f"subfleet.{subfleet}.ec2.schedule.verticalscale.instance_type_distribution"), 
+                    candidates, reverse=reverse)
+            candidates = []
+            if not reverse:
+                # Candidates instance matching the policy will be listed first
+                candidates.extend(vertical_sorted_instances["non_lh_instances"])
+                candidates.extend(vertical_sorted_instances["non_lh_instances_not_matching_policy"])
+            else:
+                # Candidates instance NOT matching the policy will be listed first
+                candidates.extend(vertical_sorted_instances["non_lh_instances_not_matching_policy"])
+                candidates.extend(vertical_sorted_instances["non_lh_instances"])
+
+            if len(vertical_sorted_instances["directives"]) and len(vertical_sorted_instances["non_lh_instances_not_matching_policy"]):
+                log.warning(f"Instances %s in subfleet {subfleet} do not match the vertical policy specified in "
+                        f"`subfleet.{subfleet}.ec2.schedule.verticalscale.instance_type_distribution`. They will be managed as "
+                        "low priority. Please adjust your vertical policy or instance type to allow vertical scaler normal operations." %
+                        ([(i["InstanceId"], i["InstanceType"]) for i in vertical_sorted_instances["non_lh_instances_not_matching_policy"]]))
+            if len(vertical_sorted_instances["lh_instances"]):
+                log.warning(f"Instances %s in subfleet {subfleet} are marked as LightHouse in the vertical policy specified in "
+                        f"`subfleet.{subfleet}.ec2.schedule.verticalscale.instance_type_distribution`. LightHouse instances are not "
+                        "supported in subfleets and will be ignored/non scheduled." % 
+                        ([i["InstanceId"] for i in vertical_sorted_instances["lh_instances"]]))
+            return candidates
         
         # Manage start/stop of 'running' subfleet
         cache = {}
@@ -1163,8 +1191,10 @@ By default, the dashboard is enabled.
                 instance_count = max(min_instance_count, desired_instance_count)
                 delta          = instance_count - len(running_instances)
                 if delta > 0:
-                    stopped_instances = self.filter_stopped_instance_candidates(running_instances, stopped_instances)
-                    instances_to_start = [ i["InstanceId"] for i in stopped_instances ]
+                    candidates = _verticalscale_sort_and_warn(subfleet, stopped_instances)
+                    # Sort again to respect AZ balancing especially
+                    candidates = self.sort_and_filter_stopped_instance_candidates(running_instances, candidates) 
+                    instances_to_start = [ i["InstanceId"] for i in candidates ]
                     if delta > len(instances_to_start):
                         # If we can't start the request number of instances, we set a letter box variable
                         #   to ask stop_drained_instances() to release immediatly this amount of 'draining' 
@@ -1173,18 +1203,21 @@ By default, the dashboard is enabled.
                         log.info("Require %d more subfleet '%s' instances! Try to forcibly stop instances in 'cpu crediting' state..." 
                                 % (missing_count, subfleet))
                         self.letter_box_subfleet_to_stop_drained_instances[subfleet] = delta - len(instances_to_start)
-                    if len(stopped_instances):
+                    if len(instances_to_start):
                         log.info("Starting up to %d subfleet instance(s) (fleet=%s)..." % (len(instances_to_start), subfleet))
                         self.ec2.start_instances(instances_to_start, max_started_instances=delta)
                         self.scaling_state_changed = True
                 if delta < 0:
-                    running_instances = self.filter_running_instance_candidates(running_instances)
-                    if len(running_instances):
-                        instances_to_stop = [i["InstanceId"] for i in running_instances][:-delta]
+                    candidates = _verticalscale_sort_and_warn(subfleet, running_instances, reverse=True)
+                    # Sort again to respect AZ balancing especially
+                    candidates = self.filter_running_instance_candidates(candidates)
+                    if len(candidates):
+                        instances_to_stop = [i["InstanceId"] for i in candidates][:-delta]
                         log.info("Draining subfleet instance(s) '%s'..." % instances_to_stop)
                         for instance_id in instances_to_stop:
                             self.ec2.set_scaling_state(instance_id, "draining")
 
+            # Publish subfleet metrics if requested
             if Cfg.get_int(f"subfleet.{subfleet}.ec2.schedule.metrics.enable"):
                 dimensions = [{
                     "Name": "SubfleetName",
@@ -1381,7 +1414,7 @@ By default, the dashboard is enabled.
             return
 
         log.info("Bouncing of instances %s in progress..." % to_bounce_instance_ids)
-        self.instance_action(self.get_useable_instance_count() + len(to_bounce_instance_ids), "scale_bounce")
+        self.instance_action(self.useable_instance_count + len(to_bounce_instance_ids), "scale_bounce")
 
     @xray_recorder.capture()
     def scale_bounce_instances_with_issues(self):
@@ -1417,6 +1450,11 @@ By default, the dashboard is enabled.
     ###############################################
 
     def get_lighthouse_instance_ids(self, instances):
+        # Excluded subfleet instances
+        subfleet_instances    = self.ec2.filter_instance_list_by_tag(instances, "clonesquad:subfleet-name")
+        subfleet_instance_ids = [i["InstanceId"] for i in subfleet_instances]
+        instances             = [i for i in instances if i["InstanceId"] not in subfleet_instance_ids]
+
         # Collect instances that are marked as LightHouse through a Tag
         ins = self.ec2.filter_instance_list_by_tag(instances, "clonesquad:lighthouse", ["True","true"])
         ids = [i["InstanceId"] for i in ins]
@@ -1425,9 +1463,10 @@ By default, the dashboard is enabled.
         cfg = Cfg.get_list_of_dict("ec2.schedule.verticalscale.instance_type_distribution")
         lighthouse_instance_types = [t["_"] for t in list(filter(lambda c: "lighthouse" in c and c["lighthouse"], cfg))]
 
-        ins = list(filter(lambda i: i["InstanceType"] in lighthouse_instance_types, instances))
-        for i in [i["InstanceId"] for i in ins]: 
-            if i not in ids: ids.append(i)
+        for t in lighthouse_instance_types:
+            ins = list(filter(lambda i: re.match(t, i["InstanceType"]), instances))
+            for i in [i["InstanceId"] for i in ins]: 
+                if i not in ids: ids.append(i)
         return ids
 
     def are_lighthouse_instance_disabled(self):
@@ -1448,7 +1487,7 @@ By default, the dashboard is enabled.
     def shelve_instance_dispatch(self, expected_count):
         desired_instance_count= self.desired_instance_count()
         min_instance_count    = self.get_min_instance_count()
-        useable_instance_count= self.get_useable_instance_count()
+        useable_instance_count= self.useable_instance_count
         all_instances         = self.instances_wo_excluded_error_spotexcluded
         all_lh_ids            = self.lighthouse_instances_wo_excluded_ids
         serving_lh_ids        = self.serving_lighthouse_instances_ids
@@ -1485,8 +1524,42 @@ By default, the dashboard is enabled.
             if not cc["spot"] and is_spot: return False
         return True
 
+    def verticalscaling_sort_instances(self, directive, instances, reverse=False):
+        directive_items = misc.parse_line_as_list_of_dict(directive, default=[])
+        if reverse:
+            instances = instances.copy()
+            instances.reverse()
+        lh_ids          = self.get_lighthouse_instance_ids(instances)
+        r               = { "directives" : directive_items }
+
+        r["lh_instances"]     = list(filter(lambda i: i["InstanceId"] in lh_ids, instances))
+
+        # Sort non-LH instances
+        insts          = []
+        non_lh_ids     = []
+        for d in directive_items:
+            try:
+                i_s        = list(filter(lambda i: re.match(d["_"], i["InstanceType"]) and i["InstanceId"] not in lh_ids and i["InstanceId"] not in non_lh_ids and self._match_spot(i, d), instances))
+            except Exception as e:
+                log.error(f"Format error with Regex '%s' inside vertical scaling directive '{directive}'! Please express a valid Regex to match instance type!" %
+                            (d["_"]))
+                continue
+            for i in i_s:
+                insts.append(i)
+                non_lh_ids.append(i["InstanceId"])
+        r["non_lh_instances"] = insts
+        if reverse:
+            r["non_lh_instances"].reverse()
+
+        # Identify all instances that are not LH or not part of the vertical policy
+        valid_non_lh_instance_ids                 = [ i["InstanceId"] for i in insts]
+        r["non_lh_instances_not_matching_policy"] = list(filter(lambda i: i["InstanceId"] not in valid_non_lh_instance_ids and i["InstanceId"] not in lh_ids, instances))
+
+        return r
+
     def scaleup_sort_instances(self, candidates, expected_count, caller):
-        cfg    = Cfg.get_list_of_dict("ec2.schedule.verticalscale.instance_type_distribution")
+        # Sort instances according to vertical policy
+        vertical_sorted_instances  = self.verticalscaling_sort_instances(Cfg.get("ec2.schedule.verticalscale.instance_type_distribution"), candidates)
 
         lh_ids = self.get_lighthouse_instance_ids(candidates)
 
@@ -1522,16 +1595,21 @@ By default, the dashboard is enabled.
                 # When some non-LH instances are running, we favor to launch non-LH instances
                 lighthouse_need = 0
 
+
         # Place the number of lighthouse instances needed in high priority
-        instances.extend(list(filter(lambda i: i["InstanceId"] in lh_ids, candidates))[:lighthouse_need])
+        instances.extend(vertical_sorted_instances["lh_instances"][:lighthouse_need])
 
         if not lighthouse_only:
-            for c in cfg:
-                instances.extend(list(filter(lambda i: i["InstanceType"] == c["_"] and i["InstanceId"] not in lh_ids and self._match_spot(i, c), candidates)))
+            instances.extend(vertical_sorted_instances["non_lh_instances"])
 
             # All instances with unknown instance types are low priority
-            instance_types = [ c["_"] for c in cfg ]
-            instances.extend(list(filter(lambda i: i["InstanceType"] not in instance_types and i["InstanceId"] not in lh_ids, candidates)))
+            instances_with_unmatching_instance_types = vertical_sorted_instances["non_lh_instances_not_matching_policy"]
+            if len(vertical_sorted_instances["directives"]) and len(instances_with_unmatching_instance_types):
+                log.warning(f"Instances %s do not match vertical scaling policy defined by `ec2.schedule.verticalscale.instance_type_distribution`. "
+                        "These instances will be considered as low priority by default. Please adjust either the vertical policy or the "
+                        "instance type of these instances to allow normal vertical scaler operations." % 
+                            ([(i["InstanceId"], i["InstanceType"]) for i in instances_with_unmatching_instance_types]))
+            instances.extend(instances_with_unmatching_instance_types)
 
             if not lighthouse_disabled:
                 # We consider to scaleout with Lighthouse instances only if there is no running non-lighthouse instance
@@ -1539,19 +1617,24 @@ By default, the dashboard is enabled.
                 if (len(non_lighthouse_instances) == 0 or 
                     (self.desired_instance_count() != -1 and self.are_all_non_lh_instances_started())
                    ):
-                    instances.extend(list(filter(lambda i: i["InstanceId"] in lh_ids, candidates))[lighthouse_need:])
+                    instances.extend(vertical_sorted_instances["lh_instances"][lighthouse_need:])
 
         return instances
 
     def scaledown_sort_instances(self, candidates, expected_count, caller):
-        cfg             = Cfg.get_list_of_dict("ec2.schedule.verticalscale.instance_type_distribution")
-        instance_types  = [ i["_"] for i in cfg ]
-        cfg_r           = cfg.copy()
-        cfg_r.reverse()
+        # Sort instances according to vertical policy (non LH instances are sorted reversed; starting from the end of the policy
+        vertical_sorted_instances  = self.verticalscaling_sort_instances(Cfg.get("ec2.schedule.verticalscale.instance_type_distribution"), 
+                candidates, reverse=True)
 
         instances = []
         # Put instance with incorrect instance types first to make them drained first
-        instances.extend(list(filter(lambda i: i["InstanceType"] not in instance_types, candidates)))
+        instances_with_unmatching_instance_types = vertical_sorted_instances["non_lh_instances_not_matching_policy"]
+        if len(vertical_sorted_instances["directives"]) and len(instances_with_unmatching_instance_types):
+            log.warning(f"Instances %s do not match vertical scaling policy defined by `ec2.schedule.verticalscale.instance_type_distribution`. "
+                    "These instances will be considered as low priority by default. Please adjust either the vertical policy or the "
+                    "instance type of these instances to allow normal vertical scaler operations." % 
+                        ([(i["InstanceId"], i["InstanceType"]) for i in instances_with_unmatching_instance_types]))
+        instances.extend(instances_with_unmatching_instance_types)
 
 
         # Pickup lighthouse instances first if enough other instances are up
@@ -1574,8 +1657,7 @@ By default, the dashboard is enabled.
         instances.extend(lighthouse_instances[:lighthouse_need])
 
         # We stop instance in reverse order of the distribution instance type list
-        for c in cfg_r:
-            instances.extend(list(filter(lambda i: i["InstanceType"] == c["_"] and self._match_spot(i, c, spot_implicit=False), non_lighthouse_instances)))
+        instances.extend(vertical_sorted_instances["non_lh_instances"])
 
         # By default, all lighthouse instances are low priority to stop (lighthouse instances are only stopped by
         #   'shelve_extra_lighthouse_instances' process and not the 'scalin' one
@@ -1603,7 +1685,7 @@ By default, the dashboard is enabled.
         non_lighthouse_instances                 = self.serving_non_lighthouse_instance_ids               # list(filter(lambda i: i["InstanceId"] not in running_lh_ids, serving_instances))
         non_lighthouse_instances_initializing    = self.serving_non_lighthouse_instance_ids_initializing  # list(filter(lambda i: i["InstanceId"] not in running_lh_ids, self.get_initial_instances()))
         serving_non_lighthouse_instance_count    = len(non_lighthouse_instances) - len(non_lighthouse_instances_initializing)
-        useable_instance_count                   = self.get_useable_instance_count()
+        useable_instance_count                   = self.useable_instance_count
         desired_instance_count                   = self.desired_instance_count()
 
         lighthouse_instance_excess = 0
@@ -1654,7 +1736,7 @@ By default, the dashboard is enabled.
         else:
             delta_lh  = amount_of_lh - running_lh_count 
 
-        extra_instance_count = self.get_useable_instance_count() - min_instance_count
+        extra_instance_count = self.useable_instance_count - min_instance_count
         if extra_instance_count + delta_lh < 0:
             # We do not have enough spare instances available to reduce the fleet size without
             #   falling under min_instance_count.
@@ -1685,91 +1767,6 @@ By default, the dashboard is enabled.
             
             if delta_lh != 0:
                 self.instance_action(useable_instance_count + delta_lh, "shelve", target_for_dispatch=expected_count)
-
-    @xray_recorder.capture()
-    def compute_instance_type_plan(self):
-        if Cfg.get_int("ec2.schedule.verticalscale.disable_instance_type_plannning"):
-            return
-        cfg             = Cfg.get_list_of_dict("ec2.schedule.verticalscale.instance_type_distribution")
-        fleet_instances = self.instances_wo_excluded # ec2.get_instances(ScalingState="-excluded")
-        fleet_size      = len(fleet_instances)
-
-        schedule_size        = fleet_size
-        cfg                  = cfg[:schedule_size] # Can't have more instance type definitions than fleet size
-        nb_of_instance_types = len(cfg) 
-
-        expected_distribution      = defaultdict(int)
-        instance_types       = []
-        for i in range(0, nb_of_instance_types):
-            instance_type                   = cfg[i]["_"]
-            count                           = schedule_size / nb_of_instance_types
-            if "count" in cfg[i]:
-                try:
-                    count                 = int(cfg[i]["count"])
-                    schedule_size        -= count
-                    nb_of_instance_types -= 1
-                except Exception as e:
-                    log.exception("Failed to convert count=%s into integer! %s" % (cfg[i]["count"], e))
-            expected_distribution[instance_type] += count 
-            if instance_type not in instance_types: instance_types.append(instance_type)
-
-        # Round number of instances
-        allocated_instances  = 0
-        for typ in instance_types:
-            count                = round(expected_distribution[typ])
-            expected_distribution[typ] = count
-            allocated_instances += count
-        if len(instance_types) and fleet_size > allocated_instances: 
-            expected_distribution[instance_types[-1:][0]] += fleet_size - allocated_instances
-
-        # Compute what is missing
-        for inst in fleet_instances:
-            instance_type = inst["InstanceType"]
-            if instance_type in expected_distribution.keys():
-                expected_distribution[instance_type] -= 1
-
-        stopped_instances = self.stopped_instances_wo_excluded # ec2.get_instances(State="stopped", ScalingState="-excluded")
-        i = 0
-        max_modified_per_batch = Cfg.get_int("ec2.schedule.verticalscale.max_instance_type_modified_per_batch")
-        for inst in stopped_instances:
-            typ = inst["InstanceType"]
-
-            # Test if this instance has already the right instance type
-            if typ in instance_types and expected_distribution[typ] >= 0: 
-                # It looks so but check if a more prioritary instance type needs to be fulfilled first
-                index = instance_types.index(typ)
-                if len(list(filter(lambda t: expected_distribution[t] > 0, instance_types[:index]))) == 0:
-                    continue
-
-            if self.ec2.is_spot_instance(inst): continue # Can't change instance type for Spot instance
-
-            for t in instance_types:
-                if expected_distribution[t] <= 0: continue # Too many instances of this type
-
-                # Need to update the instance type for this instance
-                instance_id = inst["InstanceId"]
-                response    = None
-                try:
-                    response = self.context["ec2.client"].modify_instance_attribute(
-                            InstanceId=instance_id, InstanceType={
-                                  'Value': t,
-                            })
-                except Exception as e:
-                    log.exception("Failed to modify InstanceType for instance '%s' : %s" % (instance_id, e))
-
-                if response is None or response["ResponseMetadata"]["HTTPStatusCode"] != 200:
-                    log.error("Failed to change instance type for instance %s! : %s" % (instance_id, response))
-                else:
-                    self.scaling_state_changed = True
-                    max_modified_per_batch -= 1
-                    expected_distribution[t] -= 1
-                    break
-
-            if max_modified_per_batch < 0: 
-                break
-
-
-
 
 
     ###############################################
@@ -2102,7 +2099,7 @@ By default, the dashboard is enabled.
             self.would_like_to_scaleout = True
             return
         log.debug(text[0])
-        useable_instances_count = self.get_useable_instance_count()
+        useable_instances_count = self.useable_instance_count
         desired_instance_count = useable_instances_count + instance_to_start
 
         log.log(log.NOTICE, "Need to start up to '%d' more instances (Total expected=%d)" % (instance_to_start, desired_instance_count))
