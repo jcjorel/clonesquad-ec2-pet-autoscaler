@@ -34,7 +34,7 @@ that defines a policy linked to fleet instance types, billing model and instance
 It can be used to favor Spot instances over On-Demand as example or flag some instances as 'LightHouse' ones.
 
 When activated, the LightHouse mode will inform the vertical scaler that some instances have a special duty: LightHouse instances
-are designed to be small and so inexpensive. They are designed to 'Keep-the-light-on' when the Fleet has very limited activity. 
+are designed to be small and so inexpensive. They are designed to '*Keep-the-light-on*' when the Fleet has very limited activity. 
 Highly assymetrical workloads during the day will benefit from 'LightHouse' instances. These instances will be automatically started
 on ultra low activity and non LightHouse ones stopped providing improved cost optimization.
 
