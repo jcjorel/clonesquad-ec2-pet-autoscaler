@@ -1,9 +1,13 @@
 #
 # Demonstration of 'lighthouse' instance mode combined with vertical scaling (=instance type mixing and priorities)
 #
-# Defines that:
+# Defines that, in the Main fleet:
 #  * (t2|t3|t4).*,lighthouse:           All 't2/t3/t4' instances are 'Lighthouse' instances (can be on-demand or spot instance),
 #  * c5.large,spot;c5.large:    c5.large Spot instances needs to be scheduled in priority compared to non-Spot c5.large instances,
 #  * c5.xlarge:                 and finally, c5.xlarge instances need to be sheduled last (=lowest priority).
 #
 ec2.schedule.verticalscale.instance_type_distribution: (t2|t3|t4).*,lighthouse;c5.large,spot;c5.large;c5.xlarge
+
+# Tune vertical scaling for subfleet 'MySubfleet1':                                                                                                                       #  MySubfleet1 contains 2 Spot and 2 On-Demand instances => Setting `desired_instance_count` to 50% will have the effect to start
+#  only the Spot instances (due to the default vertical policy enabled in each subfleet that favors Spot over On-Demand).
+subfleet.MySubfleet1.ec2.schedule.desired_instance_count: 50%
