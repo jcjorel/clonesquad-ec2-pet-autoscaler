@@ -28,7 +28,7 @@ has no system issues (i.e. impaired, unavailable etc...).
 
 # Vertical scaling
 
-The Vertical scaling is fully controlled by a single configuration key [`ec2.schedule.verticalscale.instance_type_distribution`](CONFIGURATION_REFERENCE.md#ec2scheduleverticalscaleinstance_type_distribution) (and [`subfleet.<subfleetname>.ec2.schedule.verticalscale.instance_type_distribution`](CONFIGURATION_REFERENCE.md#subfleetsubfleetnameec2scheduleverticalscaleinstance_type_distribution) for subfleets)
+The Vertical scaling, in the Main fleet, is fully controlled by a single configuration key [`ec2.schedule.verticalscale.instance_type_distribution`](CONFIGURATION_REFERENCE.md#ec2scheduleverticalscaleinstance_type_distribution) (and [`subfleet.<subfleetname>.ec2.schedule.verticalscale.instance_type_distribution`](CONFIGURATION_REFERENCE.md#subfleetsubfleetnameec2scheduleverticalscaleinstance_type_distribution) for subfleets)
 that defines a policy linked to fleet instance types, billing model and instance duties.
 
 It can be used to favor Spot instances over On-Demand as example or flag some instances as 'LightHouse' ones.
