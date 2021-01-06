@@ -18,7 +18,8 @@ about 5$ per day.
 
 The script file named 'deploy-test-instances.sh' generates a Cloudformation template and deploys it directly.
 
-By default, it defines a fleet of 20 instances with *3 x t3.medium Spot instances, 4 x c5.large Spot instances, 8 x c5.large On-Demand and 5 x c5.xlarge*.
+By default, it defines a **main autoscaled fleet** of 20 instances with *3 x t3.medium Spot instances, 4 x c5.large Spot instances, 
+8 x c5.large On-Demand and 5 x c5.xlarge*.
 
 
 ```shell
@@ -26,7 +27,7 @@ FLEET_SPECIFICATION=${FLEET_SPECIFICATION:-"t3.medium,Spot=True,Count=3;c5.large
 ```
 
 
-The script also generates 2 'subfleets'. There are used by the [demo-scheduled-events](../demo-scheduled-events/).
+The script also generates 2 '**subfleets**'. There are used by the [demo-scheduled-events](../demo-scheduled-events/).
 
 * `MySubfleet1`:
 	* 2 x t3.micro Spot,
