@@ -18,8 +18,8 @@ about 5$ per day.
 
 The script file named 'deploy-test-instances.sh' generates a Cloudformation template and deploys it directly.
 
-By default, it defines a **main autoscaled fleet** of 20 instances with *3 x t3.medium Spot instances, 4 x c5.large Spot instances, 
-8 x c5.large On-Demand and 5 x c5.xlarge*.
+By default, it defines a **main autoscaled fleet** of 20 instances with *3 x Spot `t3.medium`, 4 x Spot `c5.large`, 
+8 x On-Demand `c5.large` and 5 x On-Demand `c5.xlarge`*.
 
 
 ```shell
