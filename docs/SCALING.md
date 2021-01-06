@@ -27,10 +27,10 @@ has no system issues (i.e. impaired, unavailable etc...).
 
 # Vertical scaling
 
-The Vertical scaling is fully controlled by a single configuration key [`ec2.schedule.verticalscale.instance_type_distribution`](CONFIGURATION_REFERENCE.md#ec2scheduleverticalscaleinstance_type_distribution)
+The Vertical scaling is fully controlled by a single configuration key [`ec2.schedule.verticalscale.instance_type_distribution`](CONFIGURATION_REFERENCE.md#ec2scheduleverticalscaleinstance_type_distribution) (and [`subfleet.<subfleetname>.ec2.schedule.verticalscale.instance_type_distribution`](CONFIGURATION_REFERENCE.md#subfleetsubfleetnameec2scheduleverticalscaleinstance_type_distribution) for subfleets)
 that defines a policy linked to fleet instance types, billing model and instance duties.
 
-It can be used to favor Spot instances over On-Demand for instance or flag some instances as 'LightHouse' ones.
+It can be used to favor Spot instances over On-Demand as example or flag some instances as 'LightHouse' ones.
 
 When activated, the LightHouse mode will inform the vertical scaler that some instances have a special duty: LightHouse instances
 are designed to be small and so inexpensive. They are designed to 'Keep-the-light-on' when the Fleet has very limited activity. 
@@ -63,7 +63,7 @@ This policy means:
 * All non-LightHouse instances **in Spot model** must be scheduled first,
 * All other non-LightHouse instances are scheduled with the lowest priority.
 
-> Remember that LightHouse instances are optional! You can omit to specify instance type for LightHouse if you do want to use this feature!
+> **Remember that LightHouse instances are optional!** You can omit to specify instance type for LightHouse if you do want to use this feature!
 
 *Tip: It is recommend to define 3 LightHouse instances, one per AZ and [`ec2.schedule.min_instance_count`](CONFIGURATION_REFERENCE#ec2schedulemin_instance_count) set to the value 2 to optimize cost at most*
 
