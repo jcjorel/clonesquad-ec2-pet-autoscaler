@@ -63,7 +63,7 @@ This policy means:
 * All non-LightHouse instances **in Spot model** must be scheduled first,
 * All other non-LightHouse instances are scheduled with the lowest priority.
 
-> **Remember that LightHouse instances are optional!** You can omit to specify instance type for LightHouse if you do want to use this feature!
+> **Remember that LightHouse instances are optional!** You can omit to specify instance type for LightHouse if you do not want to use this feature!
 
 *Tip: It is recommend to define 3 LightHouse instances, one per AZ and [`ec2.schedule.min_instance_count`](CONFIGURATION_REFERENCE#ec2schedulemin_instance_count) set to the value 2 to optimize cost at most*
 
