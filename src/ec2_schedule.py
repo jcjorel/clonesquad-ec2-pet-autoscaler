@@ -1140,7 +1140,7 @@ By default, the dashboard is enabled.
             """
             vertical_sorted_instances = self.verticalscaling_sort_instances(
                     Cfg.get(f"subfleet.{subfleet}.ec2.schedule.verticalscale.instance_type_distribution"), 
-                    stopped_instances, reverse=reverse)
+                    candidates, reverse=reverse)
             candidates = []
             if not reverse:
                 # Candidates instance matching the policy will be listed first
@@ -1450,6 +1450,11 @@ By default, the dashboard is enabled.
     ###############################################
 
     def get_lighthouse_instance_ids(self, instances):
+        # Excluded subfleet instances
+        subfleet_instances    = self.ec2.filter_instance_list_by_tag(instances, "clonesquad:subfleet-name")
+        subfleet_instance_ids = [i["InstanceId"] for i in subfleet_instances]
+        instances             = [i for i in instances if i["InstanceId"] not in subfleet_instance_ids]
+
         # Collect instances that are marked as LightHouse through a Tag
         ins = self.ec2.filter_instance_list_by_tag(instances, "clonesquad:lighthouse", ["True","true"])
         ids = [i["InstanceId"] for i in ins]
@@ -1458,9 +1463,10 @@ By default, the dashboard is enabled.
         cfg = Cfg.get_list_of_dict("ec2.schedule.verticalscale.instance_type_distribution")
         lighthouse_instance_types = [t["_"] for t in list(filter(lambda c: "lighthouse" in c and c["lighthouse"], cfg))]
 
-        ins = list(filter(lambda i: i["InstanceType"] in lighthouse_instance_types, instances))
-        for i in [i["InstanceId"] for i in ins]: 
-            if i not in ids: ids.append(i)
+        for t in lighthouse_instance_types:
+            ins = list(filter(lambda i: re.match(t, i["InstanceType"]), instances))
+            for i in [i["InstanceId"] for i in ins]: 
+                if i not in ids: ids.append(i)
         return ids
 
     def are_lighthouse_instance_disabled(self):
