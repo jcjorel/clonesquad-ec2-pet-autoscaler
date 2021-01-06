@@ -26,14 +26,7 @@ FLEET_SPECIFICATION=${FLEET_SPECIFICATION:-"t3.medium,Spot=True,Count=3;c5.large
 ```
 
 
-> Note: You must launch demo deployment from the CloneSquad DevKit Docker container! See [instructions.](../../../docs/BUILD_RELEASE_DEBUG.md#configuring-the-devkit-to-launch-demonstrations).
-
-```shell
-./deploy-test-instances.sh
-```
-
-Note: The script also generates 2 'subfleets'. There are used by the 
-[demo-scheduled-events](../demo-scheduled-events/)
+The script also generates 2 'subfleets'. There are used by the [demo-scheduled-events](../demo-scheduled-events/).
 
 * `MySubfleet1`:
 	* 2 x t3.micro Spot,
@@ -43,6 +36,12 @@ Note: The script also generates 2 'subfleets'. There are used by the
 	* 2 x t3.micro On-Demand
 * `MySubfleet3`:
 	* 2 x Aurora DB
+
+Note: You must launch demo deployment from the CloneSquad DevKit Docker container! See [instructions.](../../../docs/BUILD_RELEASE_DEBUG.md#configuring-the-devkit-to-launch-demonstrations).
+
+```shell
+./deploy-test-instances.sh
+```
 
 
 # Vertical scaling and 'LightHouse' instances
