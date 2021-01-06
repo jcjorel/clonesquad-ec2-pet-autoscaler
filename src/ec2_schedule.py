@@ -177,9 +177,9 @@ On-Demand) are handled the same way.
                          
 This parameter is a [MetaStringList](#MetaStringList)
 
-    Ex: t3.medium,count=3,lighthouse;c5.large,spot;c5.large;c5.xlarge
+    Ex: t3.medium,lighthouse;c5.large,spot;c5.large;c5.xlarge
 
-Please consider reading [detailed decumentation about vertical scaling](SCALING.md) to ensure proper use.
+Please consider reading [detailed decumentation about vertical scaling](SCALING.md#vertical-scaling) to ensure proper use.
                          """
                  },
                  "ec2.schedule.verticalscale.lighthouse_replacement_graceperiod" : "minutes=2",

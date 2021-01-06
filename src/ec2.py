@@ -130,7 +130,7 @@ Follow the same semantic and usage than [`ec2.schedule.burstable_instance.max_cp
 It has a similar semantic than [`ec2.schedule.verticalscale.instance_type_distribution`](#ec2scheduleverticalscaleinstance_type_distribution) except
 that it does not support LightHouse instance specifications.
 
-**By default, Spot instances are always scheduled first!**
+**Due to the default value `.*,spot;.*`, by default, Spot instances are always scheduled first in a subfleet!** This can be changed by the user.
 
 > This parameter has no effect if [`subfleet.subfleetname.state`](#subfleetsubfleetnamestate) is set to a value different than `running`.
                  """},

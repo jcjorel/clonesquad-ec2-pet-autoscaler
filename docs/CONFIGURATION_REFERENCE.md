@@ -256,7 +256,7 @@ Define the vertical policy of the subfleet.
 It has a similar semantic than [`ec2.schedule.verticalscale.instance_type_distribution`](#ec2scheduleverticalscaleinstance_type_distribution) except
 that it does not support LightHouse instance specifications.
 
-**By default, Spot instances are always scheduled first!**
+**Due to the default value `.*,spot;.*`, by default, Spot instances are always scheduled first in a subfleet!** This can be changed by the user.
 
 > This parameter has no effect if [`subfleet.subfleetname.state`](#subfleetsubfleetnamestate) is set to a value different than `running`.
                  
@@ -591,9 +591,9 @@ On-Demand) are handled the same way.
                          
 This parameter is a [MetaStringList](#MetaStringList)
 
-    Ex: t3.medium,count=3,lighthouse;c5.large,spot;c5.large;c5.xlarge
+    Ex: t3.medium,lighthouse;c5.large,spot;c5.large;c5.xlarge
 
-Please consider reading [detailed decumentation about vertical scaling](SCALING.md) to ensure proper use.
+Please consider reading [detailed decumentation about vertical scaling](SCALING.md#vertical-scaling) to ensure proper use.
                          
 
 
