@@ -27,7 +27,7 @@ FLEET_SPECIFICATION=${FLEET_SPECIFICATION:-"t3.medium,Spot=True,Count=3;c5.large
 ```
 
 
-The script also generates 2 '**subfleets**'. There are used by the [demo-scheduled-events](../demo-scheduled-events/).
+The script also generates 3 '**subfleets**'. There are used by the [demo-scheduled-events](../demo-scheduled-events/).
 
 * `MySubfleet1`:
 	* 2 x t3.micro Spot,
