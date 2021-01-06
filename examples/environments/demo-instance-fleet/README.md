@@ -18,22 +18,31 @@ about 5$ per day.
 
 The script file named 'deploy-test-instances.sh' generates a Cloudformation template and deploys it directly.
 
-By default, it defines a fleet of 20 instances with *3 x t3.medium Spot instances, 4 x c5.large Spot instances and 13 x m5.large*.
+By default, it defines a fleet of 20 instances with *3 x t3.medium Spot instances, 4 x c5.large Spot instances, 8 x c5.large On-Demand and 5 x c5.xlarge*.
 
 
 ```shell
-FLEET_SPECIFICATION=${FLEET_SPECIFICATION:-"t3.medium,Spot=True,Count=3;c5.large,Spot=True,Count=4;m5.large,Count=13"}
+FLEET_SPECIFICATION=${FLEET_SPECIFICATION:-"t3.medium,Spot=True,Count=3;c5.large,Spot=True,Count=4;c5.large,Count=8;c5.xlarge,Count=5"}
 ```
 
 
-> Note: You must launch demo deployment from the CloneSquad DevKit!
+> Note: You must launch demo deployment from the CloneSquad DevKit Docker container! See [instructions.](../../../docs/BUILD_RELEASE_DEBUG.md#configuring-the-devkit-to-launch-demonstrations).
 
 ```shell
 ./deploy-test-instances.sh
 ```
 
-Note: The script also generates some 'subfleet' resources (4 x EC2 instances and 4 x RDS instances). There are used by the 
+Note: The script also generates 2 'subfleets'. There are used by the 
 [demo-scheduled-events](../demo-scheduled-events/)
+
+* `MySubfleet1`:
+	* 2 x t3.micro Spot,
+	* 2 x t3.micro On-Demand,
+	* 1 x RDS MySQL
+* `MySubfleet2`:
+	* 2 x t3.micro On-Demand
+* `MySubfleet3`:
+	* 2 x Aurora DB
 
 
 # Vertical scaling and 'LightHouse' instances
