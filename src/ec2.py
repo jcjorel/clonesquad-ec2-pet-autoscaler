@@ -78,7 +78,7 @@ forcing their immediate replacement in healthy AZs in the region.
                  "ec2.instance.max_start_instance_at_once": "50",
                  "ec2.instance.max_stop_instance_at_once": "50",
                  "ec2.instance.spot.event.interrupted_at_ttl" : "minutes=10",
-                 "ec2.instance.spot.event.rebalance_recommended_at_ttl" : "minutes=15",
+                 "ec2.instance.spot.event.rebalance_recommended_at_ttl" : "minutes=20",
                  "ec2.state.error_instance_ids": "",
                  "ec2.state.excluded_instance_ids": {
                      "DefaultValue": "",
@@ -645,7 +645,7 @@ without any TargetGroup but another external health instance source exists).
             for t in ["rebalance_recommended", "interrupted"]:
               if t not in types:
                   continue
-              event_at = self.get_state("ec2.instance.spot.event.%s.%s_at" % (instance_id, t))
+              event_at = EC2.get_spot_event(self.context, instance_id, t)
               if event_at is not None:
                     if exclude: continue
                     if i not in res: res.append(i)
@@ -953,7 +953,12 @@ without any TargetGroup but another external health instance source exists).
     @staticmethod
     def get_spot_event(ctx, instance_id, reason, default=None):
         v = ctx["o_ec2"].get_state("ec2.instance.spot.event.%s.%s_at" % (instance_id, reason))
-        return v if v is not None else default
+        try:
+            if v is None or (ctx["now"] - misc.str2utc(v)).total_seconds() > Cfg.get_duration_secs("ec2.instance.spot.event.rebalance_recommended_at_ttl"):
+                return default
+        except:
+            return default
+        return v
 
     @staticmethod
     def set_spot_event(ctx, instance_id, reason, now):

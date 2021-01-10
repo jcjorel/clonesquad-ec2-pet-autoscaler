@@ -1,3 +1,6 @@
+v0.13.0:
+- (Improvment/Major) On Spot recommendation, new instances are started automatically. No more wait for 'Interrupted' messaged to do that.
+
 v0.12.0:
 - (Improvment/Major) Vertical scaling is now supported in subfleets (by default, Spot instances are favored over On-Demand. Can be changed.)
 - (Improvment/Major) Vertical scaling configuration is simplified and CloneSquad won't change any more instance type by itself (brigging too much complexity).

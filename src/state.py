@@ -85,3 +85,12 @@ class StateManager:
             return kvtable.KVTable.get_kv_direct(key, self.context["StateTable"])
         else:
             return self.table.get_kv(key)
+
+    def set_state_json(self, key, value, TTL=0):
+        self.set_state(key, json.dumps(value), TTL=TTL)
+
+    def get_state_json(self, key, default=None):
+        try:
+            return json.loads(self.get_state(key))
+        except:
+            return default

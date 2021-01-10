@@ -2171,15 +2171,36 @@ By default, the dashboard is enabled.
             self.spot_excluded_instance_ids.append(i["InstanceId"])
 
     def manage_spot_events(self):
-        if len(self.spot_rebalance_recommanded):
-            log.log(log.NOTICE, "EC2 Spot instances with 'rebalance_recommended' status: %s" % self.spot_rebalance_recommanded)
-        if len(self.spot_interrupted):
-            log.log(log.NOTICE, "EC2 Spot instances with 'interrupted' status: %s" % self.spot_interrupted)
+        if len(self.spot_rebalance_recommanded_ids):
+            log.info("EC2 Spot instances with 'rebalance_recommended' status: %s" % self.spot_rebalance_recommanded_ids)
+        if len(self.spot_interrupted_ids):
+            log.info("EC2 Spot instances with 'interrupted' status: %s" % self.spot_interrupted_ids)
 
+        # Mark all Spot interrupted as 'draining'
         for i in self.spot_interrupted:
             instance_id    = i["InstanceId"]
             if i["State"]["Name"] == "running":
                 self.ec2.set_scaling_state(instance_id, "draining")
-                log.info("Set 'draining' state for Spot interrupted instance '%s'." % instance_id)
+                log.info(f"Set 'draining' state for Spot interrupted instance '{instance_id}'.")
+
+        # Launch new instances when some Spot instances have been just 'recommended' or 'interrupted'
+        known_spot_advisories    = self.ec2.get_state_json("ec2.schedule.instance.spot.known_spot_advisories", default={})
+        instance_count_to_launch = 0
+        for i in self.spot_rebalance_recommanded_ids:
+            if i not in known_spot_advisories and i not in self.spot_interrupted_ids:
+                log.info(f"Instance '{i}' just got 'Spot recommended'. Launch immediatly a new instance to anticipate a possible interruption!")
+                known_spot_advisories[i] = "recommended"
+                instance_count_to_launch += 1
+        for i in self.spot_interrupted_ids:
+            if i not in known_spot_advisories or known_spot_advisories[i] != "interrupted":
+                log.info(f"Instance '{i}' just got 'Spot interrupted'. Launch immediatly a new instance!")
+                known_spot_advisories[i] = "interrupted"
+                instance_count_to_launch += 1
+
+        if instance_count_to_launch:
+            self.instance_action(self.useable_instance_count + instance_count_to_launch, "manage_spot_events")
+
+        if known_spot_advisories != {}:
+            self.ec2.set_state_json("ec2.schedule.instance.spot.known_spot_advisories", known_spot_advisories, TTL=self.state_ttl)
 
 
