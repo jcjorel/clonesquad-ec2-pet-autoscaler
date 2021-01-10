@@ -2201,7 +2201,7 @@ By default, the dashboard is enabled.
 
         # Garbage collect old instance notifications
         for i in list(known_spot_advisories.keys()):
-            if i not in self.spot_rebalance_recommanded_ids or i not in self.spot_interrupted_ids:
+            if i not in self.spot_rebalance_recommanded_ids and i not in self.spot_interrupted_ids:
                 del known_spot_advisories[i]
 
         self.ec2.set_state_json("ec2.schedule.instance.spot.known_spot_advisories", known_spot_advisories, TTL=self.state_ttl)
