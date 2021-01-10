@@ -2196,11 +2196,14 @@ By default, the dashboard is enabled.
                 log.info(f"Instance '{i}' just got 'Spot interrupted'. Launch immediatly a new instance!")
                 known_spot_advisories[i] = "interrupted"
                 instance_count_to_launch += 1
-
         if instance_count_to_launch:
             self.instance_action(self.useable_instance_count + instance_count_to_launch, "manage_spot_events")
 
-        if known_spot_advisories != {}:
-            self.ec2.set_state_json("ec2.schedule.instance.spot.known_spot_advisories", known_spot_advisories, TTL=self.state_ttl)
+        # Garbage collect old instance notifications
+        for i in list(known_spot_advisories.keys()):
+            if i not in self.spot_rebalance_recommanded_ids or i not in self.spot_interrupted_ids:
+                del known_spot_advisories[i]
+
+        self.ec2.set_state_json("ec2.schedule.instance.spot.known_spot_advisories", known_spot_advisories, TTL=self.state_ttl)
 
 
