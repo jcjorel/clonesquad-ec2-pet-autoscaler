@@ -78,7 +78,7 @@ In the Configuration DynamoDB table, a specific syntax is used to describe key m
 > Note: Every DynamoDB configuration keys starting by a character `#` are silently ignored (comment syntax).
 
 ## Configuration keys
-{% for c in config %}
+{% for c in config | sort %}
 
 ### {{ config[c].Key }}
 Default Value: `{{ config[c].DefaultValue }}`   

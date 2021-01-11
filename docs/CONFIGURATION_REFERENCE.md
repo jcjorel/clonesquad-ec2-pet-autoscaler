@@ -80,59 +80,14 @@ In the Configuration DynamoDB table, a specific syntax is used to describe key m
 ## Configuration keys
 
 
-### config.dump_configuration
+### app.disable
 Default Value: `0`   
 Format       :  [Bool](#Bool)
 
-Display all relevant configuration parameters in CloudWatch logs.
+Flag to disable Main Lambda function responsible to start/stop EC2 instances. 
 
-    Used for debugging purpose.
-                 
-
-
-
-### config.loaded_files
-Default Value: ``   
-Format       :  [StringList](#StringList)
-
-A semi-column separated list of URL to load as configuration.
-
-Upon startup, CloneSquad will load the listed files in sequence and stack them allowing override between layers.
-
-Internally, 2 files are systematically loaded: 'internal:predefined.config.yaml' and 'internal:custom.config.yaml'. Users that intend to embed
-customization directly inside the Lambda delivery should override file 'internal:custom.config.yaml' with their own configuration. See 
-[Customizing the Lambda package](#customizing-the-lambda-package).
-
-This key is evaluated again after each URL parsing meaning that a layer can redefine the 'config.loaded_files' to load further
-YAML files.
-                 
-
-
-
-### config.active_parameter_set
-Default Value: ``   
-Format       :  [String](#String)
-
-Defines the parameter set to activate.
-
-See [Parameter sets](#parameter-sets) documentation.
-                 
-
-
-
-### config.ignored_warning_keys
-Default Value: ``   
-Format       :  [StringList](#StringList)
-
-A list of config keys that are generating a warning on usage, to disable them.
-
-Typical usage is to avoid the 'WARNING' Cloudwatch Alarm to trigger when using a non-Stable configuration key.
-
-    Ex: ec2.schedule.key1;ec2.schedule.key2
-
-    Remember that using non-stable configuration keys, is creating risk as semantic and/or existence could change 
-    from CloneSquad version to version!
-            
+It disables completly CloneSquad. While disabled, the Lambda will continue to be started every minute to test
+if this flag changed its status and allow normal operation again.
 
 
 
@@ -145,213 +100,6 @@ Period when the Main scheduling Lambda function is run.
 The smaller, the more accurate and reactive is CloneSquad. The bigger, the cheaper is CloneSquad to run itself (Lambda executions,
 Cloudwatch GetMetricData, DynamoDB queries...)
                
-
-
-
-### app.disable
-Default Value: `0`   
-Format       :  [Bool](#Bool)
-
-Flag to disable Main Lambda function responsible to start/stop EC2 instances. 
-
-It disables completly CloneSquad. While disabled, the Lambda will continue to be started every minute to test
-if this flag changed its status and allow normal operation again.
-
-
-
-### ec2.az.unavailable_list
-Default Value: ``   
-Format       :  [StringList](#StringList)
-
-List of Availability Zone names (ex: *eu-west-3c*) or AZ Ids (ex: *euw3-az1*).
-
-Typical usage is to force a fleet to consider one or more AZs as unavailable (AZ eviction). The autoscaler will then refuse to schedule
-new instances on these AZs. Existing instances in those AZs are left unchanged but on scalein condition will be 
-shutdown in priority (see [`ec2.az.evict_instances_when_az_faulty`](#ec2azinstance_faulty_when_az_faulty) to change this behavior). 
-
-This setting can be used during an AWS LSE (Large Scale Event) to manually define that an AZ is unavailable.
-
-> Note: CloneSquad also uses the EC2.describe_availability_zones() API to discover dynamically LSE events. So, setting directly this key
-should not be needed in most cases.
-
-Please notice that, once an AZ is enabled again (either manually or automatically), instance fleet WON'T be rebalanced automatically:
-* If Instance bouncing is enabled, the fleet will be progressively rebalanced (convergence time will depend on the instance bouncing setting)
-* If instance bouncing is not configured, user can force a rebalancing by switching temporarily the fleet to `100%` during few minutes 
-(with [`ec2.schedule.desired_instance_count`](#ec2scheduledesired_instance_count) sets temporarily to `100%`) and switch back to the 
-original value.
-
-                     
-
-
-
-### ec2.az.evict_instances_when_az_faulty
-Default Value: `0`   
-Format       :  [Bool](#Bool)
-
-Defines if instances running in a AZ with issues must be considered 'unavailable'
-
-By Default, instances running in an AZ reported with issues are left untouched and these instances will only be evicted if
-their invidual healthchecks fail or on scalein events.
-
-Settting this parameter to 1 will force Clonesquad to consider all the instances running in faulty AZ as 'unavailable' and so
-forcing their immediate replacement in healthy AZs in the region. 
-                 
-
-
-
-### subfleet.&lt;subfleetname&gt;.state
-Default Value: `undefined`   
-Format       :  [String](#String)
-
-Define the status of the subfleet named &lt;subfleetname&gt;.
-
-Can be one the following values ['`stopped`', '`undefined`', '`running`'].
-
-A subfleet can contain EC2 instances but also RDS and TransferFamilies tagged instances.
-                 
-
-
-
-### subfleet.&lt;subfleetname&gt;.ec2.schedule.desired_instance_count
-Default Value: `100%`   
-Format       :  [IntegerOrPercentage](#IntegerOrPercentage)
-
-Define the number of EC2 instances to start when a subfleet is in a 'running' state.
-
-**Note:** `-1` is an invalid value (and so do not mean 'autoscaling' like in [`ec2.schedule.desired_instance_count`](#ec2scheduledesired_instance_count)).
-
-> This parameter has no effect if [`subfleet.subfleetname.state`](#subfleetsubfleetnamestate) is set to a value different than `running`.
-                 
-
-
-
-### subfleet.&lt;subfleetname&gt;.ec2.schedule.burstable_instance.max_cpu_crediting_instances
-Default Value: `0%`   
-Format       :  [IntegerOrPercentage](#IntegerOrPercentage)
-
-Define the maximum number of EC2 instances that can be in CPU Crediting state at the same time in the designated subfleet.
-
-Follow the same semantic and usage than [`ec2.schedule.burstable_instance.max_cpu_crediting_instances`](#ec2scheduleburstable_instancemax_cpu_crediting_instances).
-                 
-
-
-
-### subfleet.&lt;subfleetname&gt;.ec2.schedule.min_instance_count
-Default Value: `0`   
-Format       :  [IntegerOrPercentage](#IntegerOrPercentage)
-
-Define the minimum number of EC2 instances to keep up when a subfleet is in a 'running' state.
-
-> This parameter has no effect if [`subfleet.subfleetname.state`](#subfleetsubfleetnamestate) is set to a value different than `running`.
-                 
-
-
-
-### subfleet.&lt;subfleetname&gt;.ec2.schedule.verticalscale.instance_type_distribution
-Default Value: `.*,spot;.*`   
-Format       :  [MetaStringList](#MetaStringList)
-
-Define the vertical policy of the subfleet.
-
-It has a similar semantic than [`ec2.schedule.verticalscale.instance_type_distribution`](#ec2scheduleverticalscaleinstance_type_distribution) except
-that it does not support LightHouse instance specifications.
-
-**Due to the default value `.*,spot;.*`, by default, Spot instances are always scheduled first in a subfleet!** This can be changed by the user.
-
-> This parameter has no effect if [`subfleet.subfleetname.state`](#subfleetsubfleetnamestate) is set to a value different than `running`.
-                 
-
-
-
-### subfleet.&lt;subfleetname&gt;.ec2.schedule.metrics.enable
-Default Value: `1`   
-Format       :  [Bool](#Bool)
-
-Enable detailed metrics for the subfleet &lt;subfleetname&gt;.
-
-The following additional metrics are generated:
-* Subfleet.EC2.Size,
-* Subfleet.EC2.RunningInstances,
-* Subfleet.EC2.DrainingInstances.
-
-These metrics are associated to a dimension specifying the subfleet name and are so different from the metrics with similar names from
-the autoscaled fleet.
-
-                 
-
-
-
-### ec2.instance.status.override_url
-Default Value: ``   
-Format       :  [String](#String)
-
-Url pointing to a YAML file overriding EC2.describe_instance_status() instance states.
-
-CloneSquad can optionaly load a YAML file containing EC2 instance status override.
-
-The format is a dict of 'InstanceId' containing another dict of metadata:
-
-```yaml
----
-i-0ef23917a58368c89:
-    status: ok
-i-0ad73bbc09cb68f81:
-    status: unhealthy
-```
-
-The status item can contain any of valid values returned by `EC2.describe_instance_status()["InstanceStatus"]["Status"]`.
-The valid values are ["ok", "impaired", "insufficient-data", "not-applicable", "initializing", "unhealthy"].    
-
-**Please notice the special 'unhealthy' value that is a CloneSquad extension:** This value can be injected to force 
-an instance to be considered as unhealthy by the scheduler. It can be useful to debug/simulate a failure of a 
-specific instance or to inject 'unhealthy' status coming from a non-TargetGroup source (ex: when CloneSquad is used
-without any TargetGroup but another external health instance source exists).
-
-                    
-
-
-
-### cloudwatch.metrics.excluded
-Default Value: ``   
-Format       :  [StringList](#StringList)
-
-List of metric pattern names to not send to Cloudwatch
-
-This configuration key is used to do Cost optimization by filtering which CloneSquad Metrics are sent to Cloudwatch.
-It support regex patterns.
-
-> Ex: Subfleet.*;NbOfBouncedInstances
-
-                        
-
-
-
-### cloudwatch.metrics.time_for_full_metric_refresh
-Default Value: `minutes=1,seconds=30`   
-Format       :  [Duration](#Duration)
-
-The total period for a complete refresh of EC2 Instance metrics
-
-This parameter is a way to reduce Cloudwatch cost induced by GetMetricData API calls. It defines indirectly how many alarm metrics
-will be polled in a single Main Lambda execution. A dedicated algorithm is used to extrapolate missing data based
-on previous GetMetricData API calls.
-
-Reducing this value increase the accuracy of the scaling criteria and so, the reactivity of CloneSquad to a sudden burst of activity load but at the
-expense of Cloudwatch.GetMetricData API cost.
-
-This parameter does not influence the polling of user supplied alarms that are always polled at each run.
-                        
-
-
-
-### cloudwatch.dashboard.use_default
-Default Value: `1`   
-Format       :  [Bool](#Bool)
-
-Enable or disable the Cloudwatch dashboard for CloneSquad.
-
-The dashboard is enabled by default.
-                        
 
 
 
@@ -413,202 +161,186 @@ See `cloudwatch.alarm00.configuration_url`.
 
 
 
-### notify.event.longterm.max_records
-Default Value: `50`   
-Format       :  [Integer](#Integer)
-
-Maximum records to hold in the Event-LongTerm DynamodDB table
-
-Setting this value to 0, disable logging to the LongTerm event table.
-
-
-
-
-### notify.event.longterm.ttl
-Default Value: `days=5`   
-Format       :  [Duration](#Duration)
-
-Retention time for Long-Term DynamoDB entries.
-
-This table is used to deep-dive analysis of noticeable events encountered by a CloneSquad deployment. It is mainly used to
-improve CloneSquad over time by allowing easy sharing of essential data for remote debugging.
-               
-
-
-
-### ec2.schedule.min_instance_count
-Default Value: `0`   
-Format       :  [PositiveInteger](#PositiveInteger)
-
-Minimum number of healthy serving instances. 
-
-CloneSquad will ensure that at least this number of instances
-are runnning at a given time. A serving instance has passed all the health checks (if part of Target group) and is not detected with
-system issues.
-
-
-
-### ec2.schedule.desired_instance_count
-Default Value: `-1`   
-Format       :  [IntegerOrPercentage](#IntegerOrPercentage)
-
-If set to -1, the autoscaler controls freely the number of running instances. Set to a value different than -1,
-the autoscaler is disabled and this value defines the number of serving (=running & healthy) instances to maintain at all time.
-The [`ec2.schedule.min_instance_count`](#ec2schedulemin_instance_count) is still authoritative and the `ec2.schedule.desired_instance_count` parameter cannot bring
-the serving fleet size below this hard lower limit. 
-
-A typical usage for this key is to set it to `100%` to temporarily force all the instances to run at the same time to perform mutable maintenance
-(System and/or SW patching).
-
-> Tip: Setting this key to the special `100%` value has also the side effect to disable all instance health check management and so ensure the whole fleet running 
-at its maximum size in a stable manner (i.e. even if there are impaired/unhealthy instances in the fleet, they won't be restarted automatically).
-                     
-
-
-
-### ec2.schedule.scaleout.disable
-Default Value: `0`   
-Format       :  [Bool](#Bool)
-
-Disable the scaleout part of the autoscaler.
-
-    Setting this value to 1 makes the autoscaler scalein only.
-                    
-
-
-
-### ec2.schedule.scaleout.rate
-Default Value: `5`   
-Format       :  [PositiveInteger](#PositiveInteger)
-
-Number of instances to start per period.   
-
-This core parameter is used by the autoscaler to compute when to 
-start a new instance under a scaleout condition. By default, it is set to 5 instances per period (see [`ec2.schedule.scaleout.period`](#ec2schedulescaleoutperiod)) that 
-is quite a slow growth rate. This number can be increased to grow faster the running fleet under scale out condition.
-
-Increasing too much this parameter makes the autoscaler very reactive and can lead to over-reaction inducing unexpected costs:
-A big value can be sustainable when [CloudWatch High-Precision alarms](https://aws.amazon.com/fr/about-aws/whats-new/2017/07/amazon-cloudwatch-introduces-high-resolution-custom-metrics-and-alarms/)
-are used allowing the autoscaler to get very quickly a 
-feedback loop of the impact of added instances. With standard alarms from the AWS namespace, precision is at best 1 minute and 
-the associated CloudWatch metrics can't react fast enough to inform the algorithm with accurate data.
-
-> **Do not use big value there when using Cloudwatch Alarms with 1 min ou 5 mins precision.**
-                     
-
-
-
-### ec2.schedule.scaleout.period
-Default Value: `minutes=10`   
-Format       :  [Duration](#Duration)
-
-Period of scaling assesment. 
-
-This parameter is strongly linked with [`ec2.scheduler.scaleout.rate`](#ec2schedulerscaleoutrate) and is 
-used by the scaling algorithm as a devider to determine the fleet growth rate under scalout condition.
-                     
-
-
-
-### ec2.schedule.scaleout.instance_upfront_count
+### cloudwatch.dashboard.use_default
 Default Value: `1`   
-Format       :  [Integer](#Integer)
-
-Number of instances to start upfront of a new scaleout condition.
-
-When autoscaling is enabled, the autoscaler algorithm compute when to start a new instance using its internal time-based and point-based
-algorithm. This parameter is used to bypass this algorithm (only at start of a scaleout sequence) and make it appears more responsive
-by starting immediatly the specified amount of instances. 
-
-> It is not recommended to put a big value for this parameter (it is better 
-to let the autoscaler algorithm do its smoother job instead)
-                     
-
-
-
-### ec2.schedule.scalein.disable
-Default Value: `0`   
 Format       :  [Bool](#Bool)
 
-Disable the scalein part of the autoscaler.
+Enable or disable the Cloudwatch dashboard for CloneSquad.
 
-    Setting this value to 1 makes the autoscaler scaleout only.
-                     
-
-
-
-### ec2.schedule.scalein.rate
-Default Value: `3`   
-Format       :  [Integer](#Integer)
-
-Same than `ec2.schedule.scaleout.rate` but for the scalein direction.
-
-Must be a greater than `0` Integer.
-
-                     
+The dashboard is enabled by default.
+                        
 
 
 
-### ec2.schedule.scalein.period
-Default Value: `minutes=10`   
+### cloudwatch.metrics.excluded
+Default Value: ``   
+Format       :  [StringList](#StringList)
+
+List of metric pattern names to not send to Cloudwatch
+
+This configuration key is used to do Cost optimization by filtering which CloneSquad Metrics are sent to Cloudwatch.
+It support regex patterns.
+
+> Ex: Subfleet.*;NbOfBouncedInstances
+
+                        
+
+
+
+### cloudwatch.metrics.time_for_full_metric_refresh
+Default Value: `minutes=1,seconds=30`   
 Format       :  [Duration](#Duration)
 
-Same than `ec2.schedule.scaleout.period` but for the scalein direction.
+The total period for a complete refresh of EC2 Instance metrics
 
-Must be a greater than `0` Integer.
+This parameter is a way to reduce Cloudwatch cost induced by GetMetricData API calls. It defines indirectly how many alarm metrics
+will be polled in a single Main Lambda execution. A dedicated algorithm is used to extrapolate missing data based
+on previous GetMetricData API calls.
+
+Reducing this value increase the accuracy of the scaling criteria and so, the reactivity of CloneSquad to a sudden burst of activity load but at the
+expense of Cloudwatch.GetMetricData API cost.
+
+This parameter does not influence the polling of user supplied alarms that are always polled at each run.
+                        
+
+
+
+### cloudwatch.subfleet.use_dashboard
+Default Value: `1`   
+Format       :  [Bool](#Bool)
+
+Enable or disabled the dashboard dedicated to Subfleets.
+
+By default, the dashboard is enabled.
+
+> Note: The dashboard is configured only if there is at least one Subfleet with detailed metrics.
+                 
+
+
+
+### config.active_parameter_set
+Default Value: ``   
+Format       :  [String](#String)
+
+Defines the parameter set to activate.
+
+See [Parameter sets](#parameter-sets) documentation.
+                 
+
+
+
+### config.dump_configuration
+Default Value: `0`   
+Format       :  [Bool](#Bool)
+
+Display all relevant configuration parameters in CloudWatch logs.
+
+    Used for debugging purpose.
+                 
+
+
+
+### config.ignored_warning_keys
+Default Value: ``   
+Format       :  [StringList](#StringList)
+
+A list of config keys that are generating a warning on usage, to disable them.
+
+Typical usage is to avoid the 'WARNING' Cloudwatch Alarm to trigger when using a non-Stable configuration key.
+
+    Ex: ec2.schedule.key1;ec2.schedule.key2
+
+    Remember that using non-stable configuration keys, is creating risk as semantic and/or existence could change 
+    from CloneSquad version to version!
+            
+
+
+
+### config.loaded_files
+Default Value: ``   
+Format       :  [StringList](#StringList)
+
+A semi-column separated list of URL to load as configuration.
+
+Upon startup, CloneSquad will load the listed files in sequence and stack them allowing override between layers.
+
+Internally, 2 files are systematically loaded: 'internal:predefined.config.yaml' and 'internal:custom.config.yaml'. Users that intend to embed
+customization directly inside the Lambda delivery should override file 'internal:custom.config.yaml' with their own configuration. See 
+[Customizing the Lambda package](#customizing-the-lambda-package).
+
+This key is evaluated again after each URL parsing meaning that a layer can redefine the 'config.loaded_files' to load further
+YAML files.
+                 
+
+
+
+### ec2.az.evict_instances_when_az_faulty
+Default Value: `0`   
+Format       :  [Bool](#Bool)
+
+Defines if instances running in a AZ with issues must be considered 'unavailable'
+
+By Default, instances running in an AZ reported with issues are left untouched and these instances will only be evicted if
+their invidual healthchecks fail or on scalein events.
+
+Settting this parameter to 1 will force Clonesquad to consider all the instances running in faulty AZ as 'unavailable' and so
+forcing their immediate replacement in healthy AZs in the region. 
+                 
+
+
+
+### ec2.az.unavailable_list
+Default Value: ``   
+Format       :  [StringList](#StringList)
+
+List of Availability Zone names (ex: *eu-west-3c*) or AZ Ids (ex: *euw3-az1*).
+
+Typical usage is to force a fleet to consider one or more AZs as unavailable (AZ eviction). The autoscaler will then refuse to schedule
+new instances on these AZs. Existing instances in those AZs are left unchanged but on scalein condition will be 
+shutdown in priority (see [`ec2.az.evict_instances_when_az_faulty`](#ec2azinstance_faulty_when_az_faulty) to change this behavior). 
+
+This setting can be used during an AWS LSE (Large Scale Event) to manually define that an AZ is unavailable.
+
+> Note: CloneSquad also uses the EC2.describe_availability_zones() API to discover dynamically LSE events. So, setting directly this key
+should not be needed in most cases.
+
+Please notice that, once an AZ is enabled again (either manually or automatically), instance fleet WON'T be rebalanced automatically:
+* If Instance bouncing is enabled, the fleet will be progressively rebalanced (convergence time will depend on the instance bouncing setting)
+* If instance bouncing is not configured, user can force a rebalancing by switching temporarily the fleet to `100%` during few minutes 
+(with [`ec2.schedule.desired_instance_count`](#ec2scheduledesired_instance_count) sets temporarily to `100%`) and switch back to the 
+original value.
 
                      
 
 
 
-### ec2.schedule.scalein.instance_upfront_count
-Default Value: `0`   
-Format       :  [Integer](#Integer)
-
-Number of instances to stop upfront of a new scalein condition
-
-When autoscaling is enabled, the autoscaler algorithm compute when to drain and stop a new instance using its internal time-based and point-based
-algorithm. This parameter is used to bypass this algorithm (only at start of a scalein sequence) and make it appears more responsive
-by draining immediatly the specified amount of instances. 
-
-> It is not recommended to put a big value for this parameter (it is better 
-to let the autoscaler algorithm do its smoother job instead)
-                         
-
-
-
-### ec2.schedule.verticalscale.instance_type_distribution
+### ec2.instance.status.override_url
 Default Value: ``   
-Format       :  [MetaStringList](#MetaStringList)
+Format       :  [String](#String)
 
-Policy for vertical scaling. 
+Url pointing to a YAML file overriding EC2.describe_instance_status() instance states.
 
-This setting is a core critical one and defines the vertical scaling policy.
-This parameter controls how the vertical scaler will prioritize usage and on-the-go instance type modifications.
+CloneSquad can optionaly load a YAML file containing EC2 instance status override.
 
-By default, no vertical scaling is configured meaning all instances whatever their instance type or launch model (Spot vs
-On-Demand) are handled the same way. 
-                         
-This parameter is a [MetaStringList](#MetaStringList)
+The format is a dict of 'InstanceId' containing another dict of metadata:
 
-    Ex: t3.medium,lighthouse;c5.large,spot;c5.large;c5.xlarge
+```yaml
+---
+i-0ef23917a58368c89:
+    status: ok
+i-0ad73bbc09cb68f81:
+    status: unhealthy
+```
 
-Please consider reading [detailed decumentation about vertical scaling](SCALING.md#vertical-scaling) to ensure proper use.
-                         
+The status item can contain any of valid values returned by `EC2.describe_instance_status()["InstanceStatus"]["Status"]`.
+The valid values are ["ok", "impaired", "insufficient-data", "not-applicable", "initializing", "unhealthy"].    
 
+**Please notice the special 'unhealthy' value that is a CloneSquad extension:** This value can be injected to force 
+an instance to be considered as unhealthy by the scheduler. It can be useful to debug/simulate a failure of a 
+specific instance or to inject 'unhealthy' status coming from a non-TargetGroup source (ex: when CloneSquad is used
+without any TargetGroup but another external health instance source exists).
 
-
-### ec2.schedule.verticalscale.lighthouse_disable
-Default Value: `0`   
-Format       :  [Bool](#Bool)
-
-Completly disable the LightHouse instance algorithm. 
-
-As consequence, all instances matching the 'LightHouse' directive won't be scheduled.
-
-Typical usage for this key is to ensure the fleet always run with best performing instances. As a example, Users could consider to use this 
-key in combination with the instance scheduler to force the fleet to be 'LightHouse' instance free on peak load hours.
-                         
+                    
 
 
 
@@ -660,17 +392,6 @@ condition, CloneSquad will automatically stop and restart instances in CPU Credi
 
 
 
-### ec2.schedule.burstable_instance.preserve_accrued_cpu_credit
-Default Value: `0`   
-Format       :  [Bool](#Bool)
-
-Enable a weekly wakeup of burstable instances ["t3","t4"]
-
-This flag enables an automatic wakeup of stopped instances before the one-week limit that would mean accrued CPU Credit loss.
-                         
-
-
-
 ### ec2.schedule.burstable_instance.max_cpucrediting_time
 Default Value: `hours=12`   
 Format       :  [Duration](#Duration)
@@ -700,16 +421,229 @@ When specified in percentage, 100% represents the ['Maximum earned credits than 
 
 
 
-### cloudwatch.subfleet.use_dashboard
-Default Value: `1`   
+### ec2.schedule.burstable_instance.preserve_accrued_cpu_credit
+Default Value: `0`   
 Format       :  [Bool](#Bool)
 
-Enable or disabled the dashboard dedicated to Subfleets.
+Enable a weekly wakeup of burstable instances ["t3","t4"]
 
-By default, the dashboard is enabled.
+This flag enables an automatic wakeup of stopped instances before the one-week limit that would mean accrued CPU Credit loss.
+                         
 
-> Note: The dashboard is configured only if there is at least one Subfleet with detailed metrics.
+
+
+### ec2.schedule.desired_instance_count
+Default Value: `-1`   
+Format       :  [IntegerOrPercentage](#IntegerOrPercentage)
+
+If set to -1, the autoscaler controls freely the number of running instances. Set to a value different than -1,
+the autoscaler is disabled and this value defines the number of serving (=running & healthy) instances to maintain at all time.
+The [`ec2.schedule.min_instance_count`](#ec2schedulemin_instance_count) is still authoritative and the `ec2.schedule.desired_instance_count` parameter cannot bring
+the serving fleet size below this hard lower limit. 
+
+A typical usage for this key is to set it to `100%` to temporarily force all the instances to run at the same time to perform mutable maintenance
+(System and/or SW patching).
+
+> Tip: Setting this key to the special `100%` value has also the side effect to disable all instance health check management and so ensure the whole fleet running 
+at its maximum size in a stable manner (i.e. even if there are impaired/unhealthy instances in the fleet, they won't be restarted automatically).
+                     
+
+
+
+### ec2.schedule.min_instance_count
+Default Value: `0`   
+Format       :  [PositiveInteger](#PositiveInteger)
+
+Minimum number of healthy serving instances. 
+
+CloneSquad will ensure that at least this number of instances
+are runnning at a given time. A serving instance has passed all the health checks (if part of Target group) and is not detected with
+system issues.
+
+
+
+### ec2.schedule.scalein.disable
+Default Value: `0`   
+Format       :  [Bool](#Bool)
+
+Disable the scalein part of the autoscaler.
+
+    Setting this value to 1 makes the autoscaler scaleout only.
+                     
+
+
+
+### ec2.schedule.scalein.instance_upfront_count
+Default Value: `0`   
+Format       :  [Integer](#Integer)
+
+Number of instances to stop upfront of a new scalein condition
+
+When autoscaling is enabled, the autoscaler algorithm compute when to drain and stop a new instance using its internal time-based and point-based
+algorithm. This parameter is used to bypass this algorithm (only at start of a scalein sequence) and make it appears more responsive
+by draining immediatly the specified amount of instances. 
+
+> It is not recommended to put a big value for this parameter (it is better 
+to let the autoscaler algorithm do its smoother job instead)
+                         
+
+
+
+### ec2.schedule.scalein.period
+Default Value: `minutes=10`   
+Format       :  [Duration](#Duration)
+
+Same than `ec2.schedule.scaleout.period` but for the scalein direction.
+
+Must be a greater than `0` Integer.
+
+                     
+
+
+
+### ec2.schedule.scalein.rate
+Default Value: `3`   
+Format       :  [Integer](#Integer)
+
+Same than `ec2.schedule.scaleout.rate` but for the scalein direction.
+
+Must be a greater than `0` Integer.
+
+                     
+
+
+
+### ec2.schedule.scaleout.disable
+Default Value: `0`   
+Format       :  [Bool](#Bool)
+
+Disable the scaleout part of the autoscaler.
+
+    Setting this value to 1 makes the autoscaler scalein only.
+                    
+
+
+
+### ec2.schedule.scaleout.instance_upfront_count
+Default Value: `1`   
+Format       :  [Integer](#Integer)
+
+Number of instances to start upfront of a new scaleout condition.
+
+When autoscaling is enabled, the autoscaler algorithm compute when to start a new instance using its internal time-based and point-based
+algorithm. This parameter is used to bypass this algorithm (only at start of a scaleout sequence) and make it appears more responsive
+by starting immediatly the specified amount of instances. 
+
+> It is not recommended to put a big value for this parameter (it is better 
+to let the autoscaler algorithm do its smoother job instead)
+                     
+
+
+
+### ec2.schedule.scaleout.period
+Default Value: `minutes=10`   
+Format       :  [Duration](#Duration)
+
+Period of scaling assesment. 
+
+This parameter is strongly linked with [`ec2.scheduler.scaleout.rate`](#ec2schedulerscaleoutrate) and is 
+used by the scaling algorithm as a devider to determine the fleet growth rate under scalout condition.
+                     
+
+
+
+### ec2.schedule.scaleout.rate
+Default Value: `5`   
+Format       :  [PositiveInteger](#PositiveInteger)
+
+Number of instances to start per period.   
+
+This core parameter is used by the autoscaler to compute when to 
+start a new instance under a scaleout condition. By default, it is set to 5 instances per period (see [`ec2.schedule.scaleout.period`](#ec2schedulescaleoutperiod)) that 
+is quite a slow growth rate. This number can be increased to grow faster the running fleet under scale out condition.
+
+Increasing too much this parameter makes the autoscaler very reactive and can lead to over-reaction inducing unexpected costs:
+A big value can be sustainable when [CloudWatch High-Precision alarms](https://aws.amazon.com/fr/about-aws/whats-new/2017/07/amazon-cloudwatch-introduces-high-resolution-custom-metrics-and-alarms/)
+are used allowing the autoscaler to get very quickly a 
+feedback loop of the impact of added instances. With standard alarms from the AWS namespace, precision is at best 1 minute and 
+the associated CloudWatch metrics can't react fast enough to inform the algorithm with accurate data.
+
+> **Do not use big value there when using Cloudwatch Alarms with 1 min ou 5 mins precision.**
+                     
+
+
+
+### ec2.schedule.start.warmup_delay
+Default Value: `minutes=2`   
+Format       :  [Duration](#Duration)
+
+Minimum delay for node readiness.
+
+After an instance start, CloneSquad will consider it in 'initializing' state for the specified minimum amount of time.
+
+When at least one instance is in 'initializing' state in a fleet, no other instance can be placed in `draining` state meanwhile:
+This delay is meant to let new instances to succeed their initialization.
+
+If an application takes a long time to be ready, it can be useful to increase this value.
                  
+
+
+
+### ec2.schedule.verticalscale.instance_type_distribution
+Default Value: ``   
+Format       :  [MetaStringList](#MetaStringList)
+
+Policy for vertical scaling. 
+
+This setting is a core critical one and defines the vertical scaling policy.
+This parameter controls how the vertical scaler will prioritize usage and on-the-go instance type modifications.
+
+By default, no vertical scaling is configured meaning all instances whatever their instance type or launch model (Spot vs
+On-Demand) are handled the same way. 
+                         
+This parameter is a [MetaStringList](#MetaStringList)
+
+    Ex: t3.medium,lighthouse;c5.large,spot;c5.large;c5.xlarge
+
+Please consider reading [detailed decumentation about vertical scaling](SCALING.md#vertical-scaling) to ensure proper use.
+                         
+
+
+
+### ec2.schedule.verticalscale.lighthouse_disable
+Default Value: `0`   
+Format       :  [Bool](#Bool)
+
+Completly disable the LightHouse instance algorithm. 
+
+As consequence, all instances matching the 'LightHouse' directive won't be scheduled.
+
+Typical usage for this key is to ensure the fleet always run with best performing instances. As a example, Users could consider to use this 
+key in combination with the instance scheduler to force the fleet to be 'LightHouse' instance free on peak load hours.
+                         
+
+
+
+### notify.event.longterm.max_records
+Default Value: `50`   
+Format       :  [Integer](#Integer)
+
+Maximum records to hold in the Event-LongTerm DynamodDB table
+
+Setting this value to 0, disable logging to the LongTerm event table.
+
+
+
+
+### notify.event.longterm.ttl
+Default Value: `days=5`   
+Format       :  [Duration](#Duration)
+
+Retention time for Long-Term DynamoDB entries.
+
+This table is used to deep-dive analysis of noticeable events encountered by a CloneSquad deployment. It is mainly used to
+improve CloneSquad over time by allowing easy sharing of essential data for remote debugging.
+               
 
 
 
@@ -721,6 +655,88 @@ Enable management of RDS databases.
 
 Disabled by default to save Main Lambda execution time. This flag activates support of RDS instances in Subfleets.
                 
+
+
+
+### subfleet.&lt;subfleetname&gt;.ec2.schedule.burstable_instance.max_cpu_crediting_instances
+Default Value: `0%`   
+Format       :  [IntegerOrPercentage](#IntegerOrPercentage)
+
+Define the maximum number of EC2 instances that can be in CPU Crediting state at the same time in the designated subfleet.
+
+Follow the same semantic and usage than [`ec2.schedule.burstable_instance.max_cpu_crediting_instances`](#ec2scheduleburstable_instancemax_cpu_crediting_instances).
+                 
+
+
+
+### subfleet.&lt;subfleetname&gt;.ec2.schedule.desired_instance_count
+Default Value: `100%`   
+Format       :  [IntegerOrPercentage](#IntegerOrPercentage)
+
+Define the number of EC2 instances to start when a subfleet is in a 'running' state.
+
+**Note:** `-1` is an invalid value (and so do not mean 'autoscaling' like in [`ec2.schedule.desired_instance_count`](#ec2scheduledesired_instance_count)).
+
+> This parameter has no effect if [`subfleet.subfleetname.state`](#subfleetsubfleetnamestate) is set to a value different than `running`.
+                 
+
+
+
+### subfleet.&lt;subfleetname&gt;.ec2.schedule.metrics.enable
+Default Value: `1`   
+Format       :  [Bool](#Bool)
+
+Enable detailed metrics for the subfleet &lt;subfleetname&gt;.
+
+The following additional metrics are generated:
+* Subfleet.EC2.Size,
+* Subfleet.EC2.RunningInstances,
+* Subfleet.EC2.DrainingInstances.
+
+These metrics are associated to a dimension specifying the subfleet name and are so different from the metrics with similar names from
+the autoscaled fleet.
+
+                 
+
+
+
+### subfleet.&lt;subfleetname&gt;.ec2.schedule.min_instance_count
+Default Value: `0`   
+Format       :  [IntegerOrPercentage](#IntegerOrPercentage)
+
+Define the minimum number of EC2 instances to keep up when a subfleet is in a 'running' state.
+
+> This parameter has no effect if [`subfleet.subfleetname.state`](#subfleetsubfleetnamestate) is set to a value different than `running`.
+                 
+
+
+
+### subfleet.&lt;subfleetname&gt;.ec2.schedule.verticalscale.instance_type_distribution
+Default Value: `.*,spot;.*`   
+Format       :  [MetaStringList](#MetaStringList)
+
+Define the vertical policy of the subfleet.
+
+It has a similar semantic than [`ec2.schedule.verticalscale.instance_type_distribution`](#ec2scheduleverticalscaleinstance_type_distribution) except
+that it does not support LightHouse instance specifications.
+
+**Due to the default value `.*,spot;.*`, by default, Spot instances are always scheduled first in a subfleet!** This can be changed by the user.
+
+> This parameter has no effect if [`subfleet.subfleetname.state`](#subfleetsubfleetnamestate) is set to a value different than `running`.
+                 
+
+
+
+### subfleet.&lt;subfleetname&gt;.state
+Default Value: `undefined`   
+Format       :  [String](#String)
+
+Define the status of the subfleet named &lt;subfleetname&gt;.
+
+Can be one the following values ['`stopped`', '`undefined`', '`running`'].
+
+A subfleet can contain EC2 instances but also RDS and TransferFamilies tagged instances.
+                 
 
 
 

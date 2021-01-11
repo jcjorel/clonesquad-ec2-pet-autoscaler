@@ -36,7 +36,7 @@ for a in args._get_kwargs():
 app.init(with_kvtable=False, with_predefined_configuration=False)
 c = config.dumps()
 
-# Escape some characters that can confuse makrdown formatting
+# Escape some characters that can confuse markdown formatting
 for k in c.keys():
     c[k]["Key"]         = c[k]["Key"].replace("<", "&lt;").replace(">", "&gt;")
     description = []
