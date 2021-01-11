@@ -653,7 +653,7 @@ Format       :  [Bool](#Bool)
 
 Enable management of RDS databases.
 
-Disabled by default to save Main Lambda execution time. This flag activates support of RDS instances in Subfleets.
+DEPRECATED. (Now automatic detection of RDS resources is implemented.)
                 
 
 
@@ -746,7 +746,7 @@ Format       :  [Bool](#Bool)
 
 Enable management of TransferFamily services.
 
-Disabled by default to save Main Lambda execution time. This flag activates support of TransferFamily services in Subfleets.
+DEPRECATED. (Now automatic detection of TransferFamilty services is implemented).
                 
 
 
