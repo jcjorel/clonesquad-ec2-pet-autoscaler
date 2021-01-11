@@ -33,7 +33,7 @@ class TransferFamily:
                     "Format": "Bool",
                     "Description": """Enable management of TransferFamily services.
 
-Disabled by default to save Main Lambda execution time. This flag activates support of TransferFamily services in Subfleets.
+DEPRECATED. (Now automatic detection of TransferFamilty services is implemented).
                 """
                 },
                 "transferfamily.state.default_ttl" : "hours=2",
@@ -42,8 +42,7 @@ Disabled by default to save Main Lambda execution time. This flag activates supp
 
 
     def get_prerequisites(self):
-        if not Cfg.get_int("transferfamily.enable"):
-            log.log(log.NOTICE, "TransferFamily support currently disabled. Set 'transferfamily.enable' to '1' to enable.")
+        if "transfer" not in self.context["o_state"].get_resource_services():
             return
 
         self.resources = self.o_state.get_resources(service="transfer")

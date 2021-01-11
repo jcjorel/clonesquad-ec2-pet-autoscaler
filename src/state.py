@@ -46,12 +46,23 @@ class StateManager:
             )
         self.clonesquad_resources = list(tag_mappings)
 
+    def get_resource_services(self):
+        """ Return the list of services with clonesquuad:group-name tags
+        """
+        services = []
+        for r in self.get_resources():
+            arn = r["ResourceARN"]
+            m   = re.search("^arn:[a-z]+:([a-z0-9]+):([-a-z0-9]+):([0-9]+):(.+)", arn)
+            if m[1] not in services:
+                services.append(m[1])
+        return services
+
     def get_resources(self, service=None, resource_name=None):
         resources = []
         for t in self.clonesquad_resources:
             arn            = t["ResourceARN"]
             current_region = self.context["AWS_DEFAULT_REGION"]
-            m = re.search("^arn:[a-z]+:([a-z0-9]+):([-a-z0-9]+):([0-9]+):(.+)", arn)
+            m              = re.search("^arn:[a-z]+:([a-z0-9]+):([-a-z0-9]+):([0-9]+):(.+)", arn)
             if m[2] != current_region:
                 continue
             if service is not None and m[1] != service:

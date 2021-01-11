@@ -32,7 +32,7 @@ class RDS:
                     "Format": "Bool",
                     "Description": """Enable management of RDS databases.
 
-Disabled by default to save Main Lambda execution time. This flag activates support of RDS instances in Subfleets.
+DEPRECATED. (Now automatic detection of RDS resources is implemented.)
                 """
                 },
                 "rds.state.default_ttl" : "hours=2",
@@ -41,8 +41,7 @@ Disabled by default to save Main Lambda execution time. This flag activates supp
 
 
     def get_prerequisites(self):
-        if not Cfg.get_int("rds.enable"):
-            log.log(log.NOTICE, "RDS support currently disabled. Set 'rds.enable' to '1' to enable.")
+        if "rds" not in self.context["o_state"].get_resource_services():
             return
 
         rds_client     = self.context["rds.client"]
