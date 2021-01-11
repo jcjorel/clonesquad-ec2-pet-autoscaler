@@ -125,7 +125,7 @@ DEPRECATED. (Now automatic detection of RDS resources is implemented.)
     def manage_subfleet(self):
         """Manage start/stop actions for subfleet RDS instances
         """
-        if not Cfg.get_int("rds.enable"):
+        if "rds" not in self.context["o_state"].get_resource_services():
             return
 
         states = defaultdict(int)

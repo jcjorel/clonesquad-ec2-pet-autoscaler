@@ -93,7 +93,7 @@ DEPRECATED. (Now automatic detection of TransferFamilty services is implemented)
     def manage_subfleet(self):
         """Manage start/stop actions for subfleet TransferFamily servers
         """
-        if not Cfg.get_int("transferfamily.enable"):
+        if "transfer" not in self.context["o_state"].get_resource_services():
             return
 
         states = defaultdict(int)
@@ -112,6 +112,12 @@ DEPRECATED. (Now automatic detection of TransferFamilty services is implemented)
                 log.warn("Encountered a subfleet TransferFamily server (%s) without matching state directive. Please set 'subfleet.%s.state' configuration key..." % 
                         (arn, subfleet_name))
                 continue
+
+            current_state  = server["State"]
+            if server["State"] == "ONLINE": current_state = "running"
+            log.log(log.NOTICE, "Manage TransferFamily '%s': subfleet_name=%s, current_state=%s, expected_state=%s" % 
+                    (arn, subfleet_name, current_state, expected_state))
+
             if expected_state == "running":
                 svc_expected_state = "ONLINE"
             elif expected_state == "stopped":
@@ -122,11 +128,6 @@ DEPRECATED. (Now automatic detection of TransferFamilty services is implemented)
                 log.warn("Can't understand 'subfleet.%s.state' configuration key value! Valid values are [running, stopped, undefined]" % expected_state)
                 continue
 
-            current_state  = server["State"]
-            if server["State"] == "ONLINE": current_state = "running"
-
-            log.debug("Manage '%s': subfleet_name=%s, current_state=%s, expected_state=%s" % 
-                    (arn, subfleet_name, current_state, expected_state))
             if expected_state != current_state:
                 log.info("'%s' is transitionning from '%s' to '%s' state..." % (arn, current_state, expected_state))
             states[current_state] += 1
