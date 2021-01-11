@@ -215,7 +215,19 @@ is enabled, from an instance type distribution PoV.
                  "ec2.schedule.bounce_instance_cooldown" : 'minutes=10',
                  "ec2.schedule.bounce.instances_with_issue_grace_period": "minutes=5",
                  "ec2.schedule.draining.instance_cooldown": "minutes=2",
-                 "ec2.schedule.start.warmup_delay": "minutes=2",
+                 "ec2.schedule.start.warmup_delay,Stable": {
+                    "DefaultValue": "minutes=2",
+                    "Format": "Duration",
+                    "Description": """Minimum delay for node readiness.
+
+After an instance start, CloneSquad will consider it in 'initializing' state for the specified minimum amount of time.
+
+When at least one instance is in 'initializing' state in a fleet, no other instance can be placed in `draining` state meanwhile:
+This delay is meant to let new instances to succeed their initialization.
+
+If an application takes a long time to be ready, it can be useful to increase this value.
+                 """
+                 },
                  "ec2.schedule.burstable_instance.max_cpu_credit_unhealthy_instances,Stable" : {
                      "DefaultValue" : "1",
                      "Format"       : "IntegerOrPercentage",
@@ -273,12 +285,13 @@ When specified in percentage, 100% represents the ['Maximum earned credits than 
                  },
                  "ec2.schedule.metrics.time_resolution": "60",
                  "ec2.schedule.spot.min_stop_period": {
-                         "DefaultValue": "minutes=4",
+                         "DefaultValue": "minutes=0",
                          "Format"      : "Duration",
-                         "Description" : """Minimum duration a Spot instance needs to spend in 'stopped' state.
+                         "Description" : """Minimum duration a Spot instance needs to spend in 'stopped' state before to allow a start.
 
-A very recently stopped persistent Spot instance can not be restarted immediatly for technical reasons. This 
-parameter should NOT be modified by user.
+A very recently stopped persistent Spot instance may not be restartable immediatly for AWS technical reasons. This 
+parameter is kept for backward compatibility. Since version 0.13, CloneSquad is able to manage automatically Spot instances
+that need a technical grace period so there should no need to set a value different of 0 for this parameter.
                          """
                  },
                  "cloudwatch.subfleet.use_dashboard,Stable": {
@@ -395,6 +408,8 @@ By default, the dashboard is enabled.
         xray_recorder.begin_subsegment("prerequisites:prepare_instance_lists")
         log.debug("Computing all instance lists needed for scheduling")
         cache = {} # Avoid to compute many times the same thing by providing a cache 
+        self.all_instances                                        = self.ec2.get_instances(cache=cache)
+        self.pending_running_instances                            = self.ec2.get_instances(cache=cache, State="pending,running")
         self.instances_wo_excluded                                = self.ec2.get_instances(cache=cache, ScalingState="-excluded")
         self.instances_wo_excluded_error                          = self.ec2.get_instances(cache=cache, instances=self.instances_wo_excluded, ScalingState="-error")
         self.running_instances_wo_excluded                        = self.ec2.get_instances(cache=cache, instances=self.instances_wo_excluded, State="running")
@@ -462,9 +477,9 @@ By default, the dashboard is enabled.
 
         # Register dynamic keys for subfleets
         for subfleet in self.ec2.get_subfleet_names():
-            extended_metrics = Cfg.get_int("subfleet.%s.ec2.schedule.metrics.enable" % subfleet) 
-            log.log(log.NOTICE, "Enabled detailed metrics for subfleet '%s'." % subfleet)
+            extended_metrics = Cfg.get_int(f"subfleet.{subfleet}.ec2.schedule.metrics.enable") 
             if extended_metrics:
+                log.log(log.NOTICE, f"Enabled detailed metrics for subfleet '{subfleet}' (subfleet.{subfleet}.ec2.schedule.metrics.enable != 0).")
                 dimensions = [{
                     "Name": "SubfleetName",
                     "Value": subfleet}]
@@ -1098,6 +1113,87 @@ By default, the dashboard is enabled.
                 self.ec2.start_instances([instance_id])
                 self.scaling_state_changed = True
 
+    def subfleet_action(self, subfleet, delta, cache=None):
+        def _verticalscale_sort_and_warn(subfleet, candidates, reverse=False):
+            """ Take into account vertical scaling policy if it exists for the subfleet.
+                Warn the user if inconsistencies are detected.
+            """
+            vertical_sorted_instances = self.verticalscaling_sort_instances(
+                    Cfg.get(f"subfleet.{subfleet}.ec2.schedule.verticalscale.instance_type_distribution"), 
+                    candidates, reverse=reverse)
+            candidates = []
+            if not reverse:
+                # Candidates instance matching the policy will be listed first
+                candidates.extend(vertical_sorted_instances["non_lh_instances"])
+                candidates.extend(vertical_sorted_instances["non_lh_instances_not_matching_policy"])
+            else:
+                # Candidates instance NOT matching the policy will be listed first
+                candidates.extend(vertical_sorted_instances["non_lh_instances_not_matching_policy"])
+                candidates.extend(vertical_sorted_instances["non_lh_instances"])
+
+            if len(vertical_sorted_instances["directives"]) and len(vertical_sorted_instances["non_lh_instances_not_matching_policy"]):
+                log.warning(f"Instances %s in subfleet {subfleet} do not match the vertical policy specified in "
+                        f"`subfleet.{subfleet}.ec2.schedule.verticalscale.instance_type_distribution`. They will be managed as "
+                        "low priority. Please adjust your vertical policy or instance type to allow vertical scaler normal operations." %
+                        ([(i["InstanceId"], i["InstanceType"]) for i in vertical_sorted_instances["non_lh_instances_not_matching_policy"]]))
+            if len(vertical_sorted_instances["lh_instances"]):
+                log.warning(f"Instances %s in subfleet {subfleet} are marked as LightHouse in the vertical policy specified in "
+                        f"`subfleet.{subfleet}.ec2.schedule.verticalscale.instance_type_distribution`. LightHouse instances are not "
+                        "supported in subfleets and will be ignored/non scheduled." % 
+                        ([i["InstanceId"] for i in vertical_sorted_instances["lh_instances"]]))
+            return candidates
+        
+        fleet_instances        = self.ec2.get_subfleet_instances(subfleet_name=subfleet) # Retrieve all instances matching the subfleet_name
+        min_instance_count     = max(0, Cfg.get_abs_or_percent(f"subfleet.{subfleet}.ec2.schedule.min_instance_count",
+            0, len(fleet_instances)) )
+        desired_instance_count = max(0, Cfg.get_abs_or_percent(f"subfleet.{subfleet}.ec2.schedule.desired_instance_count", 
+            len(fleet_instances), len(fleet_instances)))
+
+        instance_count    = max(min_instance_count, desired_instance_count)
+        running_instances = self.ec2.get_instances(cache=cache, instances=fleet_instances, 
+                State="pending,running", ScalingState="-error,draining,bounced")
+        stopped_instances = self.ec2.get_instances(cache=cache, instances=fleet_instances, State="stopped")
+        delta             = instance_count - len(running_instances) + delta
+        if delta > 0:
+            candidates = _verticalscale_sort_and_warn(subfleet, stopped_instances)
+            # Sort again to respect AZ balancing especially
+            candidates = self.sort_and_filter_stopped_instance_candidates(running_instances, candidates) 
+            instances_to_start = [ i["InstanceId"] for i in candidates ]
+            if delta > len(instances_to_start):
+                # If we can't start the request number of instances, we set a letter box variable
+                #   to ask stop_drained_instances() to release immediatly this amount of 'draining' 
+                #   instances if possible
+                missing_count = delta - len(instances_to_start)
+                log.info("Require %d more subfleet '%s' instances! Try to forcibly stop instances in 'cpu crediting' state..." 
+                        % (missing_count, subfleet))
+                self.letter_box_subfleet_to_stop_drained_instances[subfleet] = delta - len(instances_to_start)
+            if len(instances_to_start):
+                log.info("Starting up to %d subfleet instance(s) (fleet=%s)..." % (len(instances_to_start), subfleet))
+                self.ec2.start_instances(instances_to_start, max_started_instances=delta)
+                self.scaling_state_changed = True
+        if delta < 0:
+            now                    = self.context["now"]
+            warmup_delay           = Cfg.get_duration_secs("ec2.schedule.start.warmup_delay")
+            initializing_instances = []
+            for i in running_instances:
+                if self.ec2.is_instance_state(i["InstanceId"], ["initializing"]) or (now - i["LaunchTime"]).total_seconds() < warmup_delay:
+                    initializing_instances.append(i)
+
+            if len(initializing_instances):
+                log.info(f"Instances %s in subfleet '{subfleet}' are still initializing... Can not drain any new instances now..." %
+                        [i["InstanceId"] for i in initializing_instances])
+            else:
+                candidates             = _verticalscale_sort_and_warn(subfleet, running_instances, reverse=True)
+                # Sort again to respect AZ balancing especially
+                candidates             = self.filter_running_instance_candidates(candidates)
+                if len(candidates):
+                    instances_to_stop = [i["InstanceId"] for i in candidates][:-delta]
+                    if len(instances_to_stop):
+                        log.info("Draining subfleet instance(s) '%s'..." % instances_to_stop)
+                    for instance_id in instances_to_stop:
+                        self.ec2.set_scaling_state(instance_id, "draining")
+        return (min_instance_count, desired_instance_count)
+
     def manage_subfleets(self):
         """Manage start/stop actions for subfleet instances
         """
@@ -1134,96 +1230,35 @@ By default, the dashboard is enabled.
             subfleets[subfleet_name]["expected_state"] = expected_state
             subfleets[subfleet_name]["All"].append(i)
 
-        def _verticalscale_sort_and_warn(subfleet, candidates, reverse=False):
-            """ Take into account vertical scaling policy if it exists for the subfleet.
-                Warn the user if inconsistencies are detected.
-            """
-            vertical_sorted_instances = self.verticalscaling_sort_instances(
-                    Cfg.get(f"subfleet.{subfleet}.ec2.schedule.verticalscale.instance_type_distribution"), 
-                    candidates, reverse=reverse)
-            candidates = []
-            if not reverse:
-                # Candidates instance matching the policy will be listed first
-                candidates.extend(vertical_sorted_instances["non_lh_instances"])
-                candidates.extend(vertical_sorted_instances["non_lh_instances_not_matching_policy"])
-            else:
-                # Candidates instance NOT matching the policy will be listed first
-                candidates.extend(vertical_sorted_instances["non_lh_instances_not_matching_policy"])
-                candidates.extend(vertical_sorted_instances["non_lh_instances"])
-
-            if len(vertical_sorted_instances["directives"]) and len(vertical_sorted_instances["non_lh_instances_not_matching_policy"]):
-                log.warning(f"Instances %s in subfleet {subfleet} do not match the vertical policy specified in "
-                        f"`subfleet.{subfleet}.ec2.schedule.verticalscale.instance_type_distribution`. They will be managed as "
-                        "low priority. Please adjust your vertical policy or instance type to allow vertical scaler normal operations." %
-                        ([(i["InstanceId"], i["InstanceType"]) for i in vertical_sorted_instances["non_lh_instances_not_matching_policy"]]))
-            if len(vertical_sorted_instances["lh_instances"]):
-                log.warning(f"Instances %s in subfleet {subfleet} are marked as LightHouse in the vertical policy specified in "
-                        f"`subfleet.{subfleet}.ec2.schedule.verticalscale.instance_type_distribution`. LightHouse instances are not "
-                        "supported in subfleets and will be ignored/non scheduled." % 
-                        ([i["InstanceId"] for i in vertical_sorted_instances["lh_instances"]]))
-            return candidates
-        
         # Manage start/stop of 'running' subfleet
         cache = {}
         for subfleet in subfleets:
             fleet                  = subfleets[subfleet]
-            fleet_instances        = fleet["All"]
-            running_instances      = self.ec2.get_instances(cache=cache, instances=fleet_instances, 
-                    State="pending,running", ScalingState="-error,draining,bounced")
-            stopped_instances      = self.ec2.get_instances(cache=cache, instances=fleet_instances, State="stopped")
-            if len(fleet["ToStop"]):
-                instance_ids = [i["InstanceId"] for i in fleet["ToStop"]]
-                log.info("Draining subfleet instance(s) '%s'..." % instance_ids)
-                for instance_id in instance_ids:
-                    self.ec2.set_scaling_state(instance_id, "draining")
-
-            min_instance_count     = max(0, Cfg.get_abs_or_percent(f"subfleet.{subfleet}.ec2.schedule.min_instance_count",
-                0, len(fleet_instances)) )
-            desired_instance_count = max(0, Cfg.get_abs_or_percent(f"subfleet.{subfleet}.ec2.schedule.desired_instance_count", 
-                len(fleet_instances), len(fleet_instances)))
             expected_state         = fleet["expected_state"]
             if expected_state in ["undefined", ""]:
                 log.info(f"/!\ Subfleet '{subfleet}' is in 'undefined' state. No subfleet scaling action will be performed until "
                     f"subfleet.{subfleet}.state is set to 'running'! (subfleet.{subfleet}.ec2.schedule.min_instance_count and "
                     f"subfleet.{subfleet}.ec2.schedule.desired_instance_count are ignored.)")
+                continue
 
-            if len(fleet["ToStart"]):
-                instance_count = max(min_instance_count, desired_instance_count)
-                delta          = instance_count - len(running_instances)
-                if delta > 0:
-                    candidates = _verticalscale_sort_and_warn(subfleet, stopped_instances)
-                    # Sort again to respect AZ balancing especially
-                    candidates = self.sort_and_filter_stopped_instance_candidates(running_instances, candidates) 
-                    instances_to_start = [ i["InstanceId"] for i in candidates ]
-                    if delta > len(instances_to_start):
-                        # If we can't start the request number of instances, we set a letter box variable
-                        #   to ask stop_drained_instances() to release immediatly this amount of 'draining' 
-                        #   instances if possible
-                        missing_count = delta - len(instances_to_start)
-                        log.info("Require %d more subfleet '%s' instances! Try to forcibly stop instances in 'cpu crediting' state..." 
-                                % (missing_count, subfleet))
-                        self.letter_box_subfleet_to_stop_drained_instances[subfleet] = delta - len(instances_to_start)
-                    if len(instances_to_start):
-                        log.info("Starting up to %d subfleet instance(s) (fleet=%s)..." % (len(instances_to_start), subfleet))
-                        self.ec2.start_instances(instances_to_start, max_started_instances=delta)
-                        self.scaling_state_changed = True
-                if delta < 0:
-                    candidates = _verticalscale_sort_and_warn(subfleet, running_instances, reverse=True)
-                    # Sort again to respect AZ balancing especially
-                    candidates = self.filter_running_instance_candidates(candidates)
-                    if len(candidates):
-                        instances_to_stop = [i["InstanceId"] for i in candidates][:-delta]
-                        log.info("Draining subfleet instance(s) '%s'..." % instances_to_stop)
-                        for instance_id in instances_to_stop:
-                            self.ec2.set_scaling_state(instance_id, "draining")
+            if expected_state == "stopped":
+                instance_ids = [i["InstanceId"] for i in fleet["ToStop"]]
+                if len(instance_ids):
+                    log.info("Draining subfleet instance(s) '%s'..." % instance_ids)
+                for instance_id in instance_ids:
+                    self.ec2.set_scaling_state(instance_id, "draining")
+
+            if expected_state == "running":
+                # Ensure that the right number of instances are started
+                min_instance_count, desired_instance_count = self.subfleet_action(subfleet, 0, cache=cache)
 
             # Publish subfleet metrics if requested
             if Cfg.get_int(f"subfleet.{subfleet}.ec2.schedule.metrics.enable"):
                 dimensions = [{
                     "Name": "SubfleetName",
                     "Value": subfleet}]
-                running_instances  = self.ec2.get_instances(cache=cache, instances=fleet_instances, State="pending,running", ScalingState="-error")
-                draining_instances = self.ec2.get_instances(cache=cache, instances=fleet_instances, State="running", ScalingState="draining")
+                running_instances  = self.ec2.get_instances(cache=cache, instances=fleet["All"], State="pending,running", ScalingState="-error")
+                draining_instances = self.ec2.get_instances(cache=cache, instances=fleet["All"], State="running", ScalingState="draining")
                 self.cloudwatch.set_metric("Subfleet.EC2.Size", len(fleet["All"]), dimensions=dimensions)
                 self.cloudwatch.set_metric("Subfleet.EC2.RunningInstances", len(running_instances), dimensions=dimensions)
                 self.cloudwatch.set_metric("Subfleet.EC2.DrainingInstances", len(draining_instances), dimensions=dimensions)
@@ -2145,30 +2180,37 @@ By default, the dashboard is enabled.
 
     def compute_spot_exclusion_lists(self):
         # Collect all Spot instances events
-        self.spot_rebalance_recommanded = self.ec2.filter_spot_instances(self.instances_wo_excluded, EventType="+rebalance_recommended")
+        self.spot_rebalance_recommanded = self.ec2.filter_spot_instances(self.all_instances, EventType="+rebalance_recommended")
         self.spot_rebalance_recommanded_ids = [ i["InstanceId"] for i in self.spot_rebalance_recommanded ]
-        self.spot_interrupted           = self.ec2.filter_spot_instances(self.instances_wo_excluded, EventType="+interrupted")
+        self.spot_interrupted           = self.ec2.filter_spot_instances(self.all_instances, EventType="+interrupted")
         self.spot_interrupted_ids       = [ i["InstanceId"] for i in self.spot_interrupted ]
+        self.spot_excluded_instance_ids.extend(self.spot_rebalance_recommanded_ids)
+        self.spot_excluded_instance_ids.extend(self.spot_interrupted_ids)
 
-        for event_type in [self.spot_rebalance_recommanded, self.spot_interrupted]:
-            for i in event_type:
-                instance_type  = i["InstanceType"]
-                instance_az    = i["Placement"]["AvailabilityZone"]
-                if instance_type not in self.excluded_spot_instance_types:
-                    self.excluded_spot_instance_types.append({
-                        "AvailabilityZone" : instance_az,
-                        "InstanceType"     : instance_type
-                        })
-
-        if len(self.excluded_spot_instance_types):
-            log.warning("Some instance types (%s) are temporarily blacklisted for Spot use as marked as interrupted or close to interruption!" %
-                    self.excluded_spot_instance_types)
-
-        self.instances_wo_excluded_error_spotexcluded = self.ec2.filter_spot_instances(self.instances_wo_excluded_error, 
-                filter_out_instance_types=self.excluded_spot_instance_types)
+        # Uncomment this to enable blacklisting of all instances sharing the same type and AZ than the ones that received a Spot message.
+        #    TODO: Clarify if this strategy could render useful in real life and propose a toggle to activate it.
+        #
+        #for event_type in [self.spot_rebalance_recommanded, self.spot_interrupted]:
+        #    for i in event_type:
+        #        instance_type  = i["InstanceType"]
+        #        instance_az    = i["Placement"]["AvailabilityZone"]
+        #        if instance_type not in self.excluded_spot_instance_types:
+        #            self.excluded_spot_instance_types.append({
+        #                "AvailabilityZone" : instance_az,
+        #                "InstanceType"     : instance_type
+        #                })
+        #if len(self.excluded_spot_instance_types):
+        #    log.warning("Some instance types (%s) are temporarily blacklisted for Spot use as marked as interrupted or close to interruption!" %
+        #            self.excluded_spot_instance_types)
         # Gather all instance ids of interrupted Spot instances
-        for i in self.ec2.filter_spot_instances(self.instances_wo_excluded, filter_in_instance_types=self.excluded_spot_instance_types, match_only_spot=True):
-            self.spot_excluded_instance_ids.append(i["InstanceId"])
+        #for i in self.ec2.filter_spot_instances(self.pending_running_instances, filter_in_instance_types=self.excluded_spot_instance_types, match_only_spot=True):
+        #    if i["InstanceId"] not in self.spot_excluded_instance_ids:
+        #        self.spot_excluded_instance_ids.append(i["InstanceId"])
+
+        self.instances_wo_spotexcluded                = self.ec2.filter_spot_instances(self.all_instances, 
+                filter_out_instance_types=self.excluded_spot_instance_types)
+        self.instances_wo_excluded_error_spotexcluded = self.ec2.get_instances(self.instances_wo_spotexcluded, ScalingState="-error,excluded") 
+
 
     def manage_spot_events(self):
         if len(self.spot_rebalance_recommanded_ids):
@@ -2184,20 +2226,38 @@ By default, the dashboard is enabled.
                 log.info(f"Set 'draining' state for Spot interrupted instance '{instance_id}'.")
 
         # Launch new instances when some Spot instances have been just 'recommended' or 'interrupted'
-        known_spot_advisories    = self.ec2.get_state_json("ec2.schedule.instance.spot.known_spot_advisories", default={})
+        subfleet_deltas          = defaultdict(int)
+        known_spot_advisories    = self.ec2.get_state_json("ec2.schedule.instance.spot.known_spot_advisories", default=None)
+        if known_spot_advisories is None:
+            known_spot_advisories = {}
         instance_count_to_launch = 0
-        for i in self.spot_rebalance_recommanded_ids:
-            if i not in known_spot_advisories and i not in self.spot_interrupted_ids:
-                log.info(f"Instance '{i}' just got 'Spot recommended'. Launch immediatly a new instance to anticipate a possible interruption!")
-                known_spot_advisories[i] = "recommended"
-                instance_count_to_launch += 1
-        for i in self.spot_interrupted_ids:
-            if i not in known_spot_advisories or known_spot_advisories[i] != "interrupted":
-                log.info(f"Instance '{i}' just got 'Spot interrupted'. Launch immediatly a new instance!")
-                known_spot_advisories[i] = "interrupted"
-                instance_count_to_launch += 1
+        for i in self.spot_rebalance_recommanded:
+            instance_id = i["InstanceId"]
+            if instance_id not in known_spot_advisories and instance_id not in self.spot_interrupted_ids:
+                log.info(f"Instance '{instance_id}' just got 'Spot rebalance recommended' message. Launch immediatly "
+                    "a new instance to anticipate a possible interruption!")
+                known_spot_advisories[instance_id] = "recommended"
+                if not self.ec2.is_subfleet_instance(instance_id):
+                    instance_count_to_launch += 1
+                else:
+                    subfleet_deltas[self.ec2.get_subfleet_name_for_instance(i)] += 1
+        for i in self.spot_interrupted:
+            instance_id = i["InstanceId"]
+            if instance_id not in known_spot_advisories or known_spot_advisories[instance_id] != "interrupted":
+                log.info(f"Instance '{instance_id}' just got 'Spot interrupted' message. Launch immediatly a new instance!")
+                known_spot_advisories[instance_id] = "interrupted"
+                if not self.ec2.is_subfleet_instance(instance_id):
+                    instance_count_to_launch += 1
+                else:
+                    subfleet_deltas[self.ec2.get_subfleet_name_for_instance(i)] += 1
+
         if instance_count_to_launch:
             self.instance_action(self.useable_instance_count + instance_count_to_launch, "manage_spot_events")
+
+        cache = {}
+        for subfleet in subfleet_deltas:
+            log.info(f"Due to Spot instance status change, %d instances have to be started in subfleet '{subfleet}'." % subfleet_deltas[subfleet])
+            self.subfleet_action(subfleet, subfleet_deltas[subfleet], cache=cache)
 
         # Garbage collect old instance notifications
         for i in list(known_spot_advisories.keys()):

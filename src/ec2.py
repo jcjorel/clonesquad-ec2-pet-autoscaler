@@ -7,12 +7,14 @@ import yaml
 from datetime import datetime
 from datetime import timedelta
 from collections import defaultdict
+from botocore.exceptions import ClientError
 
 import misc
 import kvtable
 import config as Cfg
 import debug as Dbg
 from notify import record_call as R
+from notify import record_call_extended as R_xt
 
 from aws_xray_sdk.core import xray_recorder
 from aws_xray_sdk.core import patch_all
@@ -411,32 +413,53 @@ without any TargetGroup but another external health instance source exists).
         now = self.context["now"]
 
         max_startable_instances = max_started_instances if max_started_instances != -1 else len(instance_ids_to_start)
-        def _check_response():
+
+        def _check_response(need_longterm_record, response, ex):
             nonlocal max_startable_instances
             log.debug(Dbg.pprint(response))
-            metadata = response["ResponseMetadata"]
-            if metadata["HTTPStatusCode"] == 200:
-                s = response["StartingInstances"]
-                for r in s:
-                    instance_id    = r["InstanceId"]
-                    previous_state = r["PreviousState"]
-                    current_state  = r["CurrentState"]
-                    if current_state["Name"] in ["pending", "running"]:
-                        self.set_state("ec2.instance.last_start_date.%s" % instance_id, now,
-                                TTL=Cfg.get_duration_secs("ec2.state.status_ttl"))
-                        max_startable_instances -= 1
-                        # Update statuses
-                        instance = self.get_instance_by_id(instance_id)
-                        instance["State"]["Code"] = 0
-                        instance["State"]["Name"] = "pending"
-                    else:
-                        log.error("Failed to start instance '%s'! Blacklist it for a while... (pre/current status=%s/%s)" %
-                                (instance_id, previous_state["Name"], current_state["Name"]))
-                        self.set_scaling_state(instance_id, "error", ttl=Cfg.get_duration_secs("ec2.state.error_ttl"))
-                        R(None, self.instance_in_error, Operation="start", InstanceId=instance_id, 
-                                PreviousState=previous_state["Name"], CurrentState=current_state["Name"])
-            else:
-                log.error("Failed to call start_instances: %s" % i)
+            if ex is None:
+                metadata = response["ResponseMetadata"]
+                if metadata["HTTPStatusCode"] == 200:
+                    s = response["StartingInstances"]
+                    for r in s:
+                        instance_id    = r["InstanceId"]
+                        previous_state = r["PreviousState"]
+                        current_state  = r["CurrentState"]
+                        if current_state["Name"] in ["pending", "running"]:
+                            self.set_state("ec2.instance.last_start_date.%s" % instance_id, now,
+                                    TTL=Cfg.get_duration_secs("ec2.state.status_ttl"))
+                            max_startable_instances -= 1
+                            # Update statuses
+                            instance = self.get_instance_by_id(instance_id)
+                            instance["State"]["Code"] = 0
+                            instance["State"]["Name"] = "pending"
+                        else:
+                            log.error("Failed to start instance '%s'! Blacklist it for a while... (pre/current status=%s/%s)" %
+                                    (instance_id, previous_state["Name"], current_state["Name"]))
+                            self.set_scaling_state(instance_id, "error", ttl=Cfg.get_duration_secs("ec2.state.error_ttl"))
+                            R(None, self.instance_in_error, Operation="start", InstanceId=instance_id, 
+                                    PreviousState=previous_state["Name"], CurrentState=current_state["Name"])
+                else:
+                    log.error(f"Failed to call start_instances: {response}")
+
+            need_shortterm_record = True
+            if ex is not None:
+                # If we received an IncorrectSpotRequestState exception, we do not create short and long term record (=do not notify 
+                #   user) as it could happen when a Spot instance has recently been shutdown.
+                try:
+                    if ex.response['Error']['Code'] == 'IncorrectSpotRequestState':
+                        log.log(log.NOTICE, "Failed to start a Spot instance (IncorrectSpotRequestState) among these instances to "
+                                f"start {instance_ids_to_start}. It could happen when a Spot has been recently stopped. Will try again next time...")
+                        need_shortterm_record  = False
+                        need_longterm_record   = False
+                except:
+                    pass
+
+            # Instruct the notify handler about what to do regarding record creation
+            return { 
+                "need_shortterm_record": need_shortterm_record,
+                "need_longterm_record": need_longterm_record}
+
 
         client = self.context["ec2.client"]
         ids    = instance_ids_to_start
@@ -454,22 +477,20 @@ without any TargetGroup but another external health instance source exists).
             log.info("Starting instances %s..." % to_start)
             response = None
             try:
-                response = R(lambda args, kwargs, r: r["ResponseMetadata"]["HTTPStatusCode"] == 200,
+                response = R_xt(_check_response, lambda args, kwargs, r: r["ResponseMetadata"]["HTTPStatusCode"] == 200,
                     client.start_instances, InstanceIds=to_start
                 )
-                _check_response()
             except Exception as e:
-                log.warning("Got Exception while trying to start instance(s) '%s' : %s" % (to_start, e))
-                # We failed to start all instances at once. Try one by one...
+                log.log(log.NOTICE, f"Got Exception while trying to start instance(s) '{to_start}' : {e}. Trying again one-by-one...")
                 for i in to_start:
                     try:
-                        response = R(lambda args, kwargs, r: r["ResponseMetadata"]["HTTPStatusCode"] == 200,
+                        response = R_xt(_check_response, lambda args, kwargs, r: r["ResponseMetadata"]["HTTPStatusCode"] == 200,
                             client.start_instances, InstanceIds=[i]
                         )
-                        _check_response()
-                    except Exception as e:
-                        log.warning("Got Exception while trying to start instance '%s' : %s" % (i, e))
-                        self.set_scaling_state(i, "error", ttl=Cfg.get_duration_secs("ec2.state.error_ttl"))
+                    except ClientError as e:
+                        if e.response['Error']['Code'] != 'IncorrectSpotRequestState':
+                            log.warning("Got Exception while trying to start instance '%s' : %s" % (i, e))
+                            self.set_scaling_state(i, "error", ttl=Cfg.get_duration_secs("ec2.state.error_ttl"))
 
 
     def stop_instances(self, instance_ids_to_stop):
@@ -822,7 +843,7 @@ without any TargetGroup but another external health instance source exists).
 
     def get_state_json(self, key, default=None, direct=False):
         try:
-            return misc.decode_json(self.get_state(key, default=default, direct=direct))
+            return misc.decode_json(self.get_state(key, direct=direct))
         except:
             return default
 
@@ -954,7 +975,7 @@ without any TargetGroup but another external health instance source exists).
     def get_spot_event(ctx, instance_id, reason, default=None):
         v = ctx["o_ec2"].get_state("ec2.instance.spot.event.%s.%s_at" % (instance_id, reason))
         try:
-            if v is None or (ctx["now"] - misc.str2utc(v)).total_seconds() > Cfg.get_duration_secs("ec2.instance.spot.event.rebalance_recommended_at_ttl"):
+            if v is None or (ctx["now"] - misc.str2utc(v)).total_seconds() > Cfg.get_duration_secs(f"ec2.instance.spot.event.{reason}_at_ttl"):
                 return default
         except:
             return default
@@ -964,6 +985,7 @@ without any TargetGroup but another external health instance source exists).
     def set_spot_event(ctx, instance_id, reason, now):
         ctx["o_ec2"].set_state("ec2.instance.spot.event.%s.%s_at" % (instance_id, reason), now,
             TTL=Cfg.get_duration_secs("ec2.instance.spot.event.%s_at_ttl" % reason))
+        ctx["o_ec2"].set_state("cache.flush", "1") # Force state cache flush
 
 def manage_spot_notification(sqs_record, ctx):
     try:
@@ -981,7 +1003,7 @@ def manage_spot_notification(sqs_record, ctx):
         func   = spot_rebalance_recommandation_request
     else:
         return False
-    log.log(log.NOTICE, Dbg.pprint(sqs_record))
+    log.log(log.NOTICE, json.dumps(sqs_record))
 
     now         = ctx["now"]
     instance_id = body["detail"]["instance-id"]

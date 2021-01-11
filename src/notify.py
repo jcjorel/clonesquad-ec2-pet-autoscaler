@@ -28,29 +28,31 @@ this.notify_mgr    = None
 this.do_not_notify = False
 
 def record_call(is_success_func, f, *args, **kwargs):
-    return _record_call(None, True, is_success_func, f, *args, **kwargs)
+    return record_call_extended({},                              is_success_func, f, *args, **kwargs)
 
 def record_call_lt(is_success_func, f, *args, **kwargs):
-    return _record_call(None, False, is_success_func, f, *args, **kwargs)
+    return record_call_extended({"need_shortterm_record": False}, is_success_func, f, *args, **kwargs)
 
 def record_call_prefix(prefix, is_success_func, f, *args, **kwargs):
-    return _record_call(prefix, True, is_success_func, f, *args, **kwargs)
+    return record_call_extended({"prefix": prefix},              is_success_func, f, *args, **kwargs)
 
 @xray_recorder.capture()
-def _record_call(prefix, need_shortterm_record, is_success_func, f, *args, **kwargs):
+def record_call_extended(records_args, is_success_func, f, *args, **kwargs):
     global this
     record = {}
-    record["EventType"] = f.__name__ if prefix is None else "%s.%s" % (prefix, f.__name__)
     record["Input"] = { 
             "*args": list(args),
             "**kwargs": dict(kwargs)
         }
 
-    managed_exception = None
+    managed_exception    = None
+    need_longterm_record = True
+    r                    = None
     xray_recorder.begin_subsegment("notifycall-call:%s" % f.__name__)
     try:
         r =  f(*args, **kwargs)
-        record["Output"] = json.dumps(r, default=str)
+        record["Output"]     = json.dumps(r, default=str)
+        need_longterm_record = not is_success_func(args, kwargs, r) if is_success_func is not None else False 
     except Exception as e:
         managed_exception = e
         record["Except"] = {
@@ -58,8 +60,21 @@ def _record_call(prefix, need_shortterm_record, is_success_func, f, *args, **kwa
                 "Stackstrace": traceback.extract_stack(),
                 "Reason": json.dumps(e, default=str)
             }
-        log.exception("Notify handler captured exception:")
+        if not callable(records_args):
+            log.exception("Notify handler captured exception:")
     xray_recorder.end_subsegment()
+
+    if callable(records_args):
+        # A function is passed. Call it to get customized record arguments
+        try:
+            records_args = records_args(need_longterm_record, r, managed_exception)
+        except Exception as e:
+            log.exception(f"Failed to call record argument supplied function! : {e}")
+
+    need_shortterm_record = records_args.get("need_shortterm_record", True)
+    need_longterm_record  = records_args.get("need_longterm_record", need_longterm_record)
+    prefix                = records_args.get("prefix", None)
+    record["EventType"] = f.__name__ if prefix is None else "%s.%s" % (prefix, f.__name__)
 
     if managed_exception is not None:
         # Persist now all aggregated data to not lose them
@@ -76,10 +91,11 @@ def _record_call(prefix, need_shortterm_record, is_success_func, f, *args, **kwa
             raise managed_exception
         return r
 
-    ctx    = this.notify_mgr.context
+    ctx = this.notify_mgr.context
 
     try:
-        need_longterm_record = managed_exception is not None or not is_success_func(args, kwargs, r) if is_success_func is not None else False
+        if "need_longterm_record" not in records_args:
+            need_longterm_record = managed_exception is not None or need_longterm_record
     except Exception as e:
         log.exception("Got an exception while assessing long term event management : %s" % e)
         need_longterm_record = True

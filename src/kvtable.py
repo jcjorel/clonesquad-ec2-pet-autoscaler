@@ -41,9 +41,16 @@ class KVTable():
         existing_object = next(filter(lambda o: o.table_name == table_name, all_kv_objects), None)
         if not use_cache or existing_object is None:
             return KVTable(context, table_name, aggregates=aggregates)
+
         if (existing_object.table_last_read_date is not None and 
                 (context["now"] - existing_object.table_last_read_date).total_seconds() > Cfg.get_duration_secs("config.cache.max_age")):
                 return KVTable(context, table_name, aggregates=aggregates)
+
+        flush = KVTable.get_kv_direct("cache.flush", table_name)
+        if flush in ["1", "2"]:
+            if flush == "1":
+                KVTable.set_kv_direct("cache.flush", "0", table_name, TTL=0)
+            return KVTable(context, table_name, aggregates=aggregates)
         return existing_object
 
     def reread_table(self, force_reread=False):
@@ -56,7 +63,7 @@ class KVTable():
 
         self.table_last_read_date = now
 
-        # Get schame of table
+        # Get table schema
         response = client.describe_table(
                 TableName=self.table_name
             )

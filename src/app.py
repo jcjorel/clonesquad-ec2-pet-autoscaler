@@ -4,6 +4,7 @@ import math
 import sys
 import json
 import uuid
+import time
 import pdb
 from datetime import datetime
 from datetime import timedelta
@@ -349,6 +350,19 @@ def is_called_too_early():
                 (ctx["now"], delay, delta)) 
         return True
     return False
+
+def debug_main_handler(event, context):
+    """ Used for debugging purpose.
+    As it is looping for ever on the main_handler(), it simulates well an initialized Lambda node with Python
+    context re-use.
+    """
+    while True:
+        try:
+            main_handler(event, context)
+            time.sleep(10)
+        except:
+            log.exception("Go Exception:")
+            pdb.set_trace() # debug_main_handler
 
 if __name__ == '__main__':
     # To ease debugging, the Lambda Python code can be started inside the DevKit
