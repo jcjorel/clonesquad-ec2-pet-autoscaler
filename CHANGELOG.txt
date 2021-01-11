@@ -1,7 +1,7 @@
 v0.13.0:
 - (Improvment/Major) On Spot recommendation, new instances are started automatically. No more wait for 'Interrupted' message to do that.
-- (Improvment/Minor) Removed the grace period before Spot instance can be restarted after a shutdown.
-- (Improvment/Minor) No more need to manually enable support for RDS and TransferFamily.
+- (Improvment/Minor) Removed the grace period before a Spot instance can be restarted after a shutdown.
+- (Improvment/Minor) No more need to manually enable support for RDS and TransferFamily. This is now automatic.
 
 v0.12.0:
 - (Improvment/Major) Vertical scaling is now supported in subfleets (by default, Spot instances are favored over On-Demand. Can be changed.)
