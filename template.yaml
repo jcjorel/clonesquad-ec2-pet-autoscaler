@@ -105,6 +105,7 @@ Resources:
                 - "sqs:SendMessage" 
               Effect: "Allow"
               Resource: !GetAtt MainQueue.Arn
+              Principal: "*"
               Condition:  
                 ArnLike: 
                   aws:SourceArn:
@@ -115,6 +116,7 @@ Resources:
                 - "sqs:*" 
               Effect: "Allow"
               Resource: !GetAtt MainQueue.Arn
+              Principal: "*"
               Condition:  
                 ArnLike: 
                   aws:SourceArn:
@@ -801,6 +803,7 @@ Resources:
                 - "SQS:SendMessage" 
               Effect: "Allow"
               Resource: !GetAtt InteractQueue.Arn
+              Principal: "*"
               Condition:  
                 ArnLike: 
                   aws:SourceArn: !Split [",", !Sub "${UserNotificationArns}" ]
@@ -809,6 +812,7 @@ Resources:
                 - "sqs:*" 
               Effect: "Allow"
               Resource: !GetAtt InteractQueue.Arn
+              Principal: "*"
               Condition:  
                 ArnLike: 
                   aws:SourceArn: !GetAtt InteractFunction.Arn
