@@ -516,7 +516,6 @@ Resources:
             Properties:
               StageName: v1
               Name: !Sub "CloneSquad-${GroupName}"
-              EndpointConfiguration: REGIONAL
               Auth:
                    DefaultAuthorizer: AWS_IAM
                    ResourcePolicy:
@@ -622,7 +621,7 @@ Resources:
                     Queue: !GetAtt MainQueue.Arn
                     BatchSize: 10
 
-    PermissionForSchedulerEvents:
+    PermissionForHeartBeatEvents:
             Type: AWS::Lambda::Permission
             Properties: 
                 Action: "lambda:InvokeFunction"
