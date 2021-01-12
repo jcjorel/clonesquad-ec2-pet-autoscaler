@@ -1,5 +1,5 @@
 v0.13.0:
-- (Improvment/Minor) Exposed hidden 'ec2.schedule.start.warmup_delay' parameter to allow modification of the default 2 minute warmup delay. Users with applications requiring long instance boot time SHOULD use this parameter to inform CloneSquad of this fact: It is always recommended to have this value set to the worst case boot time ESPECIALLY if no TargetHealth check is used (CloneSquad usage w/ TargetGroup).
+- (Improvment/Minor) New 'ec2.schedule.start.warmup_delay' parameter to allow modification of the default 2 minute warmup delay. Users with applications requiring long instance boot time SHOULD use this parameter to inform CloneSquad of this fact: It is always recommended to have this value set to the worst case boot time if no TargetHealth check is used (CloneSquad usage w/ TargetGroup).
 - (Improvment/Major) On Spot recommendation, new instances are started automatically. No more wait for 'Interrupted' message to do that.
 - (Improvment/Minor) Removed the grace period before a Spot instance can be restarted after a shutdown.
 - (Improvment/Minor) No more need to manually enable support for RDS and TransferFamily. This is now automatic.
