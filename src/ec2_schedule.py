@@ -917,6 +917,18 @@ By default, the dashboard is enabled.
     ###############################################
 
     def sort_and_filter_stopped_instance_candidates(self, active_instances, stopped_instances):
+        """ This method is used to sort and filter instances according to horizontal and vertical scaling algorithms.
+
+        This method is used both for Main and Subfleets to define the "best" order to start instances when needed.
+            - It filters out instances that are notified with Spot 'rebalance_recommended' and 'interrupted' status,
+            - If any, it filters out instance type and AZ couples that are marked as unschedulable (see compute_spot_exclusion_lists()),
+            - If 'ec2.schedule.spot.min_stop_period' is different than 0, recntly stopped Spot instances are filtered out,
+            - The latest action is to sort instances to ensure AZ fait balancing.
+
+        :param active_instances: A list of running instances that will be used to define the right instance balacing between AZs,
+        :param stopped_instances: A list of stopped instances to sort and filter as starteable candidates.
+        :return A sorted and filtered list of instances.
+        """
         # Filter out Spot instance types that we know under interruption or close to interruption
         candidate_instances = self.ec2.filter_spot_instances(stopped_instances, filter_out_instance_types=self.excluded_spot_instance_types)
         if len(candidate_instances) != len(stopped_instances):
@@ -939,7 +951,14 @@ By default, the dashboard is enabled.
         return stopped_instances
 
     def filter_autoscaled_stopped_instance_candidates(self, caller, expected_instance_count, target_for_dispatch=None):
-        """ Return a list of startable instances in the autoscaled fleet.
+        """ Return a list of startable instances (in the autoscaled fleet).
+
+        Filter and sort instance candidates to be started in 'scale up' event in the Main subfleet.
+
+        :param caller:                  The name of the module algorithm requesting a scaleout.
+        :param expected_instance_count: The absolute number of expected serving instances
+        :param target_for_dispatch:     A structure passing the expected configuration for LightHouse instance count mainly.
+        :param A filtered and sorted list of instances
         """
         disabled_azs     = self.get_disabled_azs()
         active_instances = self.pending_running_instances_wo_excluded_draining_error 
@@ -957,14 +976,17 @@ By default, the dashboard is enabled.
 
     def filter_running_instance_candidates(self, active_instances):
         """ Return a list of stoppable instances in the autoscaled fleet.
+
+        :param active_instances: List of running instances to filter and sort as candidates for stop
+        :return A list of stoppable instances
         """
-        # Ensure we picked instances in a way that we keep AZs balanced
+        # Ensure we picked instances in a way that keep AZs balanced
         active_instances = self.ec2.sort_by_balanced_az(active_instances, active_instances, smallest_to_biggest_az=False)
 
-        # If we have disabled AZs, we placed them in front to remove associated instances first
+        # If we have disabled AZs, we placed instances part of them in front of list to remove associated instances first
         active_instances = self.ec2.sort_by_prefered_azs(active_instances, prefered_azs=self.get_disabled_azs()) 
 
-        # We place instance with unuseable status in front of the list
+        # We place instances with unuseable status in front of the list
         active_instances = self.ec2.sort_by_prefered_instance_ids(active_instances, prefered_ids=self.instances_with_issues) 
 
         # Put interruped Spot instances as first candidates to stop
@@ -977,8 +999,13 @@ By default, the dashboard is enabled.
 
     @xray_recorder.capture()
     def instance_action(self, desired_instance_count, caller, reject_if_initial_in_progress=False, target_for_dispatch=None):
-        """
-        Perform action (start or stop instances) needed to achieve specified 'desired_instance_count'
+        """ Perform action (start or stop instances) needed to achieve specified 'desired_instance_count' in the Main fleet.
+
+        :param desired_instance_count:          The absolute number of instances expected to be serving.
+        :param caller:                          The name of the algorithm asking for a change in the number of instance serving.
+        :param reject_if_initial_in_progress:   If 'True', the method refuses to make any change is there is at least one instance 
+            in 'initializing' state.
+        :param target_for_dispatch:             Parameter specifically linked to expected state of 'LightHouse' instance count.
         """
         now = self.context["now"]
 
@@ -993,9 +1020,10 @@ By default, the dashboard is enabled.
         delta_instance_count    = expected_instance_count - useable_instances_count
 
         if delta_instance_count != 0: 
-            log.debug("[INFO] instance_action (%d) from '%s'... " % (delta_instance_count, caller))
+            log.debug("Instance_action (%d) from '%s'... " % (delta_instance_count, caller))
 
         if delta_instance_count > 0:
+            # Request to add new running instances (scaleout)
             max_instance_start_at_a_time = Cfg.get_int("ec2.schedule.max_instance_start_at_a_time")
             c = min(delta_instance_count, max_instance_start_at_a_time)
 
@@ -1012,11 +1040,13 @@ By default, the dashboard is enabled.
                 self.scaling_state_changed = True
 
         if delta_instance_count < 0:
-            # We need to assume that instance inserted in a target group and in a 'initial' state
-            #    can't be stated as useable instances yet. We delay downsize decision
+            # Request to remove running instances (scalein)
+            # We need to assume that instances in a 'initializing' state
+            #    can't be stated as useable instances yet. We usually prefer to delay downsize decision until there 
+            #    are not more instance in 'initializing' state to take precise decisions.
             if reject_if_initial_in_progress:
                 initial_target_instance_ids = self.get_initial_instances_ids()
-                log.log(log.NOTICE, "Number of instance target in 'initial' state: %d" % len(initial_target_instance_ids))
+                log.log(log.NOTICE, "Number of instance targets in 'initial' state: %d" % len(initial_target_instance_ids))
                 if len(initial_target_instance_ids) > 0:
                     log.log(log.NOTICE, "Some targets are still initializing. Do not consider stopping instances now...")
                     return False
@@ -1049,12 +1079,20 @@ By default, the dashboard is enabled.
         return {}
 
     def is_instance_cpu_crediting_eligible(self, i):
-       instance_type = i["InstanceType"]
-       if instance_type not in self.cpu_credits or instance_type.startswith("t2"):
-           return False # Not a burstable or not eligible instance
-       return True
+        """ Return a boolean if the specified instance is eligible to the CPU Crediting mechanism.
+        """
+        instance_type = i["InstanceType"]
+        if instance_type not in self.cpu_credits or instance_type.startswith("t2"):
+            return False # Not a burstable or not eligible instance
+        return True
 
     def is_instance_need_cpu_crediting(self, i, meta):
+       """ Return True if the specified instance need CPU Crediting.
+
+       :param i:       An instance structure
+       :param meta:    If not 'None', a dict populated with Metadata
+       :return True if the specified instance need CPU Crediting.:w
+       """
        now           = self.context["now"]
        instance_id   = i["InstanceId"]
 
@@ -1100,6 +1138,8 @@ By default, the dashboard is enabled.
 
     @xray_recorder.capture()
     def stop_drained_instances(self):
+        """ Method responsible to stop instance marked as 'draining'.
+        """
         now              = self.context["now"]
         cw               = self.cloudwatch
 
@@ -1213,8 +1253,7 @@ By default, the dashboard is enabled.
             self.scaling_state_changed = True
 
     def wakeup_burstable_instances(self):
-        """
-        Start burstable instances that are stopped for a long time and could lose their CPU Credits soon.
+        """ Start burstable instances that are stopped for a long time and could lose their CPU Credits soon (near one week stopped).
         """
         if not Cfg.get_int("ec2.schedule.burstable_instance.preserve_accrued_cpu_credit"):
             log.log(log.NOTICE, "Burstable instance CPU Credit preservation disabled (ec2.schedule.burstable_instance.preserve_accrued_cpu_credit=0).")
@@ -1235,6 +1274,15 @@ By default, the dashboard is enabled.
                 self.scaling_state_changed = True
 
     def subfleet_action(self, subfleet, delta, cache=None):
+        """ Method responsable to change the amount of running instances is a subfleet.
+
+        It is similar to instance_action() but to manage subfleet instance count.
+        The method is responsible to start/stop instances based on vertical scaling policy and instance conditions ('initializing', too young etc...)
+
+        :param subfleet:    Name of the subfleet to manage
+        :param delta:       Number of instances to start or stop in the subfleet
+        :param cache:       (Optional) Pass a dict object that is used a cache for subsequent get_instances()
+        """
         def _verticalscale_sort_and_warn(subfleet, candidates, reverse=False):
             """ Take into account vertical scaling policy if it exists for the subfleet.
                 Warn the user if inconsistencies are detected.
@@ -1276,6 +1324,9 @@ By default, the dashboard is enabled.
         stopped_instances = self.ec2.get_instances(cache=cache, instances=fleet_instances, State="stopped")
         delta             = instance_count - len(running_instances) + delta
         if delta > 0:
+            # Request to add new running instances.
+
+            # Sort candidates to start based on the vertical policy
             candidates = _verticalscale_sort_and_warn(subfleet, stopped_instances)
             # Sort again to respect AZ balancing especially
             candidates = self.sort_and_filter_stopped_instance_candidates(running_instances, candidates) 
@@ -1293,6 +1344,7 @@ By default, the dashboard is enabled.
                 self.ec2.start_instances(instances_to_start, max_started_instances=delta)
                 self.scaling_state_changed = True
         if delta < 0:
+            # Request to stop running instances.
             now                    = self.context["now"]
             warmup_delay           = Cfg.get_duration_secs("ec2.schedule.start.warmup_delay")
             initializing_instances = []
@@ -1316,7 +1368,7 @@ By default, the dashboard is enabled.
         return (min_instance_count, desired_instance_count)
 
     def manage_subfleets(self):
-        """Manage start/stop actions for subfleet instances
+        """ Module entrypoint for subfleet instance management.
         """
         instances = self.subfleet_instances
         subfleets = {}
@@ -1391,6 +1443,8 @@ By default, the dashboard is enabled.
                     self.cloudwatch.set_metric("Subfleet.EC2.DesiredInstanceCount", None, dimensions=dimensions)
 
     def generate_subfleet_dashboard(self):
+        """ Create / Destroy CloudWatch dashboards.
+        """
         now                = self.context["now"]
         dashboard          = { "widgets": [] }
         subfleets          = sorted(self.ec2.get_subfleet_names())
@@ -1463,8 +1517,7 @@ By default, the dashboard is enabled.
 
     @xray_recorder.capture()
     def scale_desired(self):
-        """
-        Take scale decisions based on Min/Desired criteria
+        """ Module entrypoint to take scale decisions based on 'ec2.schedule.desired_instance_count' criteria
         """
         if self.scaling_state_changed:
             return
@@ -1485,13 +1538,14 @@ By default, the dashboard is enabled.
 
     
     def scale_bounce_is_draining_condition(self):
+        """ Return 'True' if the bouncing algorithm is allowed to stop instances now.
+        """
         scale_down_disabled = Cfg.get_int("ec2.schedule.scalein.disable") != 0
         return scale_down_disabled or self.instance_scale_score < Cfg.get_float("ec2.schedule.scalein.threshold_ratio")
 
     @xray_recorder.capture()
     def scale_bounce(self):
-        """
-        IF configured, bounce old out-of-date by spawning new ones
+        """ IF configured, bounce old out-of-date instances by spawning new ones.
         """
         if self.scaling_state_changed:
             return
@@ -1500,7 +1554,7 @@ By default, the dashboard is enabled.
         bounce_delay_delta             = timedelta(seconds=Cfg.get_duration_secs("ec2.schedule.bounce_delay"))
         bounce_instance_cooldown_delta = timedelta(seconds=Cfg.get_duration_secs("ec2.schedule.bounce_instance_cooldown"))
 
-        instances = self.pending_running_instances_wo_excluded # ec2.get_instances(State="pending,running", ScalingState="-excluded")
+        instances = self.pending_running_instances_wo_excluded 
         bouncing_ids = []
         if self.scale_bounce_is_draining_condition():
             most_recent_bouncing_action = None
