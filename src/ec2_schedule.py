@@ -1,3 +1,37 @@
+""" ec2_schedule.py
+
+License: MIT
+
+This module is responsible to take all scheduling decisions of EC2 instances under management.
+
+As a top level module, it as dependencies with almost all lower level modules (state.py, misc.py, targetgroup.py, ec2.py).
+
+The modules manages:
+    * Autoscaling of Main fleet,
+        - ScalinIn/ScaleOut algorithms,
+        - Vertical scaling algorithm.
+    * Manual scaling of Main fleet and subfleet,
+    * Instance bouncing,
+    * Business logic for Spot management ('ec2.py' is responsible for the machinery to intercept and store the EC2 Spot SQS messages),
+    * Publication of EC2 scaling metrics (from Main and Subfleets)
+    * Generation of scaling events ("run_instances", "stop_instances"...)
+    * Creation and Update of CloudWatch dashboards (Main and Subfleets)
+
+As all other major modules, the get_prerequisites() method will pre-compute all data needed for all the algorithms. The overall logic
+is that all code outside the get_prerequisites() must work only with data gathered and synthesized in get_prerequisites(). This constraint
+ensure easier debugging and more predectible behaviors of various algorithms.
+
+__init__():
+    - As usual, get_prerequisites() registers configuration and CloudWatch attached to the local namespace ("ec2.schedule" here).
+
+get_prerequisites():
+    - Scaling algorithms are making an intensive use of instance list sorted and filtered in various manner. To avoid a constant recalculation,
+        most used list are pre-computed in this function.
+
+schedule_instances():
+    - Module entrypoint that will dispatch sequentially works to the remaining module code.
+
+"""
 import math
 import re
 import boto3
@@ -26,6 +60,10 @@ log = cslog.logger(__name__)
 class EC2_Schedule:
     @xray_recorder.capture(name="EC2_Schedule.__init__")
     def __init__(self, context, ec2, targetgroup, cloudwatch):
+        """ Initialize the module-wide variables and register configuration keys and associated documentation.
+        
+        NOTE: This function must be calleable from the cs-format-documentation tool so dependencies must be kept light.
+        """
         self.context                  = context
         self.ec2                      = ec2
         self.targetgroup              = targetgroup
@@ -308,6 +346,7 @@ By default, the dashboard is enabled.
 
         self.state_ttl = Cfg.get_duration_secs("ec2.schedule.state_ttl")
 
+        # Register Metrics for this module
         self.metric_time_resolution = Cfg.get_int("ec2.schedule.metrics.time_resolution")
         if self.metric_time_resolution or misc.is_sam_local() < 60: metric_time_resolution = 1 # Switch to highest resolution
 
@@ -386,6 +425,8 @@ By default, the dashboard is enabled.
                   "StorageResolution": self.metric_time_resolution },
             ])
 
+        # All state keys deeper than 'ec2.scheduler.instance.*' are collapsed in an aggregate stored compressed in DynamoDB
+        #   (Aggregates are used to reduce calls to DynamoDB and so associated costs).
         self.ec2.register_state_aggregates([
             {
                 "Prefix": "ec2.schedule.instance.",
@@ -397,8 +438,10 @@ By default, the dashboard is enabled.
 
 
     def get_prerequisites(self):
-        self.cpu_credits = yaml.safe_load(str(misc.get_url("internal:cpu-credits.yaml"),"utf-8"))
-        self.ec2_alarmstate_table   = kvtable.KVTable(self.context, self.context["AlarmStateEC2Table"])
+        """ This method loads, gathers and prepares data needed by all others methods in this module.
+        """
+        self.cpu_credits          = yaml.safe_load(str(misc.get_url("internal:cpu-credits.yaml"),"utf-8"))
+        self.ec2_alarmstate_table = kvtable.KVTable(self.context, self.context["AlarmStateEC2Table"])
         self.ec2_alarmstate_table.reread_table()
 
         # The scheduler part is making an extensive use of filtered/sorted lists that could become
@@ -457,14 +500,15 @@ By default, the dashboard is enabled.
         xray_recorder.end_subsegment()
 
 
-        # Garbage collect incorrect statuses (can happen when user stop the instance 
-        #   directly on console
+        # Garbage collect incorrect/unsync statuses (can happen when user stop the instance 
+        #   directly on the AWS console)
         instances = self.stopped_instances_bounced_draining 
         for i in instances:
             instance_id = i["InstanceId"]
-            log.debug("Garbage collection instance '%s' with improper 'draining' status..." % instance_id)
+            log.debug("Garbage collect instance '%s' with improper 'draining' status..." % instance_id)
             self.ec2.set_scaling_state(instance_id, "")
-        # Garbage collect zombie states (i.e. instances do not exist anymore but have still states
+
+        # Garbage collect zombie states (i.e. instances do not exist anymore but have still states in state table)
         instances = self.ec2.get_instances() 
         for state in self.ec2.list_states(not_matching_instances=instances):
             log.debug("Garbage collect key '%s'..." % state)
@@ -518,9 +562,13 @@ By default, the dashboard is enabled.
 
     @xray_recorder.capture()
     def generate_instance_transition_events(self):
-        #  Generate events on instance state transition 
+        """  Generate events on instance state transition.
+
+        On instance state change (ex: stopped => pending), an event 'instance_transitions' is generated that can 
+        be intercepted by users (through a Lambda function, a SNS or a SQS message).
+        """
         transitions = []
-        for instance in self.instances_wo_excluded: #ec2.get_instances(ScalingState="-excluded"):
+        for instance in self.instances_wo_excluded: 
             instance_id    = instance["InstanceId"]
             previous_state = self.ec2.get_state("ec2.schedule.instance.last_known_state.%s" % instance_id)
             if previous_state is None: previous_state = "None"
@@ -533,9 +581,12 @@ By default, the dashboard is enabled.
                     })
             self.set_state("ec2.schedule.instance.last_known_state.%s" % instance_id, current_state)
         if len(transitions):
+            # Generate an Event
             R(None, self.instance_transitions, Transitions=transitions)
 
     def instance_transitions(self, Transitions=None):
+        """ This method is only for its signature will be reflected in the generated event.
+        """
         return {}
 
 
@@ -545,16 +596,36 @@ By default, the dashboard is enabled.
     ###############################################
 
     def get_min_instance_count(self):
-        instances = self.instances_wo_excluded # ec2.get_instances(ScalingState="-excluded")
+        """ Return the minimum instance count linked to 'ec2.schedule.min_instance_count'.
+        Especially, it converts percentage into an absolute number.
+
+        :return An integer (number of instances)
+        """
+        instances = self.instances_wo_excluded 
         c         = Cfg.get_abs_or_percent("ec2.schedule.min_instance_count", -1, len(instances))
         return c if c > 0 else 0
 
     def desired_instance_count(self):
-        instances = self.instances_wo_excluded # ec2.get_instances(ScalingState="-excluded")
+        """ Return the desired instance count linked in 'ec2.schedule.desired_instance_count'.
+        Especially, it converts percentage into an absolute number.
+
+        :return An integer (number of instances
+        """
+        instances = self.instances_wo_excluded 
         return Cfg.get_abs_or_percent("ec2.schedule.desired_instance_count", -1, len(instances))
 
     def get_instances_with_issues(self):
-        active_instances        = self.pending_running_instances_wo_excluded #ec2.get_instances(State="pending,running", ScalingState="-excluded")
+        """ Return a list of Instance Id of faulty instances.
+
+        A faulty instance can be any of:
+            - Instances that are part of one or more TargetGroups and reported 'unavail' or 'unhealth',
+            - Instances that have EC2 status as 'impaired' or 'unhealthy',
+            - Instances that have been AZ evicted (either manually or autoamtically due to AWS signalling an AZ is unavailable),
+            - Spot instances are signaled and 'rebalance recommended' or 'interrupted',
+            - Burstable instances that have CPU Credit exhausted.
+        :return A list if instance ids
+        """
+        active_instances        = self.pending_running_instances_wo_excluded 
         instances_with_issue_ids= []
 
         # TargetGroup related issues
@@ -572,7 +643,7 @@ By default, the dashboard is enabled.
 
         # CPU credit "issues"
         exhausted_cpu_instances = sorted([ i["InstanceId"] for i in self.cpu_exhausted_instances])
-        all_instances          = self.instances_wo_excluded_error # ec2.get_instances(ScalingState="-excluded,error")
+        all_instances          = self.instances_wo_excluded_error 
         max_i                   = len(all_instances)
         for i in exhausted_cpu_instances:
             if max_i <= 0 or i in instances_with_issue_ids:
@@ -585,10 +656,22 @@ By default, the dashboard is enabled.
     def get_useable_instances(self, instances=None, State="pending,running", ScalingState=None,
             exclude_problematic_instances=True, exclude_bounced_instances=True, 
             exclude_initializing_instances=False, initializing_only=False):
+        """ Return a list of Instance full structures according to supplied data selectors.
+
+        :param instances:                       List of instances to filter (if 'None', all instances are considered)
+        :param State:                           Instance state selector ("stopped", "pending", "running"...)
+        :param ScalingState:                    Instance scaling state selector ("draining", "bounced", "error"...)
+        :param exclude_problematic_instances:   Filter out instances that have issues ("unhealthy", "impaired" etc...)
+        :param exclude_bounced_instances:       Filter out instances marked with scaling state "bounced"
+        :param exclude_initializing_instances:  Filter out instances that are considered as initializing 
+            (either because instances are too young, marked as 'initializing' from EC2 PoV or 'initializing' if part of TargetGroup)
+        :param initializing_only:               Filter in instances are 'initializing' state
+        :return A list of Instance
+        """
         if ScalingState is None: ScalingState = "-excluded,draining,error%s" % (",bounced" if exclude_bounced_instances else "")
         active_instances = self.ec2.get_instances(instances=instances, State=State, ScalingState=ScalingState)
         
-        instances_ids_with_issues   = self.instances_with_issues # get_instances_with_issues()
+        instances_ids_with_issues   = self.instances_with_issues 
 
         if exclude_problematic_instances:
             active_instances = list(filter(lambda i: i["InstanceId"] not in instances_ids_with_issues, active_instances))
@@ -603,11 +686,25 @@ By default, the dashboard is enabled.
 
     def get_useable_instance_count(self, exclude_problematic_instances=True, exclude_bounced_instances=True, 
             exclude_initializing_instances=False, initializing_only=False):
+        """ Return a number of usueable instance.
+
+        :param exclude_problematic_instances:   Filter out instances that have issues ("unhealthy", "impaired" etc...)
+        :param exclude_bounced_instances:       Filter out instances marked with scaling state "bounced"
+        :param exclude_initializing_instances:  Filter out instances that are considered as initializing 
+            (either because instances are too young, marked as 'initializing' from EC2 PoV or 'initializing' if part of TargetGroup)
+        :param initializing_only:               Filter in instances are 'initializing' state
+        :return An integer
+        """ 
         return len(self.get_useable_instances(exclude_problematic_instances=exclude_problematic_instances, 
                 exclude_bounced_instances=exclude_bounced_instances, exclude_initializing_instances=exclude_initializing_instances,
                 initializing_only=initializing_only))
 
     def get_cpu_exhausted_instances(self, threshold=1):
+        """ Return list of instances that have their CPU exhausted below the specified threshold
+
+        :param threshold: A pourcentage of CPU Credit to consider the minimum required
+        :return A list of instance structures
+        """
         max_cpu_credit_unhealthy      = Cfg.get_int("ec2.schedule.burstable_instance.max_cpu_credit_unhealthy_instances")
         # When not enough stopped instances are available, we do not mark unhealthy burstable instances to avoid fleet size exhaustion and a DDoS
         stopped_instance_margin       = max(0, len(self.stopped_instances_wo_excluded_error) - self.get_min_instance_count())
@@ -632,13 +729,28 @@ By default, the dashboard is enabled.
         return instances_unhealthy
 
     def get_young_instance_ids(self):
+        """ Return a list of instance that are considered young based on their running time.
+
+        Instances that are running for less than duration specified in 'ec2.schedule.start.warmup_delay'.
+
+        :return A list of instances.
+        """
         now                     = self.context["now"]
         warmup_delay            = Cfg.get_duration_secs("ec2.schedule.start.warmup_delay")
-        active_instances        = self.pending_running_instances_wo_excluded # ec2.get_instances(State="pending,running", ScalingState="-excluded")
+        active_instances        = self.pending_running_instances_wo_excluded 
         return [ i["InstanceId"] for i in active_instances if (now - i["LaunchTime"]).total_seconds() < warmup_delay]
 
     def get_initial_instances(self):
-        active_instances        = self.pending_running_instances_wo_excluded # ec2.get_instances(State="pending,running", ScalingState="-excluded")
+        """ Return list of instances in 'initializing' state.
+
+        'Initializing' status is aither:
+            - Marked as such at EC2 level,
+            - At least on TargetGroup is currently initializing the instance,
+            - Running not longer enough.
+
+        :param A list of instance structures.
+        """
+        active_instances        = self.pending_running_instances_wo_excluded
         initializing_instances  = []
         initializing_instances.extend([ i["InstanceId"] for i in active_instances if self.ec2.is_instance_state(i["InstanceId"], ["initializing"]) ])
         initializing_instances.extend(self.targetgroup.get_registered_instance_ids(state="initial"))
@@ -646,12 +758,18 @@ By default, the dashboard is enabled.
         return list(filter(lambda i: i["InstanceId"] in young_instances or i["InstanceId"] in initializing_instances, active_instances))
 
     def get_initial_instances_ids(self):
+        """ Return the list of 'initializing' instance ids.
+        """
         return [i["InstanceId"] for i in self.initializing_instances]
 
     def get_disabled_azs(self):
+        """ Return the list of AZ names that must not be scheduled. 
+        """
         return self.ec2.get_azs_with_issues()
 
     def set_state(self, key, value, TTL=None):
+        """ Helper method to set state with the default module TTL.
+        """
         if TTL is None: TTL=self.state_ttl
         self.ec2.set_state(key, value, TTL=TTL)
 
@@ -678,23 +796,24 @@ By default, the dashboard is enabled.
 
     @xray_recorder.capture()
     def prepare_metrics(self):
-        # Update statistics
+        """ Compute all module CloudWatch metrics and Synthetic metrics available through the API Gateway.
+        """
         cw = self.cloudwatch
-        fleet_instances        = self.instances_wo_excluded
-        draining_instances     = self.pending_running_instances_draining_wo_excluded
-        running_instances      = self.running_instances_wo_excluded
-        pending_instances      = self.pending_instances_wo_draining_excluded
-        stopped_instances      = self.stopped_instances_wo_excluded
-        stopping_instances     = self.stopping_instances_wo_excluded
-        excluded_instances     = self.excluded_instances
-        bounced_instances      = self.pending_running_instances_bounced_wo_excluded
-        error_instances        = self.error_instances
-        exhausted_cpu_credits  = self.cpu_exhausted_instances
-        instances_with_issues  = self.instances_with_issues
+        fleet_instances             = self.instances_wo_excluded
+        draining_instances          = self.pending_running_instances_draining_wo_excluded
+        running_instances           = self.running_instances_wo_excluded
+        pending_instances           = self.pending_instances_wo_draining_excluded
+        stopped_instances           = self.stopped_instances_wo_excluded
+        stopping_instances          = self.stopping_instances_wo_excluded
+        excluded_instances          = self.excluded_instances
+        bounced_instances           = self.pending_running_instances_bounced_wo_excluded
+        error_instances             = self.error_instances
+        exhausted_cpu_credits       = self.cpu_exhausted_instances
+        instances_with_issues       = self.instances_with_issues
         subfleet_instances          = self.subfleet_instances
         running_subfleet_instances  = self.running_subfleet_instances
         draining_subfleet_instances = self.draining_subfleet_instances
-        fl_size                = len(fleet_instances)
+        fl_size                     = len(fleet_instances)
         cw.set_metric("FleetSize",             len(fleet_instances) if fl_size > 0 else None)
         cw.set_metric("DrainingInstances",     len(draining_instances) if fl_size > 0 else None)
         cw.set_metric("RunningInstances",      len(running_instances) if fl_size > 0 else None)
@@ -789,6 +908,8 @@ By default, the dashboard is enabled.
         self.synthetic_metrics = s_metrics
 
     def get_synthetic_metrics(self):
+        """ Return synthetics metrics (used by the API Gateway statistic methods.
+        """
         return self.synthetic_metrics
 
     ###############################################
