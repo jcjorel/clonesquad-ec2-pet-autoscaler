@@ -22,7 +22,7 @@ is that all code outside the get_prerequisites() must work only with data gather
 ensure easier debugging and more predectible behaviors of various algorithms.
 
 __init__():
-    - As usual, get_prerequisites() registers configuration and CloudWatch attached to the local namespace ("ec2.schedule" here).
+    - Registers configuration and CloudWatch attached to the local namespace ("ec2.schedule" here).
 
 get_prerequisites():
     - Scaling algorithms are making an intensive use of instance list sorted and filtered in various manner. To avoid a constant recalculation,
@@ -138,7 +138,7 @@ the associated CloudWatch metrics can't react fast enough to inform the algorith
                  "ec2.schedule.scaleout.period,Stable": {
                      "DefaultValue" : "minutes=10",
                      "Format"       : "Duration",
-                     "Description"  : """Period of scaling assesment. 
+                     "Description"  : """Period of scaling assessment. 
 
 This parameter is strongly linked with [`ec2.scheduler.scaleout.rate`](#ec2schedulerscaleoutrate) and is 
 used by the scaling algorithm as a devider to determine the fleet growth rate under scalout condition.
@@ -1660,6 +1660,15 @@ By default, the dashboard is enabled.
     ###############################################
 
     def get_lighthouse_instance_ids(self, instances):
+        """ Retrieve the list of LightHouse instances.
+
+        LightHouse instances are designated based on their instance type. LightHouse types are 
+        defined in the vertical scaling configuration (defined in 'ec2.schedule.verticalscale.instance_type_distribution').
+
+        (TODO: Remove the code provision that allow definition of LightHouse instance with Tag that is deprecated.)
+
+        :return A list of Instance Ids
+        """
         # Excluded subfleet instances
         subfleet_instances    = self.ec2.filter_instance_list_by_tag(instances, "clonesquad:subfleet-name")
         subfleet_instance_ids = [i["InstanceId"] for i in subfleet_instances]
@@ -1680,12 +1689,15 @@ By default, the dashboard is enabled.
         return ids
 
     def are_lighthouse_instance_disabled(self):
-        #all_instances  = self.ec2.get_instances(ScalingState="-excluded")
-        all_lh_ids     = self.lighthouse_instances_wo_excluded_ids # get_lighthouse_instances(all_instances)
+        """ Return True if LightHouse instance support is disable by 'ec2.schedule.verticalscale.lighthouse_disable'.
+        """
+        all_lh_ids     = self.lighthouse_instances_wo_excluded_ids 
         return (Cfg.get_int("ec2.schedule.verticalscale.lighthouse_disable") or
                   self.get_min_instance_count() > len(all_lh_ids))
 
     def are_all_non_lh_instances_started(self):
+        """ Return 'True' if all startable non-LightHouse instances are already started.
+        """
         all_instances              = self.instances_wo_excluded_error_spotexcluded
         lh_ids                     = self.lighthouse_instances_wo_excluded_ids
         useable_instances          = self.useable_instances
@@ -1695,6 +1707,24 @@ By default, the dashboard is enabled.
         return all_non_lighthouse_instances_count == len(non_lighthouse_instances)
 
     def shelve_instance_dispatch(self, expected_count):
+        """ This method returns the expected amount of LightHouse and non-LightHouse instances depending of overall expected
+        serving instances in the Main fleet.
+
+        This method is a critical one for the scalin/scaleout algorithms as they rely on it to know when LightHouse needs to
+        be stopped and started. The general concept is that when the number of expected serving instances in the fleet is
+        approaching 'min_instance_count', this method computes the expected number of running LH instances.  
+
+        Ex: Let assume we have 'min_instance_count' set to value '2'. What happen when expected instance count vary?
+            +----------------+--------------------------------+
+            | expected_count | nb_of_recommended_LH_instances |
+            +----------------+--------------------------------+
+            | 2              | 2                              |
+            | 3              | 1                              |
+            | 4 and more...  | 0                              |
+            +----------------+--------------------------------+
+
+        :return (expected_number_of_running_LH_instances, expected_number_of_running-non_LH_instances)
+        """
         desired_instance_count= self.desired_instance_count()
         min_instance_count    = self.get_min_instance_count()
         useable_instance_count= self.useable_instance_count
@@ -1722,19 +1752,26 @@ By default, the dashboard is enabled.
         recommended_amount_of_non_lh = target_count - recommended_amount_of_lh
         return [recommended_amount_of_lh, recommended_amount_of_non_lh]
 
-
-
-    def _match_spot(self, i, c, spot_implicit=None):
-        cc = c.copy()
-        if spot_implicit is not None and "spot" not in cc:
-            cc["spot"] = spot_implicit
-        if "spot" in cc:
-            is_spot = self.ec2.is_spot_instance(i)
-            if cc["spot"] and not is_spot: return False
-            if not cc["spot"] and is_spot: return False
-        return True
-
     def verticalscaling_sort_instances(self, directive, instances, reverse=False):
+        """ Sort the supplied instance list according to vertical scaling directive string.
+
+        This method is used both in Main fleet and subfleets scaling algorithms.
+
+        :return A dict of sorted instance lists 
+            - One list for LightHouse instances, 
+            - One list for sorted non-LightHouse instance,
+            - One list for instances that do not match the vertical scaling policy.
+        """
+        def _match_spot(i, c, spot_implicit=None):
+            cc = c.copy()
+            if spot_implicit is not None and "spot" not in cc:
+                cc["spot"] = spot_implicit
+            if "spot" in cc:
+                is_spot = self.ec2.is_spot_instance(i)
+                if cc["spot"] and not is_spot: return False
+                if not cc["spot"] and is_spot: return False
+            return True
+
         directive_items = misc.parse_line_as_list_of_dict(directive, default=[])
         if reverse:
             instances = instances.copy()
@@ -1749,7 +1786,7 @@ By default, the dashboard is enabled.
         non_lh_ids     = []
         for d in directive_items:
             try:
-                i_s        = list(filter(lambda i: re.match(d["_"], i["InstanceType"]) and i["InstanceId"] not in lh_ids and i["InstanceId"] not in non_lh_ids and self._match_spot(i, d), instances))
+                i_s        = list(filter(lambda i: re.match(d["_"], i["InstanceType"]) and i["InstanceId"] not in lh_ids and i["InstanceId"] not in non_lh_ids and _match_spot(i, d), instances))
             except Exception as e:
                 log.error(f"Format error with Regex '%s' inside vertical scaling directive '{directive}'! Please express a valid Regex to match instance type!" %
                             (d["_"]))
@@ -1768,6 +1805,13 @@ By default, the dashboard is enabled.
         return r
 
     def scaleup_sort_instances(self, candidates, expected_count, caller):
+        """ Sort candidate instances to be started on a scaleout event in the Main fleet.
+
+        This method has the major responsability to promote LightHouse instances when needed.
+        When no LightHouse configuration exits, this method is basically a pass-through.
+
+        :return A sorted list of instances ordered from the highest priority instance to start to the lower one
+        """
         # Sort instances according to vertical policy
         vertical_sorted_instances  = self.verticalscaling_sort_instances(Cfg.get("ec2.schedule.verticalscale.instance_type_distribution"), candidates)
 
@@ -1832,6 +1876,13 @@ By default, the dashboard is enabled.
         return instances
 
     def scaledown_sort_instances(self, candidates, expected_count, caller):
+        """ Sort candidate instances to be stopped on a scalein event in the Main fleet.
+
+        This method has the major responsability to promote LightHouse instances when needed.
+        When no LightHouse configuration exits, this method is basically a pass-through.
+
+        :return A sorted list of instances ordered from the highest priority instance to stop to the lower one
+        """
         # Sort instances according to vertical policy (non LH instances are sorted reversed; starting from the end of the policy
         vertical_sorted_instances  = self.verticalscaling_sort_instances(Cfg.get("ec2.schedule.verticalscale.instance_type_distribution"), 
                 candidates, reverse=True)
@@ -1877,6 +1928,12 @@ By default, the dashboard is enabled.
 
     @xray_recorder.capture()
     def shelve_extra_lighthouse_instances(self):
+        """ Manage the lifecycle of LightHouse instances.
+
+        This method makes sure that LightHouse instances are started or stopped when needed.
+        
+        If no LightHouse configuration is defined in the vertical scaling configuration, it does basically nothing.
+        """
         if self.scaling_state_changed:
             return
 
@@ -1887,26 +1944,30 @@ By default, the dashboard is enabled.
         now = self.context["now"]
 
         min_instance_count                       = self.get_min_instance_count()
-        all_instances                            = self.instances_wo_excluded                  # ec2.get_instances(ScalingState="-excluded")
-        all_useable_plus_special_state_instances = self.useable_instances_wo_excluded_draining # get_useable_instances(ScalingState="-draining,excluded")
-        serving_instances                        = self.serving_instances                      # get_useable_instances(exclude_initializing_instances=True)
-        lh_ids                                   = self.lighthouse_instances_wo_excluded_ids       # get_lighthouse_instances(all_instances)
+        all_instances                            = self.instances_wo_excluded 
+        all_useable_plus_special_state_instances = self.useable_instances_wo_excluded_draining 
+        serving_instances                        = self.serving_instances   
+        lh_ids                                   = self.lighthouse_instances_wo_excluded_ids  
         running_lh_ids                           = self.get_lighthouse_instance_ids(all_useable_plus_special_state_instances)
-        non_lighthouse_instances                 = self.serving_non_lighthouse_instance_ids               # list(filter(lambda i: i["InstanceId"] not in running_lh_ids, serving_instances))
-        non_lighthouse_instances_initializing    = self.serving_non_lighthouse_instance_ids_initializing  # list(filter(lambda i: i["InstanceId"] not in running_lh_ids, self.get_initial_instances()))
+        non_lighthouse_instances                 = self.serving_non_lighthouse_instance_ids  
+        non_lighthouse_instances_initializing    = self.serving_non_lighthouse_instance_ids_initializing 
         serving_non_lighthouse_instance_count    = len(non_lighthouse_instances) - len(non_lighthouse_instances_initializing)
         useable_instance_count                   = self.useable_instance_count
         desired_instance_count                   = self.desired_instance_count()
 
         lighthouse_instance_excess = 0
 
-        initializing_lh_instances_ids = self.get_lighthouse_instance_ids(self.initializing_instances) #lh_instances_idsget_initial_instances())
+        initializing_lh_instances_ids = self.get_lighthouse_instance_ids(self.initializing_instances) 
         if not self.are_lighthouse_instance_disabled():
             if len(initializing_lh_instances_ids):
+                # A a general strategy, we do not take scaling decisions when there is at least one instance in 'initializing' state.
                 log.debug("Some LightHouse instances (%s) are still initializing... Postpone shelve processing..." % 
                         initializing_lh_instances_ids)
                 return
             if serving_non_lighthouse_instance_count < min_instance_count and len(non_lighthouse_instances_initializing):
+                # A a general strategy, we do not take scaling decisions when there is not enough serving non-LH instances.
+                #   Shuttingdown LightHouse instances while not enough non-LightHouse instances were ready, could lead to
+                #   fleet instability so we prefer to postpone the processing.
                 log.debug("Not enough serving non-LH instances while some are initializing (%s)... Postpone shelve processing..." % 
                         non_lighthouse_instances_initializing)
                 return
@@ -1917,8 +1978,8 @@ By default, the dashboard is enabled.
         amount_of_lh, amount_of_non_lh = self.shelve_instance_dispatch(expected_count)
 
         # Take into account unhealthy/unavailable LH instances
-        instances_with_issues_ids = self.instances_with_issues  # get_instances_with_issues()
-        instances_with_issues     = [ i for i in self.instances_wo_excluded if i["InstanceId"] in instances_with_issues_ids] # self.ec2.get_instances(ScalingState="-excluded")
+        instances_with_issues_ids = self.instances_with_issues 
+        instances_with_issues     = [ i for i in self.instances_wo_excluded if i["InstanceId"] in instances_with_issues_ids] 
         lh_instances_with_issues  = self.get_lighthouse_instance_ids(instances_with_issues) 
         lh_instances_to_exclude   = lh_instances_with_issues.copy()
         lh_draining_instances     = self.get_lighthouse_instance_ids(
@@ -1956,9 +2017,19 @@ By default, the dashboard is enabled.
 
         if delta_lh != 0:
             if desired_instance_count != -1:
+                # 'desired_instance_count' != -1 so the autoScaler is disabled. In such mode, we only add new instances as
+                #   'scale_desired' algorithm will shutdown supernumerary instances following the vertical scaling policy.
+                #
+                #  Ex: If this algorithm wants to stop 2 existing LH instances, it will ask to start 2 new instances and the 
+                #  vertical scaler will launch 2 non-LH instances. Just after, 'scale_desired' algorithm will select the LH 
+                # instances as priority for shutdown.
                 if self.get_useable_instance_count(exclude_initializing_instances=True) < desired_instance_count: 
                     delta_lh = abs(delta_lh)
             else:
+                # 'desired_instance_count' == -1 so the AutoScaler is enabled. The AutoScaler will do most of the job dealing
+                #   with LH instances. This algorithm is only there to anticipate the need to stop LH instances during an active
+                #   scaleout sequence. Without this code, LH instances would be stopped by the Autocaler only when starting a
+                #   scalein sequence. 
                 if delta_lh < 0: 
                     if len(running_lh_ids) >= serving_non_lighthouse_instance_count: 
                         # Let the scalein algorithm to get rid of LH instances when needed except in the case where there are 
@@ -1979,14 +2050,22 @@ By default, the dashboard is enabled.
                 self.instance_action(useable_instance_count + delta_lh, "shelve", target_for_dispatch=expected_count)
 
 
-    ###############################################
-    #### CORE SCALEIN/OUT ALGORITHM ###############
-    ###############################################
+    ##########################################################
+    #### CORE MAIN FLEET SCALEIN/OUT ALGORITHM ###############
+    ##########################################################
 
     def get_scale_start_date(self, direction):
         return self.ec2.get_state_date("ec2.schedule.%s.start_date" % direction)
 
     def is_scale_transition_too_early(self, to_direction):
+        """ Return 0 if it is not yet the time to consider a scaling sequence in specified direction.
+
+        To avoid any fast flip/flop between scalein/scaleout sequences, there are cooldown delays specific to
+        each direction (defined by 'ec2.schedule.to_scalein_state.cooldown_delay' and 'ec2.schedule.to_scaleout_state.cooldown_delay')
+
+        :param direction: ["scalein", "scaleout"]
+        :return 0 if we can start a sequence in the specified direction. Return the number of seconds to wait.
+        """
         now = self.context["now"]
         opposite = "scaleout" if to_direction == "scalein" else "scaleout"
         last_scale_action_date = self.ec2.get_state_date("ec2.schedule.%s.last_action_date" % opposite)
@@ -2000,6 +2079,27 @@ By default, the dashboard is enabled.
 
     @xray_recorder.capture()
     def get_guilties_sum_points(self, assessment, default_points):
+        """ Method responsible to compute the scaling score used to decide if we need to scalein or scaleout in the Main fleet.
+
+        This method is critical one as it contains the logic to generate the scaling score that will be used by the autoscaler
+        especially to decide to scaleout or scalein.
+
+        It relies on CloudWatch alarms:
+            - It watchs for alarm in ALARM state.
+            - It watchs for metrics defined in Alarms to get numeric details and so enable a smooth score calculation.
+
+        Few critical tasks are implemented in this method:
+            - Calculating a score per instance based on a read metric value and a BaseLine threshold and Alamr Threshold
+            - Give weight to metrics based on their "freshness" (to reduce costs, all metrics are not polled at each
+                Main function execution.
+
+        Please read for more detail about the algorithm here: 
+            https://github.com/jcjorel/clonesquad-ec2-pet-autoscaler/blob/master/docs/ALARMS_REFERENCE.md
+
+        :param assesment:       Contains a dict of instances that has at least one CloudWatch alarm in ALARM state.
+        :param default_points:  When no alarm points is defined for a specific alarm, it is the default value (usually, 1000)
+        :return                 A number of that represents the scaling score.
+        """
         now                     = self.context["now"]
         useable_instances_count = self.get_useable_instance_count(exclude_initializing_instances=True)
         alarm_with_metrics      = self.cloudwatch.get_alarm_names_with_metrics()
@@ -2187,13 +2287,13 @@ By default, the dashboard is enabled.
         new_scale_sequence    = False
         if last_scale_start_date is None:
             # Remember when we started to scale up
-            last_scale_start_date = now
-            last_event_date       = last_scale_start_date
-            new_scale_sequence    = True
+            last_scale_start_date  = now
+            last_event_date        = last_scale_start_date
+            new_scale_sequence     = True
             # Do we have to (over)react because of new sequence?
             instance_upfront_count = Cfg.get_int("ec2.schedule.%s.instance_upfront_count" % direction)
         else:
-            last_event_date       = self.ec2.get_state_date("ec2.schedule.%s.last_action_date" % direction, default=last_scale_start_date)
+            last_event_date        = self.ec2.get_state_date("ec2.schedule.%s.last_action_date" % direction, default=last_scale_start_date)
             if last_event_date < last_scale_start_date: last_event_date = last_scale_start_date
 
         seconds_since_scale_start        = now - last_scale_start_date
