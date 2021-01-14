@@ -2454,11 +2454,15 @@ By default, the dashboard is enabled.
     ###############################################
 
     def compute_spot_exclusion_lists(self):
+        """ Part of get_prerequisites() processing, this method computes instance lists linked to Spot instances.
+
+        The method builds list of Spot interrupted and rebalance recommended used by scaling algorithms.
+        """
         # Collect all Spot instances events
-        self.spot_rebalance_recommanded = self.ec2.filter_spot_instances(self.all_instances, EventType="+rebalance_recommended")
+        self.spot_rebalance_recommanded     = self.ec2.filter_spot_instances(self.all_instances, EventType="+rebalance_recommended")
         self.spot_rebalance_recommanded_ids = [ i["InstanceId"] for i in self.spot_rebalance_recommanded ]
-        self.spot_interrupted           = self.ec2.filter_spot_instances(self.all_instances, EventType="+interrupted")
-        self.spot_interrupted_ids       = [ i["InstanceId"] for i in self.spot_interrupted ]
+        self.spot_interrupted               = self.ec2.filter_spot_instances(self.all_instances, EventType="+interrupted")
+        self.spot_interrupted_ids           = [ i["InstanceId"] for i in self.spot_interrupted ]
         self.spot_excluded_instance_ids.extend(self.spot_rebalance_recommanded_ids)
         self.spot_excluded_instance_ids.extend(self.spot_interrupted_ids)
 
@@ -2488,6 +2492,11 @@ By default, the dashboard is enabled.
 
 
     def manage_spot_events(self):
+        """ Manage the life cycle of Spot instances (both in Main fleet and subfleets).
+
+        This method marks Spot instance in 'interrupted' state as 'draining'. It also reacts to Spot events but launching replacement
+        instances immediatly after EC2 Spot message receipt.
+        """
         if len(self.spot_rebalance_recommanded_ids):
             log.info("EC2 Spot instances with 'rebalance_recommended' status: %s" % self.spot_rebalance_recommanded_ids)
         if len(self.spot_interrupted_ids):
@@ -2501,10 +2510,13 @@ By default, the dashboard is enabled.
                 log.info(f"Set 'draining' state for Spot interrupted instance '{instance_id}'.")
 
         # Launch new instances when some Spot instances have been just 'recommended' or 'interrupted'
-        subfleet_deltas          = defaultdict(int)
+
+        # Load state of what we know about former EC2 Spot processed messages
         known_spot_advisories    = self.ec2.get_state_json("ec2.schedule.instance.spot.known_spot_advisories", default=None)
         if known_spot_advisories is None:
             known_spot_advisories = {}
+
+        subfleet_deltas          = defaultdict(int)
         instance_count_to_launch = 0
         for i in self.spot_rebalance_recommanded:
             instance_id = i["InstanceId"]
@@ -2527,10 +2539,12 @@ By default, the dashboard is enabled.
                     subfleet_deltas[self.ec2.get_subfleet_name_for_instance(i)] += 1
 
         if instance_count_to_launch:
+            # Launch needed instances in the Main fleet
             self.instance_action(self.useable_instance_count + instance_count_to_launch, "manage_spot_events")
 
         cache = {}
         for subfleet in subfleet_deltas:
+            # Launch needed instances in each subfleet
             log.info(f"Due to Spot instance status change, %d instances have to be started in subfleet '{subfleet}'." % subfleet_deltas[subfleet])
             self.subfleet_action(subfleet, subfleet_deltas[subfleet], cache=cache)
 
@@ -2539,6 +2553,7 @@ By default, the dashboard is enabled.
             if i not in self.spot_rebalance_recommanded_ids and i not in self.spot_interrupted_ids:
                 del known_spot_advisories[i]
 
+        # Persist that we managed Spot events
         self.ec2.set_state_json("ec2.schedule.instance.spot.known_spot_advisories", known_spot_advisories, TTL=self.state_ttl)
 
 
