@@ -2224,8 +2224,10 @@ By default, the dashboard is enabled.
 
     @xray_recorder.capture()
     def scale_in_out(self):
-        """
-        This is the function that takes decisions about starting or stopping instances based on Alarms
+        """ This method that takes decisions about starting or stopping instances in the Main fleet.
+        
+        TODO: Almost all this code could be removed as storing alarms is no more an effective way to manage them. It is now redundant with
+            take_scale_decision() and get_guilties_sum_points() that read and react directly by polling all the alarms.
         """
 
         now = self.context["now"]
@@ -2340,9 +2342,14 @@ By default, the dashboard is enabled.
 
     @xray_recorder.capture()
     def take_scale_decision(self, items, assessment):
+        """ This method use the scaling score to invoke either the scalein or scaleout algorithm to manage the Main fleet autoscaling
+
+        :param items:       List of CloudWatch alarms
+        :param assessment:  List of CloudWatch alarms in ALARM state
+        """
         now = self.context["now"]
 
-        # Step 1) Calculate the number of instances to start or stop
+        # Step 1) Update the scaling score
         
         base_points                   = Cfg.get_int("ec2.schedule.base_points")
         self.alarm_points             = self.get_guilties_sum_points(assessment, base_points)
@@ -2375,6 +2382,7 @@ By default, the dashboard is enabled.
         if self.scaling_state_changed:
             return
 
+        # Step 2.a) Check if we are allowed to scaleout now
         if not scale_up_disabled and self.instance_scale_score >= 1.0:
             self.take_scale_decision_scaleout()
             return
@@ -2383,7 +2391,7 @@ By default, the dashboard is enabled.
         self.set_state("ec2.schedule.scaleout.start_date", "")
         self.set_state("ec2.schedule.scaleout.last_action_date", "")
 
-        # Step 2) Check if we are allowed to downscale now
+        # Step 2.b) Check if we are allowed to scalein now
         scale_down_disabled = Cfg.get_int("ec2.schedule.scalein.disable") != 0
         if scale_down_disabled: log.log(log.NOTICE, "ScaleIn scheduler disabled!")
 
