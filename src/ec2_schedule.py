@@ -2224,7 +2224,7 @@ By default, the dashboard is enabled.
 
     @xray_recorder.capture()
     def scale_in_out(self):
-        """ This method that takes decisions about starting or stopping instances in the Main fleet.
+        """ This method that takes autoscaling decisions starting or stopping instances in the Main fleet.
         
         TODO: Almost all this code could be removed as storing alarms is no more an effective way to manage them. It is now redundant with
             take_scale_decision() and get_guilties_sum_points() that read and react directly by polling all the alarms.
@@ -2282,13 +2282,26 @@ By default, the dashboard is enabled.
 
     @xray_recorder.capture()
     def get_scale_instance_count(self, direction, boost_rate, text):
+        """ Return the number of instances to start or stop in the Main fleet.
+
+        This method implements a time-based and 'boost_rate' based calculation about when to start or stop 
+        instances. 
+            * The time-based part is derived from config keys 'ec2.schedule.{direction}.period' and 'ec2.schedule.{direction}.rate'
+                Ex: if ec2.schedule.{direction}.period is set to 10 minutes and ec2.schedule.{direction}.rate set to 4, it means 4 instances per 10 minutes.
+            * The 'boost_rate' acts as a multiplier of the previous rate.
+                Ex: If boost_rate = 2.0, in the context of the previous example, it means that the effective rate will be 8 instances per 10 minutes.
+
+        :param direction: The direction currently assessed (among ["scalein", "scaleout"])
+        :param boost_rate: A float representing the "urgency" to go in the specified direction
+        :return An integer (positive if instances needs to be started; negative otherwise)
+        """
         now = self.context["now"]
 
         instance_upfront_count = 0
         last_scale_start_date = self.get_scale_start_date(direction)
         new_scale_sequence    = False
         if last_scale_start_date is None:
-            # Remember when we started to scale up
+            # Remember when we started to scale 
             last_scale_start_date  = now
             last_event_date        = last_scale_start_date
             new_scale_sequence     = True
@@ -2324,18 +2337,19 @@ By default, the dashboard is enabled.
         if new_scale_sequence:
             self.set_state("ec2.schedule.%s.start_date" % direction, str(last_scale_start_date))
 
+        # Report some printable statistics
         text.append("\n".join(["[INFO] Scaling data for direction '%s' :" % direction,
-                "  Now: %s" % now,
-                "  [INFO] Scale start date: %s" % str(last_scale_start_date),
-                "  [INFO] Latest scale event date: %s" % str(last_event_date),
-                "  [INFO] Seconds since scale start: %d" % seconds_since_scale_start.total_seconds(),
-                "  [INFO] Seconds since latest scale event date: %d" % seconds_since_latest_scale_event.total_seconds(),
-                "  [INFO] Rate: %d instance(s) per period" % rate,
-                "  [INFO] Nominal Period: %d seconds" % period,
-                "  [INFO] Boost rate: %f" % boost_rate,
-                "  [INFO] Boosted effective period: %d seconds" % (period / boost_rate),
-                "  [INFO] Effective rate over %ds period: %.1f instance per period (%.1f instance(s) per minute)" % (period, ratio * period, ratio * 60),
-                "  Computed raw instance count: %.2f" % raw_instance_count
+                "   Now: %s" % now,
+                "   Scale start date: %s" % str(last_scale_start_date),
+                "   Latest scale event date: %s" % str(last_event_date),
+                "   Seconds since scale start: %d" % seconds_since_scale_start.total_seconds(),
+                "   Seconds since latest scale event date: %d" % seconds_since_latest_scale_event.total_seconds(),
+                "   Rate: %d instance(s) per period" % rate,
+                "   Nominal Period: %d seconds" % period,
+                "   Boost rate: %f" % boost_rate,
+                "   Boosted effective period: %d seconds" % (period / boost_rate),
+                "   Effective rate over %ds period: %.1f instance per period (%.1f instance(s) per minute)" % (period, ratio * period, ratio * 60),
+                "   Computed raw instance count: %.2f" % raw_instance_count
                 ]))
 
         return delta_count
@@ -2405,20 +2419,20 @@ By default, the dashboard is enabled.
 
     @xray_recorder.capture()
     def take_scale_decision_scaleout(self):
-        now = self.context["now"]
+        now          = self.context["now"]
         time_to_wait = self.is_scale_transition_too_early("scaleout")
         if time_to_wait > 0:
             log.log(log.NOTICE, "Transition period from scalein to scaleout (%d seconds still to go...)" % time_to_wait)
             return
 
-        text = []
+        text              = []
         instance_to_start = self.get_scale_instance_count("scaleout", self.instance_scale_score, text)
         if instance_to_start == 0: 
             self.would_like_to_scaleout = True
             return
         log.debug(text[0])
         useable_instances_count = self.useable_instance_count
-        desired_instance_count = useable_instances_count + instance_to_start
+        desired_instance_count  = useable_instances_count + instance_to_start
 
         log.log(log.NOTICE, "Need to start up to '%d' more instances (Total expected=%d)" % (instance_to_start, desired_instance_count))
         self.instance_action(desired_instance_count, "scaleout")
@@ -2426,7 +2440,7 @@ By default, the dashboard is enabled.
 
     @xray_recorder.capture()
     def take_scale_decision_scalein(self):
-        now = self.context["now"]
+        now                         = self.context["now"]
         # Reset the scalein algorithm while targets are in 'initial' state
         initial_target_instance_ids = self.get_initial_instances_ids()
         if len(initial_target_instance_ids):
