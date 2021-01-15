@@ -1,3 +1,29 @@
+""" ec2.py
+
+License: MIT
+
+This module provides helper methods manage EC2 instances.
+
+The modules manages:
+    * Querying the EC2 API to get various instance statuses
+    * Manage EC2 Spot messages.
+
+As all other major modules, the get_prerequisites() method will pre-compute all data needed for all the methods. The overall logic
+is that all code outside the get_prerequisites() must work only with data gathered and synthesized in get_prerequisites(). This constraint
+ensures easier debugging and more predectible behaviors of various algorithms.
+
+__init__():
+    - Registers configuration and CloudWatch attached to the local namespace ("ec2." here).
+
+get_prerequisites():
+    - Peform EC2 state discovery (describe_instances(), describe_instance_status(), describe_availability_zones()...)
+    - Inject AZ fault if requested by user (or if published by AWS describe_availability_zones() API)
+    - Inject Instance status and faults (for debugging purpose)
+
+manage_spot_notification():
+    - Intercept and process Spot EC2 messages.
+
+"""
 import boto3
 import json
 import pdb
@@ -191,6 +217,8 @@ without any TargetGroup but another external health instance source exists).
 
 
     def get_prerequisites(self, only_if_not_already_done=False):
+        """ Gather instance status byt calling EC2 APIs.
+        """
         if only_if_not_already_done and self.prereqs_done:
             return
         misc.initialize_clients(["ec2"], self.context)
@@ -202,7 +230,7 @@ without any TargetGroup but another external health instance source exists).
         Filters          = [{'Name': 'tag:clonesquad:group-name', 'Values': [self.context["GroupName"]]}]
         
         instances = []
-        response = None
+        response  = None
         while (response is None or "NextToken" in response):
             response = client.describe_instances(Filters=Filters,
                     MaxResults=Cfg.get_int("ec2.describe_instances.max_results"),
@@ -250,7 +278,7 @@ without any TargetGroup but another external health instance source exists).
         self.instance_statuses = instance_statuses
 
         # Get AZ status
-        response = client.describe_availability_zones()
+        response                = client.describe_availability_zones()
         self.availability_zones = response["AvailabilityZones"]
         if len(self.availability_zones) == 0: raise Exception("Can't have a region with no AZ...")
 
@@ -302,16 +330,30 @@ without any TargetGroup but another external health instance source exists).
             except Exception as e:
                 log.warning("Failed to load 'ec2.instance.status.override_url' YAML file '%s' : %s" % (self.ec2_status_override_url, e))
 
-        self.prereqs_done    = True
+        self.prereqs_done = True
 
     def register_state_aggregates(self, aggregates):
         self.o_state.register_aggregates(aggregates)
 
     def get_instance_statuses(self):
+        """ Return the result of describe_instance_status()
+        """
         return self.instance_statuses
 
     INSTANCE_STATES = ["ok", "impaired", "insufficient-data", "not-applicable", "initializing", "unhealthy", "az_evicted"]
     def is_instance_state(self, instance_id, state):
+        """ Perform test if data returned by describe_instance_status().
+
+        This method returns is the specified is in one of the state listed in 'state' variable.
+        The fiels instance["InstanceState"]["Name"] is compared.
+        Note: a special "az_evicted" value is understood that is not port of the values returned by describe_instance_status():
+            This special value is used to report that the instance is faulty because running in a faulty AZ.
+
+        :param instance_id: The instance id to test
+        :param state: A list of state value to test
+        """
+
+        # Retrieve the instance structure based on the id
         i = next(filter(lambda i: i["InstanceId"] == instance_id, self.instance_statuses), None)
         if i is None:
             return False
@@ -336,14 +378,23 @@ without any TargetGroup but another external health instance source exists).
         return i["InstanceStatus"]["Status"] in state 
 
     def get_azs_with_issues(self):
+        """ Return a list of AZ 'zone name' (ex: eu-west-1a) that have issues.
+        """
         return [ az["ZoneName"] for az in self.az_with_issues ]
 
     def get_subfleet_instances(self, subfleet_name=None):
+        """ Return a list of instance structure that are part the specified subfleet.
+
+        :param subfleet_name: If 'None', return all subfleets in all subfleets; if set, filter on the subfleet name specified.
+        :return A list instance structures
+        """
         value = [subfleet_name] if subfleet_name is not None else None
         instances = self.filter_instance_list_by_tag(self.instances, "clonesquad:subfleet-name", value)
         return self.filter_instance_list_by_tag(instances, "-clonesquad:excluded", ["True", "true"])
 
     def get_subfleet_names(self):
+        """ Return the list of all active subfleets.
+        """
         instances = self.get_subfleet_instances()
         names     = []
         for i in instances:
@@ -352,20 +403,46 @@ without any TargetGroup but another external health instance source exists).
         return names
 
     def get_subfleet_name_for_instance(self, i):
+        """ Return the name of subfleet that the instance is part of or None is not part of a subfleet.
+        """
         tags = self.get_instance_tags(i)
         return tags["clonesquad:subfleet-name"] if "clonesquad:subfleet-name" in tags else None
 
     def is_subfleet_instance(self, instance_id, subfleet_name=None):
+        """ Return 'True' if specified instance is part of a subfleet. 
+        If 'subfleet_name' is specified, it also check that the instance is part of the specified subfleet.
+        """
         instances    = self.get_subfleet_instances(subfleet_name=subfleet_name)
         instance_ids = [i["InstanceId"] for i in instances]
         return instance_id in instance_ids
 
     def get_timesorted_instances(self, instances=None):
+        """ Return a sortied list of instance structure.
+
+        The list is sorted with from the oldest to newest last start attempt. (As a consequence, it makes sure that
+        an instance that failed to start for any reason won't the one that will be attempted at next scheduling).
+        """
         if instances is None: instances=self.instances
         # Sort instance list starting from the oldest launch to the newest
         return sorted(instances, key=lambda i: i["_LastStartAttemptTime"])
 
     def get_instances(self, instances=None, State=None, ScalingState=None, details=None, max_results=-1, azs_filtered_out=None, cache=None):
+        """ Return a list of instance structures based on specified criteria.
+
+        This method is a critical one used in all scheduling algorithms.
+        It sorts and filters this way:
+            * Sort all instances from the oldest running to the youngest running.
+            * Filter based on 'State' that represents the instance state (["pending", "running", "stopped"...] - see describe_instances())
+            * Filter based on 'ScalingState' that represents an algorithm PoV state ["draining", "error", "bounced"]:
+                - "draining": Instance with this scaling state will be soon retired after graceful shutdown sequence (draining period...)
+                - "error": Instance with this scaling state failed to perform a critical operation like start_instance() or stop_instance()
+                    Instance is this scaling state are usually blacklisted for 5 minutes to pass a possible transient state.
+                - "bounced": Instance with scaling state will soon be bounced by the bouncing algorithm (too old)
+
+        TODO: Currently, the way it is implemented is highly inefficient and very CPU intensice. TO REWRITE FROM SCRATCH.
+
+        :return A list of instance structure.
+        """
         if details is None: details = {}
         details.update({
             "state" : {"filtered-in": [],
@@ -405,6 +482,23 @@ without any TargetGroup but another external health instance source exists).
         return sorted_instances
 
     def start_instances(self, instance_ids_to_start, max_started_instances=-1):
+        """ Call EC2 start_instance() is a smart way...
+
+        This critical method is responsible to implement safest logic to start instances when needed.
+        It doesn't simply call the EC2 start_instances() API but manages corner cases in the most efficient way possible.
+
+        Heuristics:
+            * It is recommended to pass as many startable instance ids as arguments and a defined max_startable_instances value. It allows
+                the method to manage an instance failure by trying to launch the next one in the list.
+            * The start_instances() API is know to fail at once when a single instance fails to start. This method detects this case and 
+                try to start one-by-one all instance required to not be stuck in always-failing loop.
+            * This method manages a special case linked to Sport instance start. IT is very common that a just stopped Spot instance can not
+                restarted immediatly. The heuristic detects this case and assume that it is a transient condition and not worth to notice 
+                the user about this event.
+
+        :param instance_ids_to_start: A list of starteable instance ids
+        :param max_startable_instances: Maximum number of succesfully instances to start.
+        """
         # Remember when we tried to start all these instances. Used to detect instances with issues
         #    by placing them at end of get_instances() generated list
         if instance_ids_to_start is None or len(instance_ids_to_start) == 0:
@@ -494,6 +588,13 @@ without any TargetGroup but another external health instance source exists).
 
 
     def stop_instances(self, instance_ids_to_stop):
+        """ Stop instances the smart way...
+
+        This method is paranoid in the way to stop instances. It tries first to stop them at once but it fails it falls back to
+        one-by-one stop_instances() call. It is designed to ensure that a single instance condition blocks any instance stop.
+
+        :param instance_ids_to_stop: A list of instance id to stop
+        """
         now      = self.context["now"]
         client   = self.context["ec2.client"]
         ids      = instance_ids_to_stop
@@ -542,9 +643,17 @@ without any TargetGroup but another external health instance source exists).
         return self.get_state_date("ec2.schedule.instance.last_stop_date.%s" % instance_id, default=default)
 
     def instance_in_error(self, Operation=None, InstanceId=None, PreviousState=None, CurrentState=None):
+        """ Template method for user Event generation. 
+        """
         return {}
 
     def sort_by_prefered_azs(self, instances, prefered_azs=None, prefered_before=True):
+        """ Return a list of instance sorted by prefered_azs.
+
+        It used by algorithms to manage AZ eviction by putting instances in a faulty AZ in front or at end of this list 
+        depending on what is needed by the algorithm.
+
+        """
         if prefered_azs is None: return instances
 
         sorted_instances = []
@@ -563,6 +672,11 @@ without any TargetGroup but another external health instance source exists).
         return sorted_instances
 
     def sort_by_prefered_instance_ids(self, instances, prefered_ids=None, prefered_before=True):
+        """ Return a sorted list of instance structures based on 'prefered_ids'.
+
+        Used by scaling algorithms to put in high or low priority a set of designed instance ids.
+
+        """
         if prefered_ids is None: return instances
 
         sorted_instances = []
@@ -582,7 +696,15 @@ without any TargetGroup but another external health instance source exists).
 
 
     def sort_by_balanced_az(self, candidate_instances, ref_instances, smallest_to_biggest_az=True, excluded_instance_ids=None):
+        """ Sort the supplied candidate instance list in a way that keeps the AZ balanced.
 
+        This is a critical method that scaling algorithm call to ensure AZs are always kept balanced the best possible.
+
+        :param candidate_instances:     The list of instance structures to sort
+        :param ref_instances:           The list of instance already running
+        :param smallest_to_biggest_az:  Define if the order of sorting.
+        :param excluded_instance_ids:   A list of instance ids to ignore in the AZ weighting.
+        """
         candidate_instances = candidate_instances.copy()
         ref_azs = {} 
         for i in candidate_instances:
@@ -623,6 +745,8 @@ without any TargetGroup but another external health instance source exists).
         return optimized_instances
 
     def get_instance_tags(self, instance, default=None):
+        """ Return instance tags as simple dict.
+        """
         if instance is None:
             return default
         tags = {}
@@ -632,6 +756,8 @@ without any TargetGroup but another external health instance source exists).
 
 
     def instance_has_tag(self, instance, tag, value=None):
+        """ Test if an instance has the specified tag and, if defined, the specified value.
+        """
         if instance is None:
             return None
         for t in instance["Tags"]:
@@ -644,6 +770,18 @@ without any TargetGroup but another external health instance source exists).
 
     def filter_spot_instances(self, instances, EventType="+rebalance_recommended,interrupted,other_states", 
             filter_out_instance_types=None, filter_in_instance_types=None, match_only_spot=False, merge_matching_spot_first=False):
+        """ Filter the supplied 'instances' list related to Spot one.
+
+        :param instances:                   The instance list to filter
+        :param EventType:                   A query string that matchs (+) or excluded (-) Spot instance based on 
+            status 'rebalance_recommended' and 'interrupted' 
+            TODO: Remove 'other_states' as deprecated
+        :param filter_out_instance_types:   A list of tuple(InstanceType, AZ) to filter out
+        :param filter_in_instance_types:    A list of tuples(InstanceType, AZ) to filter in
+        :param match_only_spot:             Excluded of non-Spot instance of the output list
+        :param merge_matching_spot_first:   If set to True, Spot instance are at front of the list and all non Spot are appended to the output list.
+        :return A list of instances matching the specified selectors.
+        """
         now     = self.context["now"]
         res     = []
         exclude = EventType.startswith("-")
@@ -685,6 +823,10 @@ without any TargetGroup but another external health instance source exists).
         return res
 
     def filter_instance_recently_stopped(self, instances, min_age, filter_only_spot=True):
+        """ Filter out recently stopped instance.
+        TODO: Remove this method as it was used by scaling algorithms to exclude Spot instances recently stopped but as start_instances()
+        is now able to manage this smartly so no more need to filter this way...
+        """
         now = self.context["now"]
         res = []
         for i in instances:
@@ -698,6 +840,13 @@ without any TargetGroup but another external health instance source exists).
         return res
 
     def filter_instance_list_by_tag(self, instances, key, value=None):
+        """ Perform sort-in/sort-out operation of the supplied instance list based on tags.
+
+        :param instances:   The instance list to filter
+        :param key:         The instance key to search prepend with '+' for filter-in and '-' for filter-out
+        :param value:       When set, the filter looks not only for tag presence but also tag value.
+        :return             A list of filtered instances
+        """
         exclude = key.startswith("-")
         if exclude: key = key[1:]
 
@@ -746,6 +895,10 @@ without any TargetGroup but another external health instance source exists).
         return next(filter(lambda instance: instance['InstanceId'] == id, self.instances), None)
 
     def get_cpu_creditbalance(self, instance):
+        """ Return the CPU Credit balance for the specified instance structure.
+
+        Return -1 if not a burstable intance or CPU Credit is not yet known.
+        """
         debug_state_key           = "ec2.debug.instance.%s.cpu_credit_balance" % instance["InstanceId"]
         forced_cpu_credit_balance = self.get_state(debug_state_key)
         if forced_cpu_credit_balance is not None:
@@ -766,6 +919,8 @@ without any TargetGroup but another external health instance source exists).
         return -1
 
     def get_all_scaling_states(self):
+        """ Return a dict of scaling instance states and associated list of instance id.
+        """
         r = defaultdict(list)
         for i in self.get_instances():
             instance_id = i["InstanceId"]
@@ -774,6 +929,10 @@ without any TargetGroup but another external health instance source exists).
         return dict(r)
 
     def get_scaling_state(self, instance_id, default=None, meta=None, default_date=None, do_not_return_excluded=False, raw=False, cache=None):
+        """ Return the scaling state for  specified instance.
+
+        TODO: Rewrite with method as it is highly CPU intensive and so inefficient in a Lambda context.
+        """
         if meta is not None:
             for i in ["action", "draining", "error", "bounced"]:
                 meta["last_%s_date" % i] = misc.str2utc(self.get_state("ec2.instance.scaling.last_%s_date.%s" %
