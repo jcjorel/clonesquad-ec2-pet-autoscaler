@@ -24,7 +24,7 @@ and **per region** depending on your autoscaling needs.*
 	- (Optional) One dedicated CloudWatch dashboard.
 
 * [Subfleet(s)](docs/SCALING.md#subfleet-support):
-	- Manage groups of *EC2 Instances* **with NO autoscaling need** (i.e. scaled manually based on time scheduling or other external scaling decision mechanisms and managed through the API Gateway),
+	- Manage groups of *EC2 Instances* **WITHOUT autoscaling need** (i.e. scaled manually based on time scheduling or other external scaling decision mechanisms and managed through the API Gateway),
 		* [Desired instance count](docs/CONFIGURATION_REFERENCE.md#subfleetsubfleetnameec2scheduledesired_instance_count) is the only supported mode to control the amount of EC2 resources to start in each subfleet. 
 	- (Optional) [Vertical scaling](docs/SCALING.md#vertical-scaling) (by leveraging instance type distribution in each subfleet),
 	- Manage also *RDS databases* and *TransferFamily servers* (simple start/stop use-cases),
