@@ -104,7 +104,7 @@ Resources:
         Type: AWS::CloudWatch::Alarm
         Properties:
           ActionsEnabled: True
-          AlarmDescription: "Alarm to catch CloudSquad Internal errors (ex: Misconfiguration, bugs...) - MAIN function"
+          AlarmDescription: "Alarm to catch ResponseTime exceeding the target."
           AlarmName: !Sub "CS-LB-${GroupName}-ResponseTime1"
           ComparisonOperator: GreaterThanThreshold
           DatapointsToAlarm: 2
@@ -179,7 +179,7 @@ Resources:
         Type: AWS::CloudWatch::Alarm
         Properties:
           ActionsEnabled: True
-          AlarmDescription: "Alarm to catch CloudSquad Internal errors (ex: Misconfiguration, bugs...) - MAIN function"
+          AlarmDescription: "Alarm to catch ResponseTime exceeding the target."
           AlarmName: !Sub "CS-LB-${GroupName}-ResponseTime2"
           ComparisonOperator: GreaterThanThreshold
           DatapointsToAlarm: 2
