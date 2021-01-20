@@ -237,13 +237,15 @@ def loop():
         logger.info(f"Instance metadata: {payload}")
         subfleet_name  = payload["SubfleetName"]
 
+        wait_time = max(1, min(60, args["api_polling_period"]) - (seconds() - last_poll_time))
+
         # When targetgroups are used, we do not need cs-instance-watcher (only in the autoscaled fleet, we always need in subfleet).
         if subfleet_name is None and "TargetGroups" in payload:
             targetgroups = payload["TargetGroups"]
             if targetgroups["NbOfTargetGroups"] and not args["force"]:
                 logger.warning(f"Targetgroups are used in group name '{group_name}': No need for cs-instance-watcher! (To force use, set --force option)")
                 time.sleep(wait_time)
-                break
+                return False
 
         instance_state = payload["State"]
         #if COUNT >= 2: instance_state = "draining"
@@ -274,7 +276,6 @@ def loop():
                         logger.error(f"Got an Exception while starting '{script}'! : {e}")
         last_instance_state = instance_state
 
-        wait_time = max(1, min(60, args["api_polling_period"]) - (seconds() - last_poll_time))
         logger.info("Waiting next polling (%.02fs)..." % wait_time)
         time.sleep(wait_time)
 
