@@ -83,7 +83,7 @@ def on_draining_block_new_connections_to_ports(instance_state, excluded):
     sys_exec(["iptables", "-L"], silent=True)
     output = sys_exec(["iptables-save"], silent=True)
     if output is None:
-        log.error("Failed to retrieve iptables-save!")
+        logger.error("Failed to retrieve iptables-save!")
         return
     iptables          = output.split("\n")
     filter_start_idx  = -1
@@ -305,7 +305,7 @@ def read_configuration():
             for a in c:
                 args[a] = c[a]
         except Exception as e:
-            log.error("Failed to read/parse configuration file '%s'! : %s" % (args["config"], e))
+            logger.error("Failed to read/parse configuration file '%s'! : %s" % (args["config"], e))
             sys.exit(1)
 
     # Override with command line args
