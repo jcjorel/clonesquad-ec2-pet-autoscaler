@@ -20,17 +20,16 @@ and **per region** depending on your autoscaling needs.*
 	- Multi targetgroup support (associated to one or multiple ALB or NLB at the same time),
 		* Note: CloneSquad can also work *without* any managed TargetGroup if not applicable to user use-case.
 	- (Optional) ['LightHouse' mode](docs/SCALING.md#vertical-scaling) to run automatically cheap instance types during low activity periods,
-	- (Optional) [Vertical scaling](docs/SCALING.md#vertical-scaling) (by leveraging instance type distribution in the fleet),
 	- (Optional) One dedicated CloudWatch dashboard.
 
 * [Subfleet(s)](docs/SCALING.md#subfleet-support):
 	- Manage groups of *EC2 Instances* **WITHOUT autoscaling need** (i.e. scaled manually based on time scheduling or other external scaling decision mechanisms and managed through the API Gateway),
 		* [Desired instance count](docs/CONFIGURATION_REFERENCE.md#subfleetsubfleetnameec2scheduledesired_instance_count) is the only supported mode to control the amount of EC2 resources to start in each subfleet. 
-	- (Optional) [Vertical scaling](docs/SCALING.md#vertical-scaling) (by leveraging instance type distribution in each subfleet),
 	- Manage also *RDS databases* and *TransferFamily servers* (simple start/stop use-cases),
 	- (Optional) One subfleet dedicated CloudWatch dashboard.
 
 * Characteristics shared by all kinds of fleet:
+	- (Optional) [Vertical scaling](docs/SCALING.md#vertical-scaling) (by leveraging instance type distribution in the fleet),
 	- **Always-on Availability Zone instance balancing algorithm**,
 		* Ex: If multiple instances need to be running in a given fleet, CloneSquad will try to select instances evenly spread in different AZs.
 	- Automatic replacement of unhealthy/unavail/impaired instances,
