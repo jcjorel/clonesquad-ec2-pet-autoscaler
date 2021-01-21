@@ -29,7 +29,7 @@ and **per region** depending on your autoscaling needs.*
 	- (Optional) One subfleet dedicated CloudWatch dashboard.
 
 * Characteristics shared by all kinds of fleet:
-	- (Optional) [Vertical scaling](docs/SCALING.md#vertical-scaling) (by leveraging instance type distribution in the fleet),
+	- (Optional) [Vertical scaling](docs/SCALING.md#vertical-scaling) (by leveraging "Spot'ness" and instance type distribution in the fleet),
 	- **Always-on Availability Zone instance balancing algorithm**,
 		* Ex: If multiple instances need to be running in a given fleet, CloneSquad will try to select instances evenly spread in different AZs.
 	- Automatic replacement of unhealthy/unavail/impaired instances,
