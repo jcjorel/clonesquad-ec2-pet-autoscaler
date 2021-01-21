@@ -67,9 +67,11 @@ def sys_exec(cmd, silent=False):
     return str(res.stdout.read(), "utf-8")
 
 
-
 def on_draining_block_new_connections_to_ports(instance_state, excluded):
+    if os.getuid() != 0:
+        return
     ports  = args["on_draining_block_new_connections_to_ports"]
+
     if args["instance_state"] != "":
         instance_state = args["instance_state"] # Override
     if instance_state not in ["stopping", "draining"] and not excluded:
@@ -79,6 +81,7 @@ def on_draining_block_new_connections_to_ports(instance_state, excluded):
         ports = [] # When not in draining state, no port are blacklisted
     else:
         logger.info(f"Configuring 'on_draining_block_new_connections_to_ports' built-in behavior for ports (excluded={excluded}): {ports}")
+
     # Always run an 'iptables -L' to ensure iptables kernel modules are loaded.
     sys_exec(["iptables", "-L"], silent=True)
     output = sys_exec(["iptables-save"], silent=True)
@@ -383,6 +386,9 @@ if __name__ == '__main__':
             nargs='?', type=str, default=argparse.SUPPRESS)
 
     read_configuration()
+
+    if os.getuid() != 0:
+        logger.warning("Not running as root user: Can not manage IPTables. --on-draining-block-new-connections-to-ports disabled!")
 
     while True:
         try:
