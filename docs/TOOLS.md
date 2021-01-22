@@ -19,13 +19,14 @@ When no TargetGroup is used, a possible use-case is when a load-balancer (differ
 from an AWS ALB/NLB/CLB) is serving CloneSquad managed instances.
 
 In order to help non-AWS Load-Balancer detects the draining instance condition, the
-`cs-instance-watcher` daemon contains a pre-built algorithm that reject all new TCP connections
+`cs-instance-watcher` daemon contains an **optional** pre-built algorithm that rejects all new TCP connections
 toward a user-supplied list of ports while allowing the current established ones to continue.
 The external load-balancer health-checks will thus fail as soon as the instance
 falls in the `draining` state allowing a smooth redirection toward other serving
-instances without users noticing the event.
+instances without users noticing the event. This options uses `iptables` so the tool needs to be run as root when this
+feature is used.
 
-Users has also the option to write their own logic for reacting to `draining` or other states by providing user scripts. (See [Configuration](#Configuration)).
+Users have also the option to write their own logic for reacting to `draining` (or other states) by providing user scripts. (See [Configuration](#Configuration)).
 
 
 ## Installation
