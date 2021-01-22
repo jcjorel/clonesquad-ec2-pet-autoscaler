@@ -37,7 +37,7 @@ Pre-requisites:
 
 * If use of the builtin port blacklisting feature,
 	* Collect the port(s) to blacklist on `draining` instance condition,
-	* Run the tool as `root` while passing the ports to blacklit as argument,
+	* Run the tool as `root` while passing the ports to blacklist as argument,
 * Install Python3 and the packages `requests`, `requests-iamauth` and `boto3`.
 
 Python packages installation: 
