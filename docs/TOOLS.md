@@ -25,7 +25,7 @@ The external load-balancer health-checks will thus fail as soon as the instance
 falls in the `draining` state allowing a smooth redirection toward other serving
 instances without users noticing the event. This option uses `iptables` so the tool needs to be run as root when used.
 
-Users have also the option to write their own logic for reacting to `draining` (or other) state change by providing user scripts. (See [Configuration](#Configuration)).
+Users have also the option to write their own logic for reacting to `draining` (or other) state change by providing user scripts.
 By default, scripts under a subdirectory of /etc/cs-instance-watcher.d/ with the name of a state, will be executed when this state occurs.
 
 	/etc/cs-instance-watcher.d/draining/script_to_launch_on_draining_state_transition.sh
