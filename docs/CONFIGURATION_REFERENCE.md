@@ -450,6 +450,20 @@ at its maximum size in a stable manner (i.e. even if there are impaired/unhealth
 
 
 
+### ec2.schedule.disable
+Default Value: `0`   
+Format       :  [Bool](#Bool)
+
+Disable all scale or automations algorithm in the Main fleet. 
+
+Setting this parameter to '1' disables all scaling and automation algorithms in the Main fleet. While set, all Main fleet instances can be freely started 
+and stopped by the users without CloneSquad trying to manage them. 
+
+Note: It is semantically similar to the value `undefined` in subfleet configuration key [`subfleet.&lt;subfleet_name&gt;.state`](#subfleetsubfleetnamestate).
+                    
+
+
+
 ### ec2.schedule.min_instance_count
 Default Value: `0`   
 Format       :  [PositiveInteger](#PositiveInteger)
@@ -544,7 +558,7 @@ to let the autoscaler algorithm do its smoother job instead)
 Default Value: `minutes=10`   
 Format       :  [Duration](#Duration)
 
-Period of scaling assesment. 
+Period of scaling assessment. 
 
 This parameter is strongly linked with [`ec2.scheduler.scaleout.rate`](#ec2schedulerscaleoutrate) and is 
 used by the scaling algorithm as a devider to determine the fleet growth rate under scalout condition.
