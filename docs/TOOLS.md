@@ -14,7 +14,7 @@ This scripts allows to react on instance state change (ex: `running` to `drainin
 users could see latencies, timeouts or sharp disconnections due to abrupt draining instance shutdowns.
 
 Even if the tool is designed to track and possibly react to any state transition, it is 
-meant to react especially to the 'draining' state:
+meant to react especially to the `draining` state:
 When no TargetGroup is used, a possible use-case is when a load-balancer (different 
 from an AWS ALB/NLB/CLB) is serving CloneSquad managed instances.
 
@@ -22,10 +22,10 @@ In order to help non-AWS Load-Balancer detects the draining instance condition, 
 `cs-instance-watcher` daemon contains a pre-built algorithm that reject all new TCP connections
 toward a user-supplied list of ports while allowing the current established ones to continue.
 The external load-balancer health-checks will thus fail as soon as the instance
-falls in the 'draining' state allowing a smooth redirection toward other serving
+falls in the `draining` state allowing a smooth redirection toward other serving
 instances without users noticing the event.
 
-Users has also the option to write their own logic for reacting to 'draining' or other states by providing user scripts. (See [Configuration](#Configuration)).
+Users has also the option to write their own logic for reacting to `draining` or other states by providing user scripts. (See [Configuration](#Configuration)).
 
 
 ## Installation
@@ -33,7 +33,7 @@ Users has also the option to write their own logic for reacting to 'draining' or
 Pre-requisites:
 
 * If use of the builtin port blacklisting feature,
-	* Collect the port(s) to blacklist on 'draining' instance condition,
+	* Collect the port(s) to blacklist on `draining` instance condition,
 	* Run the tool as `root` while passing the ports to blacklit as argument,
 * Install Python3 and the packages `requests`, `requests-iamauth` and `boto3`.
 
@@ -80,7 +80,7 @@ The tool takes command line arguments:
 **Arguments:**
 
 * `--api-polling-period <seconds>`: Period between calls to the CloneSquad API GW to get instance status (`running`, `draining`...). Default: `5`
-* `--on-draining-block-new-connections-to-ports <port> <port>`: Activate the builtin algorithm which forbids new TCP connections to the specified ports on `draining`condition. Default: `None`
+* `--on-draining-block-new-connections-to-ports <port> <port>`: Activate the builtin algorithm which forbids new TCP connections to the specified ports on `draining` condition. Default: `None`
 * `--stale-context-timeout <seconds>`: Period of time for running instance data caching (Tags especially). Default: `30`
 * `--log-file <path_to_a_file>`: Path to the rotated log file. Default: `stderr`
 * `--log-file-rotate log_rotate_spec`: Log rotation specification. Format: TimeUnit,RotationPerTimeUnit,BackupFileCount. Default: `d,1,7`
