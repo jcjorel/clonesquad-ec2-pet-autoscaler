@@ -49,8 +49,6 @@ Python packages installation:
 	* The tool does not need the DevKit and only needs the packages listed in the pre-requisites.
 2) Run the tool with appropriate arguments (See [Configuration](#Configuration)).
 
-> **Note: The tool can be safely left installed and started on any CloneSquad or non-CloneSquad managed EC2 instances.**
-
 **Example:**
 
 The following lines could be part of the EC2 Instance user-data to install once and run the tool at every start automatically.
@@ -64,6 +62,8 @@ It uses the builtin capability of the tool to generate itself the `systemd` entr
 	# Start the instance watcher ready to block ports 80 and 443 if the instance is placed in draining state
 	systemctl enable cs-instance-watcher
 	systemctl start cs-instance-watcher
+
+> **Note: The tool can be safely left installed and started on any CloneSquad or non-CloneSquad managed EC2 instances.**
 
 
 ### Configuration
