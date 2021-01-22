@@ -26,6 +26,9 @@ falls in the `draining` state allowing a smooth redirection toward other serving
 instances without users noticing the event. This option uses `iptables` so the tool needs to be run as root when used.
 
 Users have also the option to write their own logic for reacting to `draining` (or other) state change by providing user scripts. (See [Configuration](#Configuration)).
+By default, scripts under a subdirectory of /etc/cs-instance-watcher.d/ with the name of the state, will be executed on state change.
+
+	/etc/cs-instance-watcher.d/draining/script_to_launch_on_draining_state_transition.sh
 
 
 ## Installation
@@ -87,8 +90,6 @@ The tool takes command line arguments:
 	* Default `d,1,7` means: Every day rotates logs and keep 7 days of rotated files.
 * `--generate-systemd <systemd_service_file>`: Path to a systemd service configuration file to create.
 * `--script-dir <directory>`: A directory containing scripts to launch on state change. Default: /etc/cs-instance-watcher.d/
-	* Place scripts under a subdirectory which hold the name of the state.
-		* Ex: */etc/cs-instance-watcher.d/**draining**/script_to_launch_on_draining_state_transition.sh*
 
 Note: `cs-instance-watcher` reacts to the presence of 2 tags on the instance where it is deployed:
 * `clonesquad:excluded` : When set to 'True', the 'new-connection-to-port-blocking' algorithm will immediatly blacklist configured ports.
