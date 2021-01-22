@@ -8,14 +8,14 @@
 
 This daemon is to install and run on EC2 instances part of a CloneSquad group.
 
-This scripts allows to react on instance state change from the CloneSquad point of view. 
+This scripts allows to react on instance state change (ex: `running` to `draining`).
 
 > Without `cs-instance-watcher`, **in a TargetGroup free usage and with a front-end external Load-Balancer**, 
 users could see latencies, timeouts or sharp disconnections due to abrupt draining instance shutdowns.
 
 Even if the tool is designed to track and possibly react to any state transition, it is 
 meant to react especially to the 'draining' state:
-When no TargetGroup is used, a possible use-case is that a load-balancer (different 
+When no TargetGroup is used, a possible use-case is when a load-balancer (different 
 from an AWS ALB/NLB/CLB) is serving CloneSquad managed instances.
 
 In order to help non-AWS Load-Balancer detects the draining instance condition, the
@@ -25,15 +25,16 @@ The external load-balancer health-checks will thus fail as soon as the instance
 falls in the 'draining' state allowing a smooth redirection toward other serving
 instances without users noticing the event.
 
-Users can also decide to write their own logic for reacting to 'draining' or other state (See [Configuration](#Configuration)).
+Users has also the option to write their own logic for reacting to 'draining' or other states by providing user scripts. (See [Configuration](#Configuration)).
 
 
 ## Installation
 
 Pre-requisites:
 
-* Run as root (if use of the builtin port blacklisting feature),
-* collect the port(s) to blacklist on 'draining' instance condition (if use of the builtin port blacklisting feature),
+* If use of the builtin port blacklisting feature,
+	* Collect the port(s) to blacklist on 'draining' instance condition,
+	* Run the tool as `root` while passing the ports to blacklit as argument,
 * Install Python3 and the packages `requests`, `requests-iamauth` and `boto3`.
 
 Python packages installation: 
@@ -45,16 +46,17 @@ Python packages installation:
 	* The tool does not need the DevKit and only needs the packages listed in the pre-requisites.
 2) Run the tool with appropriate arguments (See [Configuration](#Configuration)).
 
-> Note: The tool can be safely left installed and started on any CloneSquad or non-CloneSquad managed EC2 instances.
+> **Note: The tool can be safely left installed and started on any CloneSquad or non-CloneSquad managed EC2 instances.**
 
 **Example:**
 
 The following lines could be part of the EC2 Instance user-data to install once and run the tool at every start automatically.
+It uses the builtin capability of the tool to generate itself the `systemd` entry to run as system daemon.
 
 	# Download the tool
 	curl https://raw.githubusercontent.com/jcjorel/clonesquad-ec2-pet-autoscaler/master/tools/cs-instance-watcher -o /usr/local/sbin/cs-instance-watcher
 	chmod a+x /usr/local/sbin/cs-instance-watcher
-	# Create a systemd service for the tool that will blacklit por t80 and 442 on 'draining' condition.
+	# Create a systemd service for the tool that will blacklit port 80 and 443 on 'draining' condition.
 	/usr/local/sbin/cs-instance-watcher --on-draining-block-new-connections-to-ports 80 443 --log-file /var/log/cs-instance-watcher.log --log-file-rotate d,1,10 --generate-systemd /etc/systemd/system/cs-instance-watcher.service
 	# Start the instance watcher ready to block ports 80 and 443 if the instance is placed in draining state
 	systemctl enable cs-instance-watcher
@@ -86,7 +88,7 @@ The tool takes command line arguments:
 * `--generate-systemd <systemd_service_file>`: Path to a systemd service configuration file to create.
 * `--script-dir <directory>`: A directory containing scripts to launch on state change. Default: /etc/cs-instance-watcher.d/
 	* Place scripts under a subdirectory which hold the name of the state.
-		* Ex: */etc/cs-instance-watcher.d/**draining**/script_to_launch_on_draining.sh*
+		* Ex: */etc/cs-instance-watcher.d/**draining**/script_to_launch_on_draining_state_transition.sh*
 
 Note: `cs-instance-watcher` reacts to the presence of 2 tags on the instance where it is deployed:
 * `clonesquad:excluded` : When set to 'True', the 'new-connection-to-port-blocking' algorithm will immediatly blacklist configured ports.
