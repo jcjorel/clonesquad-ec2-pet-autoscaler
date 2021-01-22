@@ -25,7 +25,7 @@ The external load-balancer health-checks will thus fail as soon as the instance
 falls in the `draining` state allowing a smooth redirection toward other serving
 instances without users noticing the event. This option uses `iptables` so the tool needs to be run as root when used.
 
-Users have also the option to write their own logic for reacting to `draining` (or other) state by providing user scripts. (See [Configuration](#Configuration)).
+Users have also the option to write their own logic for reacting to `draining` (or other) state change by providing user scripts. (See [Configuration](#Configuration)).
 
 
 ## Installation
