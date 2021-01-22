@@ -109,6 +109,17 @@ at its maximum size in a stable manner (i.e. even if there are impaired/unhealth
                  "ec2.schedule.max_instance_stop_at_a_time" : 5,
                  "ec2.schedule.state_ttl" : "hours=2",
                  "ec2.schedule.base_points" : 1000,
+                 "ec2.schedule.disable,Stable": {
+                    "DefaultValue" : 0,
+                    "Format"        : "Bool",
+                    "Description"   : """Disable all scale or automations algorithm in the Main fleet. 
+
+Setting this parameter to '1' disables all scaling and automation algorithms in the Main fleet. While set, all Main fleet instances can be freely started 
+and stopped by the users without CloneSquad trying to manage them. 
+
+Note: It is semantically similar to the value `undefined` in subfleet configuration key [`subfleet.<subfleet_name>.state`](#subfleetsubfleetnamestate).
+                    """
+                 },
                  "ec2.schedule.scaleout.disable,Stable": {
                      "DefaultValue" : 0,
                     "Format"        : "Bool",
@@ -785,11 +796,12 @@ By default, the dashboard is enabled.
         """
         self.generate_instance_transition_events()
         self.manage_spot_events()
-        self.shelve_extra_lighthouse_instances()
-        self.scale_desired()
-        self.scale_bounce()
-        self.scale_bounce_instances_with_issues()
-        self.scale_in_out()
+        if not Cfg.get_int("ec2.schedule.disable"):
+            self.shelve_extra_lighthouse_instances()
+            self.scale_desired()
+            self.scale_bounce()
+            self.scale_bounce_instances_with_issues()
+            self.scale_in_out()
         self.wakeup_burstable_instances()
         self.manage_subfleets()
         self.generate_subfleet_dashboard()
@@ -2224,7 +2236,7 @@ By default, the dashboard is enabled.
 
     @xray_recorder.capture()
     def scale_in_out(self):
-        """ This method that takes autoscaling decisions starting or stopping instances in the Main fleet.
+        """ This method takes autoscaling decisions starting or stopping instances in the Main fleet.
         
         TODO: Almost all this code could be removed as storing alarms is no more an effective way to manage them. It is now redundant with
             take_scale_decision() and get_guilties_sum_points() that read and react directly by polling all the alarms.
