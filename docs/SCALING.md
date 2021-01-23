@@ -108,7 +108,7 @@ widget and you will only see 'draining' instances for a very long time in 'SubFl
 CloneSquad monitors Spot instance interruption and rebalance recommandation EC2 events. 
 * On 'rebalance recommendation' signal, signaled instances are considered as unhealthy and  
 new instances are launched to replace them. Notice that even unhealthy, signaled Spot instances are NOT removed from any participating
-TargetGroups. As any unhealthy instances, they will be drained and stopped after 15 minutes by default.
+TargetGroups. But, as any unhealthy instances, they will be drained and stopped after 15 minutes by default.
 * On 'interruption' signal, all signaled Spot instances are set immediatly to 'draining' state, drained from participating TargetGroups and replacement instances 
 are started immediatly. 
 
