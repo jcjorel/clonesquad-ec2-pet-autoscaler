@@ -157,7 +157,7 @@ This API returns a dict of the `metadata` structures for all managed EC2 instanc
 * Callable from : `API Gateway`
 
 This API dumps some synthetic status indicators. It contains indicators that can be used to follow the dynamic of status change 
-in the CloneSquad fleets (autoscaled only currently).
+in the CloneSquad fleets.
 
 Example use-case: Track the fleet reaching 100% serving status.   
 To perform an immutable update, user may set '`ec2.schedule.desired_instance_count`' to `100%` value to have all instances started.
