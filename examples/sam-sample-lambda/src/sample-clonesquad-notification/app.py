@@ -49,6 +49,10 @@ def lambda_handler(event, context):
         input_data = json.loads(e["InputData"])
         print(f"Received event {event_date} - {event_type} - {input_data}")
 
+        ####################################
+        # Put your business logic here !!!
+        ####################################
+
         # DEMO - DEMO - DEMO - DELETE ME!
         if event_type in ["start_instances", "stop_instances"]:
             instance_ids           = input_data['**kwargs']["InstanceIds"]
@@ -65,10 +69,6 @@ def lambda_handler(event, context):
                 # Display the Tags of each instance
                 print("DEMO - %s : Tags=%s" % (instance_id, instance["Tags"]))
         # DEMO - DEMO - DEMO - DELETE ME!
-
-        ####################################
-        # Put your business logic here !!!
-        ####################################
 
         if ack_sqs_url is not None:
             # Publish to the notification SQS queue to ack this event.
