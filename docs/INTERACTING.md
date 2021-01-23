@@ -44,15 +44,15 @@ Note: This parameter can contain wildcards ("*" and "?")
 If an operation takes parameters, they have to be passed as URL Query string.
 
 The API gateway requires SiGV4 authentication (`AWS_IAM` authorizer) so you must present valid STS credentials to get access.
-Using a tool like '[awscurl](https://github.com/okigan/awscurl)' (version 0.17 is known to work) can simplify 
+Using a tool like '[awscurl](https://github.com/okigan/awscurl)' (version 0.17 is known to work) or the Python `requests-iamauth` package can simplify 
 this process or other AWS SDK managing as well with this kind of authentication.
 
-> This API is mainly designed with the assumption that it will be called from authenticated entities (ex: EC2 instances, Lambda function) 
+> This API is designed with the assumption that it will be called from authenticated entities (ex: EC2 instances, Lambda function) 
 that use service roles.
 
 ### Controlling acces to the API Gateway with IAM roles
 
-When using `AWS_IAM` authenticated API calls, the API Gateway can control access to its resources while checking IAM roles used by the callers.
+As using `AWS_IAM` authenticated API calls, the API Gateway can control access to its resources while checking IAM roles used by the callers.
 
 A [complete description of API gateway access crontrol possibilities](https://docs.aws.amazon.com/apigateway/latest/developerguide/api-gateway-control-access-using-iam-policies-to-invoke-api.html) is available on the AWS site.
 
