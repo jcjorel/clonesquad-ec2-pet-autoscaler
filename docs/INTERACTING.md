@@ -255,7 +255,7 @@ knows that it can't start now. Ex: Instance in `error`or `spot interrupted`).
 
 **Return value:**
 * `discovery`: A dict of Environment variables passed to the Interact Lambda function (see [template.yaml](../template.yaml)). This can used to locate various technical resources used by CloneSquad.
-* `identity`: The `event["requestContext"]["identity"]` structure the API Gateway Lambda context.
+* `identity`: The `event["requestContext"]["identity"]` structure of the API Gateway Lambda context.
 
 ## API `notify/ackevent`
 
@@ -304,7 +304,7 @@ This API dumps (or upload) the whole CloneSquad configuration in JSON format by 
 	}
 
 	# Upload modifications to the active configuration (written in DynamoDB table).
-	#    Note: The existing configuration is not replaced but patched
+	#    Note: The existing configuration is not replaced at once but merged
 	# awscurl -X POST -d @configfile.yaml https://pq264fab39.execute-api.eu-west-3.amazonaws.com/v1/configuration?format=yaml
 	Ok (12 key(s) processed)
 
