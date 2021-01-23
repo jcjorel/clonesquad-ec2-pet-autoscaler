@@ -87,6 +87,7 @@ of these 3 values: [`stopped`, `undefined` (or ``), `running`].
 Ones can use the CloneSquad Scheduler to change this value to manage lifecycle of subfleets.
 
 Ex:
+
 	# Start the subfleet named 'mysubfleetname' at 7AM UTC
 	cron(0 7 * * ? *),subfleet.mysubfleetname.state=running
 	# Stop the subfleet named 'mysubfleetname' at 7PM UTC
