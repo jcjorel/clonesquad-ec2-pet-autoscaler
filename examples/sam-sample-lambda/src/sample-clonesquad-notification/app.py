@@ -24,10 +24,10 @@ def lambda_handler(event, context):
     print(json.dumps(event, default=str))
 
 
-    # Acknowledge the events to avoid be called back again
     sqs_client  = boto3.client("sqs")
     ack_sqs_url = None
     if "Metadata" in event and "AckSQSUrl" in event["Metadata"]:
+        # The SQS Url to acknowledge the events and avoid be called back again
         ack_sqs_url = event["Metadata"]["AckSQSUrl"]
     else:
         print("[ERROR] No 'AckSQSUrl' in event!! (???)")
