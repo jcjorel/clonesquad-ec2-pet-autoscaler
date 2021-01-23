@@ -1,7 +1,7 @@
 
 # Event Scheduler
 
-CloneSquad has an integrated time scheduling module leveraging, behing the scene, CloudWatch Event rules.
+CloneSquad has an integrated time scheduling module leveraging, behind the scene, CloudWatch Event rules.
 Each item of the DynamoDB table *'CloneSquad-{GroupName}-Scheduler'* will be translated in a CloudWatch Event rule.
 
 Actions linked to an event are configuration parameter settings in the *'CloneSquad-{GroupName}-Configuration'* DynamoDB table.
@@ -18,6 +18,8 @@ Configuration of an event in the DynamoDB table has the following format: The Ke
 Note: Coma needs to be double-escaped with backslashes.
 
 ## CloudWatch Limitations about cron scheduling expression
+
+As the CloneSquad scheduler uses CloudWatch Event, it shares the same limitations.
 
 > **You can't specify the Day-of-month and Day-of-week fields in the same cron expression. If you specify a value (or a '*') in one of the fields, you must use a ? (question mark) in the other.**
 
