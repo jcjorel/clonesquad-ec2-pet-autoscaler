@@ -106,13 +106,15 @@ widget and you will only see 'draining' instances for a very long time in 'SubFl
 # About EC2 Spot instance support
 
 CloneSquad monitors Spot instance interruption and rebalance recommandation EC2 events. 
-* On 'rebalance recommendation', all Spot instances sharing the instance type and AZ signaled, are considered as unhealthy. If there are part of any TargetGroup
-associated with, new instances will be launched to replace them. These new instances are selected by the autoscaler avoiding to start instances
-with same characteritics (especially, it won't launch Spot instances sharing the signaled instance type and AZ.)
-* On 'interruption', all signaled Spot instances are set to 'draining' state, removed from participating TargetGroups and replacement instances (not
-sharing the same characterictics if possible) are started immediatly. 
+* On 'rebalance recommendation' signal, signaled instances are considered as unhealthy and  
+new instances are launched to replace them. Notice that even unhealthy, signaled Spot instances are NOT removed from any participating
+TargetGroups. As any unhealthy instances, they will be drained and stopped after 15 minutes by default.
+* On 'interruption' signal, all signaled Spot instances are set immediatly to 'draining' state, drained from participating TargetGroups and replacement instances 
+are started immediatly. 
 
-CloneSquad can manage only one kind of Spot instances: 'Persistent' one with 'stop' behavior. Especially, Spot fleets ARE NOT supported and
+> **It is advised to use Spot instances spread among multiple AZs as it is more unlikely to have Spot starvation at the same time in all region AZs.**
+
+CloneSquad can manage only one kind of Spot instances: '**Persistent**' one with 'stop' behavior. Especially, Spot 'fleet' instances ARE NOT supported and
 will throw exceptions in the CloudWatch logs.
 
 Below, the CloudFormation snippet to use and declare a CloneSquad compatible 'EC2 Launch Template'.
