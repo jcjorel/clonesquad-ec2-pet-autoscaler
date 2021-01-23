@@ -135,7 +135,7 @@ By default, this API returns status related to the calling EC2 instance.
 with the assumption the issue is transient.
 	* `bounced` value means that this instance has been selected to be bounced as considered too aged by the bouncing algorithm. This instance is a synonym of `running`and is an advance advisory that the instance will be put in `draining` soon. The instance remains part of any participating TargetGroup so serving normally until formaly drained.
 * `Status`: Can be any of ["`ok`", "`impaired`", "`insufficient-data`", "`not-applicable`", "`initializing`", "`unhealthy`", "`az_evicted`"]
-	These field comes from describe_instance_status() EC2 API and retirn the `["InstanceState"]["Name"]` response field for the instance.
+	These field comes from describe_instance_status() EC2 API and returns the `["InstanceState"]["Name"]` response field for the instance.
 	A special value `az_evicted` is added by CloneSquad to indicate that this instance is going to be evicted very soon as it is 
 	running in an AZ with issues.
 * `SubfleetName`: 'null' or name of the subfleet the instance belongs to.
@@ -151,7 +151,6 @@ This API returns a dict of the `metadata` structures for all managed EC2 instanc
 
 	# awscurl https://pq264fab39.execute-api.eu-west-3.amazonaws.com/v1/fleet/metadata
 
-This API can called by any IAM authenticated and authorized entities.
 
 ## API `fleet/status`
 
