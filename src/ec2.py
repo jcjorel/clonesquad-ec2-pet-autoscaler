@@ -75,6 +75,7 @@ class EC2:
 Typical usage is to force a fleet to consider one or more AZs as unavailable (AZ eviction). The autoscaler will then refuse to schedule
 new instances on these AZs. Existing instances in those AZs are left unchanged but on scalein condition will be 
 shutdown in priority (see [`ec2.az.evict_instances_when_az_faulty`](#ec2azevict_instances_when_az_faulty) to change this behavior). 
+This setting is global and affects instances both in the Main fleet and the Subfleets.
 
 This setting can be used during an AWS LSE (Large Scale Event) to manually define that an AZ is unavailable.
 
