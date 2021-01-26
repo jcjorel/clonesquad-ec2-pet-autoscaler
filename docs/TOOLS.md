@@ -4,7 +4,7 @@
 
 # cs-instance-watcher
 
-**Purpose:** Optimize EC2 instance draining mode handling when CloneSquad is used without TargetGroup.
+**Purpose:** Optimize EC2 instance draining mode handling when CloneSquad is used without EC2 TargetGroup.
 
 This daemon is to install and run on EC2 instances part of a CloneSquad group.
 
