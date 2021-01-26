@@ -10,15 +10,15 @@ This daemon is to install and run on EC2 instances part of a CloneSquad group.
 
 This scripts allows to react on instance state change (ex: `running` to `draining`).
 
-> Without `cs-instance-watcher`, **in a TargetGroup free usage and with a front-end external Load-Balancer**, 
+> Without `cs-instance-watcher`, **in an EC2 target group less context and with a non-ELB Load-Balancer**, 
 users could see latencies, timeouts or sharp disconnections due to abrupt draining instance shutdowns.
 
 Even if the tool is designed to track and possibly react to any state transition, it is 
 meant to react especially to the `draining` state:
-When no TargetGroup is used, a possible use-case is when a load-balancer (different 
+When no EC2 target group is used, a possible use-case is when a load-balancer (different 
 from an AWS ALB/NLB/CLB) is serving CloneSquad managed instances.
 
-In order to help non-AWS Load-Balancer detects the draining instance condition, the
+In order to help non-ELB Load-Balancer detect the draining instance condition, the
 `cs-instance-watcher` daemon contains an **optional** pre-built algorithm that can reject all new TCP connections
 toward a user-supplied list of ports while allowing the current established ones to continue.
 The external load-balancer health-checks will thus fail as soon as the instance
@@ -26,7 +26,7 @@ falls in the `draining` state allowing a smooth redirection toward other serving
 instances without users noticing the event. This option uses `iptables` so the tool needs to be run as root when used.
 
 Users have also the option to write their own logic for reacting to `draining` (or other) state change by providing user scripts.
-By default, scripts under a subdirectory of /etc/cs-instance-watcher.d/ with the name of a state, will be executed when this state occurs.
+By default, scripts under a subdirectory of `/etc/cs-instance-watcher.d/` with the name of a state, will be executed when this state occurs.
 
 	/etc/cs-instance-watcher.d/draining/script_to_launch_on_draining_state_transition.sh
 
