@@ -177,6 +177,7 @@ DEPRECATED. (Now automatic detection of RDS resources is implemented.)
             cw.set_metric("Subfleet.RDS.StoppingDBs", None)
             cw.set_metric("Subfleet.RDS.StartingDBs", None)
 
+    @staticmethod
     def _check_db_exception(need_longterm_record, response, ex):
         """ Check if we encountered exception and if we need to create a LongTerm record for this event
         """
@@ -205,10 +206,10 @@ DEPRECATED. (Now automatic detection of RDS resources is implemented.)
             db_type = db["_Meta"]["dbType"]
             log.info("Stopping RDS DB '%s' (type:%s)" % (arn, db_type))
             if db_type == "cluster":
-                response = R_xt(self._check_db_exception, lambda args, kwargs, r: "DBCluster" in r,
+                response = R_xt(RDS._check_db_exception, lambda args, kwargs, r: "DBCluster" in r,
                         client.stop_db_cluster, DBClusterIdentifier=db["DBClusterIdentifier"])
             if db_type == "db":
-                response = R_xt(self._check_db_exception, lambda args, kwargs, r: "DBInstance" in r,
+                response = R_xt(RDS._check_db_exception, lambda args, kwargs, r: "DBInstance" in r,
                         client.stop_db_instance, DBInstanceIdentifier=db["DBInstanceIdentifier"])
             log.debug(Dbg.pprint(response))
         except Exception as e:
@@ -221,10 +222,10 @@ DEPRECATED. (Now automatic detection of RDS resources is implemented.)
             db_type = db["_Meta"]["dbType"]
             log.info("Starting RDS DB '%s' (type:%s)" % (arn, db_type))
             if db_type == "cluster":
-                response = R_xt(self._check_db_exception, lambda args, kwargs, r: "DBCluster" in r,
+                response = R_xt(RDS._check_db_exception, lambda args, kwargs, r: "DBCluster" in r,
                     client.start_db_cluster, DBClusterIdentifier=db["DBClusterIdentifier"])
             if db_type == "db":
-                response = R_xt(self._check_db_exception, lambda args, kwargs, r: "DBInstance" in r,
+                response = R_xt(RDS._check_db_exception, lambda args, kwargs, r: "DBInstance" in r,
                     client.start_db_instance, DBInstanceIdentifier=db["DBInstanceIdentifier"])
             log.debug(response)
         except Exception as e:
