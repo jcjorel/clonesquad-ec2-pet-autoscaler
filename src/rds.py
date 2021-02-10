@@ -13,6 +13,7 @@ import sqs
 import config as Cfg
 import debug as Dbg
 from notify import record_call as R
+from notify import record_call_extended as R_xt
 
 from aws_xray_sdk.core import xray_recorder
 from aws_xray_sdk.core import patch_all
@@ -176,6 +177,27 @@ DEPRECATED. (Now automatic detection of RDS resources is implemented.)
             cw.set_metric("Subfleet.RDS.StoppingDBs", None)
             cw.set_metric("Subfleet.RDS.StartingDBs", None)
 
+    def _check_db_exception(need_longterm_record, response, ex):
+        """ Check if we encountered exception and if we need to create a LongTerm record for this event
+        """
+        need_shortterm_record = True
+        if ex is not None:
+            # If we received an InvalidDBClusterStateFault exception, we do not create short and long term record (=do not notify
+            #   user) as it could happen when a DB just changed its internal state few seconds ago.
+            try:
+                if ex.response['Error']['Code'] == 'InvalidDBClusterStateFault':
+                    log.log(log.NOTICE, "Failed to perform action on database due to 'InvalidDBClusterStateFault'. Will try again later...")
+                    need_shortterm_record  = False
+                    need_longterm_record   = False
+            except:
+                pass
+
+        # Instruct the notify handler about what to do regarding record creation
+        return {
+            "need_shortterm_record": need_shortterm_record,
+            "need_longterm_record": need_longterm_record}
+
+
     def stop_db(self, arn):
         try:
             client  = self.context["rds.client"]
@@ -183,10 +205,10 @@ DEPRECATED. (Now automatic detection of RDS resources is implemented.)
             db_type = db["_Meta"]["dbType"]
             log.info("Stopping RDS DB '%s' (type:%s)" % (arn, db_type))
             if db_type == "cluster":
-                response = R(lambda args, kwargs, r: "DBCluster" in r,
+                response = R_xt(self._check_db_exception, lambda args, kwargs, r: "DBCluster" in r,
                         client.stop_db_cluster, DBClusterIdentifier=db["DBClusterIdentifier"])
             if db_type == "db":
-                response = R(lambda args, kwargs, r: "DBInstance" in r,
+                response = R_xt(self._check_db_exception, lambda args, kwargs, r: "DBInstance" in r,
                         client.stop_db_instance, DBInstanceIdentifier=db["DBInstanceIdentifier"])
             log.debug(Dbg.pprint(response))
         except Exception as e:
@@ -199,10 +221,10 @@ DEPRECATED. (Now automatic detection of RDS resources is implemented.)
             db_type = db["_Meta"]["dbType"]
             log.info("Starting RDS DB '%s' (type:%s)" % (arn, db_type))
             if db_type == "cluster":
-                response = R(lambda args, kwargs, r: "DBCluster" in r,
+                response = R_xt(self._check_db_exception, lambda args, kwargs, r: "DBCluster" in r,
                     client.start_db_cluster, DBClusterIdentifier=db["DBClusterIdentifier"])
             if db_type == "db":
-                response = R(lambda args, kwargs, r: "DBInstance" in r,
+                response = R_xt(self._check_db_exception, lambda args, kwargs, r: "DBInstance" in r,
                     client.start_db_instance, DBInstanceIdentifier=db["DBInstanceIdentifier"])
             log.debug(response)
         except Exception as e:
