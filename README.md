@@ -122,9 +122,6 @@ metrics will generate a significant part of the demonstration CloudWatch bill an
 
 * Improve documentation,
 * Refine the IAM Role used by the CloneSquad Lambda that are far too wide,
-* **Collect feedbacks from users about what they like/they do not like about CloneSquad.**,
-	This early release is meant to understand and validate the original concept of CloneSquad (please send feedbacks to jeancharlesjorel@gmail.com)
-* Think about an automatic testing capability (currently, tests are manuals),
 * Implement a CI/CD pipeline for release (beyond the existing [release-everything script](scripts/release-everything)...),
 
 
