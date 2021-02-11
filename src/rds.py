@@ -213,7 +213,7 @@ DEPRECATED. (Now automatic detection of RDS resources is implemented.)
                         client.stop_db_instance, DBInstanceIdentifier=db["DBInstanceIdentifier"])
             log.debug(Dbg.pprint(response))
         except Exception as e:
-            log.warning("Got exception while stopping DB '%s'! : %s" % (arn, e))
+            log.log(log.NOTICE, "Got exception while stopping DB '%s'! : %s" % (arn, e))
 
     def start_db(self, arn):
         try:
@@ -229,7 +229,7 @@ DEPRECATED. (Now automatic detection of RDS resources is implemented.)
                     client.start_db_instance, DBInstanceIdentifier=db["DBInstanceIdentifier"])
             log.debug(response)
         except Exception as e:
-            log.warning("Got exception while starting DB '%s'! : %s" % (arn, e))
+            log.log(log.NOTICE, "Got exception while starting DB '%s'! : %s" % (arn, e))
 
     def get_db_status(self, arn):
         db = self.get_rds_db(arn)
