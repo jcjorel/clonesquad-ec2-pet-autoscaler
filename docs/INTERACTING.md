@@ -413,7 +413,7 @@ to monitor the 'CPU Credit' of managed burstable instances.
 **API Gateway synopsis:**
 
 	# Dump CloneSquad latest custom metrics.
-	# awscurl https://pq264fab39.execute-api.eu-west-3.amazonaws.com/v1/cloudwatch/sentmetrics
+	# awscurl https://pq264fab39.execute-api.eu-west-3.amazonaws.com/v1/cloudwatch/metriccache
 	[
 	    {
 		"Id": "idxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
