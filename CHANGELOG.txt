@@ -1,4 +1,5 @@
 v0.13.1:
+- (Bug/Major) When state key 'cloudwatch.metrics.cache' doesn't exist, a fatal exception is thrown. Ensure that deserialisation of a state key never return None but default value instead.
 - (Bug/Minor) Randomly, a DB start/Stop operation can fail due to a transient InvalidDBClusterStateFault exception. This was causing a needless user notification and a LongTerm debug event record in DynamodDB. The exception is now trapped and is no more considered as a critical error. The bug is minor as it doesn't altered the normal scheduling behavior of the overall SW.
 - (Bug/Minor) Added 'ec2.schedule.disable' configuration to disable all scheduling and automation algorithms in the Main fleet. It it semantically similar to 'subfleet.<subfleet_name>.state'.
 
