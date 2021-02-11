@@ -1003,7 +1003,8 @@ without any TargetGroup but another external health instance source exists).
 
     def get_state_json(self, key, default=None, direct=False):
         try:
-            return misc.decode_json(self.get_state(key, direct=direct))
+            v = misc.decode_json(self.get_state(key, direct=direct))
+            return v if v is not None else default
         except:
             return default
 
