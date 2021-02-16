@@ -458,10 +458,16 @@ improve CloneSquad over time by allowing easy sharing of essential data for remo
             QueueOwnerAWSAccountId=account_id
         )
         log.info("Notifying to SQS Queue '%s' for event '%s'..." % (arn, e))
-        response = client.send_message(
-            QueueUrl=response["QueueUrl"],
-            MessageBody=content)
-        #log.debug(Dbg.pprint(response))
+        args = {
+                "QueueUrl": response["QueueUrl"],
+                "MessageBody": content
+            }
+        if service_path.endswith(".fifo"):
+            # create a message group id that is unique to this CS deployment to allow
+            # SQS FIFO sharing between multiple deployment concurrently.
+            args["MessageGroupId"] = f"CS-notif-channel-{account_id}-%s" % (self.context["GroupName"])
+            args["MessageDeduplicationId"] = misc.sha256(content)
+        response = client.send_message(**args)
 
     @xray_recorder.capture()
     def call_sns(self, arn, region, account_id, service_path, content, e):

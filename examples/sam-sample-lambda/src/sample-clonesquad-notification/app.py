@@ -92,7 +92,7 @@ def lambda_handler(event, context):
                             "OpType" : "Notify/AckEvent",
                             "Events" : [event_date]})
 
-                print("Sending to SQS queue '%s' for Event '%s'..." % (ack_sqs_url, event_date))
+                print("Sending EventAck to SQS queue '%s' for event '%s'..." % (ack_sqs_url, event_date))
                 response = sqs_client.send_message(
                     QueueUrl=ack_sqs_url,
                     MessageBody=payload)
