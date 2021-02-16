@@ -19,10 +19,14 @@ Resources:
          - LambdaInvokePolicy: 
               FunctionName: "*"
          - Statement:
-            - Sid: SQSPushPolicy
+            - Sid: SQSPolicy
               Effect: Allow
               Action:
               - "sqs:SendMessage"
+              - "sqs:ReceiveMessage"
+              - "sqs:DeleteMessage"
+              - "sqs:GetQueueAttributes"
+              - "sqs:GetQueueUrl"
               Resource: "*"
 
 Outputs:
