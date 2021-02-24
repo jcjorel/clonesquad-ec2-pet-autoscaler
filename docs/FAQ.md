@@ -44,7 +44,7 @@ do not gain at least 30% of daily accruable credits. It is one of the [cost opti
 available in CloneSquad. While in 'CPU Crediting mode', an instance does not participate to any TargetGroup to accrue credits in a low CPU condition.
 
 If you want CloneSquad to disreguard the 'CPU Credit' status of burstabled instances, please set the configuration key
-[`ec2.schedule.max_cpu_crediting_instances`](CONFIGURATION_REFERENCE.md#ec2schedulemax_cpu_crediting_instances) to `0%`. Once set, burstable instances
+[`ec2.schedule.max_cpu_crediting_instances`](CONFIGURATION_REFERENCE.md#ec2scheduleburstable_instancemax_cpu_crediting_instances) to `0%`. Once set, burstable instances
 would be stopped immediatly as any other instance types.
 
 ## I'am NOT using AWS ALB/NLB/CLB but a Third-Party Load-Balancer to server requests toward my CloneSquad fleet. Are there any specific recommendations in this context?
