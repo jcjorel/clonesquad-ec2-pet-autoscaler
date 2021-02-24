@@ -20,12 +20,6 @@ watching for targetgroup statuses to know when a target under its management is 
 
 > Tip: CloneSquad doesn't know anything about LoadBalancers: it only knows about targetgroups.
 
-
-## Is Clonequad used in Production?
-
-Not to our knowledge in this early release stage. We definitely want to hear CloneSquad users and understand what they are
-doing with it.
-
 ## CloneSquad is responsible for a critical characteristic of my system: 'Availability'. What if CloneSquad does not work as expected (bug, incorrect behavior...)?
 
 CloneSquad never creates or terminates instances so the likely impact of a bug could be that too much or not enough instances are launched
