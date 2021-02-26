@@ -313,8 +313,10 @@ class Interact:
         config_key = m.group(1)
         if "httpMethod" in event and event["httpMethod"] == "POST":
             value = event["body"].partition('\n')[0]
-            log.info("Configuration write for key '%s' = '%s'." % (config_key, value))
-            Cfg.set(config_key, value)
+            log.info(f"TTL=%s" % event.get("ttl"))
+            ttl   = misc.str2duration_seconds(event.get("ttl"), no_exception=True, default=None)
+            log.info(f"Configuration write for key '{config_key}' = '{value}' (ttl={ttl}).")
+            kvtable.KVTable.set_kv_direct(config_key, value, self.context["ConfigurationTable"], context=self.context, TTL=ttl)
             response["statusCode"] = 200
             response["body"] = value
         else:
@@ -356,8 +358,9 @@ class Interact:
         config_key = m.group(1)
         if "httpMethod" in event and event["httpMethod"] == "POST":
             value = event["body"].partition('\n')[0]
-            log.info("Scheduler configuration write for key '%s' = '%s'." % (config_key, value))
-            kvtable.KVTable.set_kv_direct(config_key, value, self.context["SchedulerTable"], context=self.context)
+            ttl   = misc.str2duration_seconds(event.get("ttl"), no_exception=True, default=None)
+            log.info(f"Scheduler configuration write for key '{config_key}' = '{value}' (ttl={ttl}).")
+            kvtable.KVTable.set_kv_direct(config_key, value, self.context["SchedulerTable"], context=self.context, TTL=ttl)
             response["statusCode"] = 200
             response["body"] = value
         else:

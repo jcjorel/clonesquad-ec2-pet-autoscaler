@@ -99,7 +99,7 @@ def utc_now():
     return datetime.now(tz=timezone.utc) # datetime.utcnow()
 
 def epoch():
-    return datetime.utcfromtimestamp(0).replace(tzinfo=timezone.utc)
+    return seconds2utc(0)
 
 def seconds_from_epoch_utc(now=None):
     if now is None: now = utc_now()
@@ -131,17 +131,23 @@ def abs_or_percent(value, default, max_value):
         pass
     return v    
 
-def str2duration_seconds(s):
+def str2duration_seconds(s, no_exception=False, default=None):
     try:
         return int(s)
     except:
-        # Parse timedelta metadata
-        meta = s.split(",")
-        metas = {}
-        for m in meta:
-            k, v = m.split("=")
-            metas[k] = float(v)
-        return timedelta(**metas).total_seconds()
+        try:
+            # Parse timedelta metadata
+            meta = s.split(",")
+            metas = {}
+            for m in meta:
+                k, v = m.split("=")
+                metas[k] = float(v)
+            return timedelta(**metas).total_seconds()
+        except Exception as e:
+            if no_exception:
+                return default
+            raise e
+
 
 def decode_json(value):
     if value is None:

@@ -317,6 +317,11 @@ This API dumps (or upload) the whole CloneSquad configuration in JSON format by 
 
 This API dumps and updates configuration on a per key basis.
 
+**Argument:**
+
+* `ttl`: Specifying this parameter while updating a configuration, set an expiration time on key written in the DynamoDB table. When the TTL expires, the key is automatically deleted from the DynamoDB table. Format: Number of seconds or duration specification (ex: minutes=30,hours=1)
+
+
 **API Gateway synopsis:**
 
 	# Dump the current value of configuration key 'ec2.schedule.min_instance_count'.
@@ -326,6 +331,10 @@ This API dumps and updates configuration on a per key basis.
 	# Overwrite the configuration key 'ec2.schedule.min_instance_count' with value '3' (written in DynamoDB table).
 	# awscurl -X POST -d 3 https://pq264fab39.execute-api.eu-west-3.amazonaws.com/v1/configuration/ec2.schedule.min_instance_count
 	3
+
+	# Overwrite the configuration key 'ec2.schedule.min_instance_count' with value '4' specifying a TTL.
+	# awscurl -X POST -d 4 https://pq264fab39.execute-api.eu-west-3.amazonaws.com/v1/configuration/ec2.schedule.min_instance_count?ttl=3600
+	4
 
 > Tip: **Setting a configuration key with an empty string value will delete the underlying DynamodDB table entry it it exists.**
 

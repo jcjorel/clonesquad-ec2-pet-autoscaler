@@ -12,11 +12,12 @@ CloneSquad uses a multi-layered configuration system using the YAML semantic and
 Each layer can override configuration defined in below layers.
 
 Layer overrides by order of precedence (highest priority to lowest one):
-1) DynamodDB configuration table [Parameter set](#parameter-sets),
-2) DynamodDB configuration table,
-3) CloudFormation template parameter '`ConfigurationURLs`' pointing to a list of URLs (see supported protocoles below),
-4) YAML URLs listed in configuration key [`config.loaded_files`](#configloaded_files),
-5) Built-in Defaults
+1) Keys prefixed with '`override:`' string (ex: `override:ec2.schedule.min_instance_count` overrides the value set in `ec2.schedule.min_instance_count`),
+2) DynamodDB configuration table [Parameter set](#parameter-sets),
+3) DynamodDB configuration table,
+4) CloudFormation template parameter '`ConfigurationURLs`' pointing to a list of URLs (see supported protocoles below),
+5) YAML URLs listed in configuration key [`config.loaded_files`](#configloaded_files),
+6) Built-in Defaults
 
 URLs can use the following protocols: ["s3", "http", "https", "internal"]. 
 * `internal:` references a file contained inside the Lambda filesystem,
@@ -76,6 +77,8 @@ In the Configuration DynamoDB table, a specific syntax is used to describe key m
 ![Example of configuration DynamoDB table with parametersets](ConfigurationDynamoDBTable.png)
 
 > Note: Every DynamoDB configuration keys starting by a character `#` are silently ignored (comment syntax).
+
+
 
 ## Configuration keys
 
