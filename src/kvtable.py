@@ -356,6 +356,7 @@ class KVTable():
                 }
             }
             if TTL != 0:
+                log.log(log.NOTICE, f"Writing DynamoDB key '{key}' with TTL={TTL}")
                 expiration_time = misc.seconds_from_epoch_utc(now=now) + TTL
                 query.update({
                 'ExpirationTime' : {

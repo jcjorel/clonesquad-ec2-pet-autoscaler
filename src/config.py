@@ -185,10 +185,13 @@ def _get_config_layers(reverse=False):
     if reverse: l.reverse()
     return l
 
+def _k(key):
+    return key.replace("override:", "")
+
 def is_stable_key(key):
     all_configs          = _init["all_configs"]
     metas                = all_configs[0]["metas"]
-    return key in metas and "Stable" in metas[key] and metas[key]["Stable"]
+    return _k(key) in metas and "Stable" in metas[_k(key)] and metas[_k(key)]["Stable"]
 
 def keys(prefix=None, only_stable_keys=False):
     all_configs          = _init["all_configs"]
@@ -196,7 +199,7 @@ def keys(prefix=None, only_stable_keys=False):
     k                    = []
     config_layers        = _get_config_layers()
     for config_layer in _get_config_layers():
-        c     = config_layer["config"]
+        c = config_layer["config"]
         for key in c:
             if key.startswith("#"): continue # Ignore commented keys
             if key.startswith("["): continue # Ignore parameterset keys
@@ -252,6 +255,10 @@ def is_builtin_key_exist(key):
     return key in builtin_layer
 
 def get_extended(key):
+    """ Function responsible to walk through the configuration stack and return the requested config entry.
+
+    Note: This function searches 'override:{key}' before '{key}' names.
+    """
     active_parameter_set = _init["active_parameter_set"]
     stable_key           = is_stable_key(key)
     r = {
@@ -260,7 +267,8 @@ def get_extended(key):
             "Success" : False,
             "ConfigurationOrigin": "None",
             "Status": "[WARNING] Unknown configuration key '%s'" % key,
-            "Stable": stable_key
+            "Stable": stable_key,
+            "Override": False
     }
     builtin_layer = _init["all_configs"][0]["config"]
 
@@ -268,7 +276,7 @@ def get_extended(key):
     if key in builtin_layer and isinstance(builtin_layer[key], dict):
         key_def = builtin_layer[key]
 
-    def _test_key(c):
+    def _test_key(c, key):
         if key not in c or isinstance(c[key], list):
             return r
         if c != builtin_layer and isinstance(c[key], dict):
@@ -278,7 +286,8 @@ def get_extended(key):
                 "Success": True,
                 "ConfigurationOrigin" : config["source"],
                 "Status": "Key found in '%s'%s" % (config["source"], pset_txt),
-                "Stable": stable_key
+                "Stable": stable_key,
+                "Override": key.startswith("override:")
             }
         res["Value"] = c[key]
         if key_def is not None:
@@ -287,27 +296,29 @@ def get_extended(key):
             if c == builtin_layer:
                 res["Value"] = key_def["DefaultValue"]
         r.update(res)
-        if key not in builtin_layer:
+        if _k(key) not in builtin_layer:
             r["Status"] = "[WARNING] Key '%s' doesn't exist as built-in default (Misconfiguration??) but %s!" % (key, r["Status"])
         return r
 
-    for config in _get_config_layers(reverse=True):
-        c = config["config"]
+    # Perform 2 iterations: once to detect if there is an override and finally normal key lookup
+    for key_pattern in [f"override:{key}", key]:
+        for config in _get_config_layers(reverse=True):
+            c = config["config"]
 
-        parameter_set = "None"
-        if active_parameter_set in c:
-            if key in c[active_parameter_set]:
-                parameter_set = active_parameter_set
-                r = _test_key(c[active_parameter_set])
-                if r["Success"]: return r
+            parameter_set = "None"
+            if active_parameter_set in c:
+                if key in c[active_parameter_set]:
+                    parameter_set = active_parameter_set
+                    r = _test_key(c[active_parameter_set], key_pattern)
+                    if r["Success"]: return r
 
-        r = _test_key(c)
-        if r["Success"]: return r
+            r = _test_key(c, key_pattern)
+            if r["Success"]: return r
 
     return r
 
 def set(key, value, ttl=None):
-    if key == "config.active_parameter_set":
+    if _k(key) == "config.active_parameter_set":
         _init["active_parameter_set"] = value if value != "" else None
         _parameterset_sanity_check()
     if ttl is None: ttl = get_duration_secs("config.default_ttl")
