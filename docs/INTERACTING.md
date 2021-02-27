@@ -332,8 +332,11 @@ This API dumps and updates configuration on a per key basis.
 	# awscurl -X POST -d 3 https://pq264fab39.execute-api.eu-west-3.amazonaws.com/v1/configuration/ec2.schedule.min_instance_count
 	3
 
-	# Overwrite the configuration key 'ec2.schedule.min_instance_count' with value '4' specifying a TTL.
+	# Overwrite the configuration key 'ec2.schedule.min_instance_count' with value '4' specifying a TTL of 1 hour ('second' syntax).
 	# awscurl -X POST -d 4 https://pq264fab39.execute-api.eu-west-3.amazonaws.com/v1/configuration/ec2.schedule.min_instance_count?ttl=3600
+	4
+	# Overwrite the configuration key 'ec2.schedule.min_instance_count' with value '4' specifying a TTL of 1h30 ('timedelta' syntax).
+	# awscurl -X POST -d 4 https://pq264fab39.execute-api.eu-west-3.amazonaws.com/v1/configuration/ec2.schedule.min_instance_count?ttl=minutes%3D30,hours%3D1
 	4
 
 > Tip: **Setting a configuration key with an empty string value will delete the underlying DynamodDB table entry it it exists.**
