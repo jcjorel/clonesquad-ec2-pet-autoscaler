@@ -3,6 +3,7 @@ import boto3
 import json
 import pdb
 import re
+import arrow
 from datetime import datetime
 from datetime import timedelta
 from collections import defaultdict
@@ -23,14 +24,14 @@ import cslog
 log = cslog.logger(__name__)
 
 class Scheduler:
-    @xray_recorder.capture(name="SchedulerTable.__init__")
-    def __init__(self, context, ec2, cloudwatch):
+    def __init__(self, context=None, ec2=None, cloudwatch=None):
         self.context                = context
         self.ec2                    = ec2
         self.cloudwatch             = cloudwatch
         self.scheduler_table        = None
         self.event_names            = []
         self.rules                  = [] 
+        self.local_now              = None
         Cfg.register({
             "cron.max_rules_per_batch": "10",
             "cron.disable": "0"
@@ -69,7 +70,7 @@ class Scheduler:
                 if max_rules_per_batch <= 0:
                     break
                 rule_def            = self.get_ruledef_by_name(r)
-                schedule_expression = rule_def["Data"][0]["schedule"] 
+                schedule_expression = process_cron_expression(rule_def["Data"][0]["schedule"])
 
                 # In order to remove burden on user, we perform a sanity check about a wellknown 
                 #    limitation of Cloudwatch.
@@ -116,13 +117,56 @@ class Scheduler:
                 if max_rules_per_batch <= 0:
                     break
                 try:
-                    client.remove_targets(
-                      Rule=r,
-                      Ids=["id%s" % r]
-                      )
+                    client.remove_targets(Rule=r, Ids=["id%s" % r])
                     client.delete_rule(Name=r)
                 except Exception as e:
                     log.exception("Failed to delete rule '%s' : %s" % (r, e))
+
+        if self.local_now is not None:
+            log.log(log.NOTICE, "Current timezone offset to UTC: %s, DST: %s" % (self.utc_offset, self.dst_offset))
+
+    def process_cron_expression(self, expression, tz=None):
+        """ Return an UTC cron expression based on local timezone supplied one.
+        """
+        self.local_now = arrow.now(tz) if tz is not None else arrow.now() # Get local time (with local timezone or specified timezone)
+        self.utc_offset = self.local_now.utcoffset()
+        self.dst_offset = self.local_now.dst()
+
+        m = re.search("localcron\((.*)\)", expression)
+        if not m:
+            log.debug(f"Not a local timezone CRON specification: {expression}.")
+            return expression # No match
+        cron_spec = m.group(1)
+        try:
+            minutes, hours, dom, month, dow, year = [s for s in cron_spec.split(" ") if s != ""]
+        except:
+            log.debug(f"Invalid format for local timezone CRON specification: {expression}.")
+            return expression # Bad format
+
+        converts = []
+        for is_minute in [True, False]:
+            converted = []
+            items = minutes if is_minute else hours
+            for item in items.split(","):
+                if item == "": continue
+                item_range = item.split("-")
+                for i in range(0, len(item_range)):
+                    r    = item_range[i]
+                    try:
+                        unit = int(r)
+                        if is_minute:
+                            dt = self.local_now.replace(minute=unit, second=0)
+                        else:
+                            dt = self.local_now.replace(hour=unit, second=0)
+                            # Take into account odd TZ
+                            dt = dt.shift(seconds=-(self.utc_offset.total_seconds() % 3600))
+                        utc_now   = dt.to('utc')
+                        item_range[i] = str(utc_now.minute) if is_minute else str(utc_now.hour)
+                    except:
+                        pass # Not an integrer. Let the item as-is
+                converted.append("-".join(item_range))
+            converts.append(",".join(converted))
+        return f"cron(%s %s {dom} {month} {dow} {year})" % (converts[0], converts[1])
 
     def load_event_definitions(self):
         self.scheduler_table.reread_table()
@@ -182,4 +226,12 @@ class Scheduler:
             return True
         return False
 
+if __name__ == '__main__':
+    # Local timezone test case
+    scheduler = Scheduler()
+    for tz in ["local", "Europe/Paris", "Asia/Kolkata"]:
+        for exp in ["localcron(0 12 * * ? *)", "localcron( 0,10/* 12 * * ? * )", "localcron(0 0 * * ? *)", "localcron(0-12, 0-1,13 * * ? *)", 
+                "localcron(* 10 * * ? *)", "cron(1 2 * * ? *)"]:
+            print(f"{tz} : {exp} => %s" % scheduler.process_cron_expression(exp, tz=tz))
+        print("Current timezone offset to UTC: %s, DST: %s" % (scheduler.utc_offset, scheduler.dst_offset))
 
