@@ -41,6 +41,13 @@ class Scheduler:
     def get_prerequisites(self):
         if Cfg.get_int("cron.disable"):
             return
+
+        # Get Timezone related info 
+        self.local_now = arrow.now() # Get local time (with local timezone)
+        self.utc_offset = self.local_now.utcoffset()
+        self.dst_offset = self.local_now.dst()
+
+        # Load scheduler KV table
         self.scheduler_table        = kvtable.KVTable(self.context, self.context["SchedulerTable"])
 
         # Compute event names
@@ -122,15 +129,11 @@ class Scheduler:
                 except Exception as e:
                     log.exception("Failed to delete rule '%s' : %s" % (r, e))
 
-        if self.local_now is not None:
-            log.log(log.NOTICE, "Current timezone offset to UTC: %s, DST: %s" % (self.utc_offset, self.dst_offset))
+        log.log(log.NOTICE, "Current timezone offset to UTC: %s, DST: %s" % (self.utc_offset, self.dst_offset))
 
     def process_cron_expression(self, expression, tz=None):
         """ Return an UTC cron expression based on local timezone supplied one.
         """
-        self.local_now = arrow.now(tz) if tz is not None else arrow.now() # Get local time (with local timezone or specified timezone)
-        self.utc_offset = self.local_now.utcoffset()
-        self.dst_offset = self.local_now.dst()
 
         m = re.search("localcron\((.*)\)", expression)
         if not m:
@@ -230,6 +233,9 @@ if __name__ == '__main__':
     # Local timezone test case
     scheduler = Scheduler()
     for tz in ["local", "Europe/Paris", "Asia/Kolkata"]:
+        scheduler.local_now = arrow.now(tz)
+        scheduler.utc_offset = scheduler.local_now.utcoffset()
+        scheduler.dst_offset = scheduler.local_now.dst()
         for exp in ["localcron(0 12 * * ? *)", "localcron( 0,10/* 12 * * ? * )", "localcron(0 0 * * ? *)", "localcron(0-12, 0-1,13 * * ? *)", 
                 "localcron(* 10 * * ? *)", "cron(1 2 * * ? *)"]:
             print(f"{tz} : {exp} => %s" % scheduler.process_cron_expression(exp, tz=tz))
