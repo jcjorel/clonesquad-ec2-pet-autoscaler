@@ -12,11 +12,12 @@ CloneSquad uses a multi-layered configuration system using the YAML semantic and
 Each layer can override configuration defined in below layers.
 
 Layer overrides by order of precedence (highest priority to lowest one):
-1) DynamodDB configuration table [Parameter set](#parameter-sets),
-2) DynamodDB configuration table,
-3) CloudFormation template parameter '`ConfigurationURLs`' pointing to a list of URLs (see supported protocoles below),
-4) YAML URLs listed in configuration key [`config.loaded_files`](#configloaded_files),
-5) Built-in Defaults
+1) Keys prefixed with '`override:`' string (ex: `override:ec2.schedule.min_instance_count` overrides the value set in `ec2.schedule.min_instance_count`),
+2) DynamodDB configuration table [Parameter set](#parameter-sets),
+3) DynamodDB configuration table,
+4) CloudFormation template parameter '`ConfigurationURLs`' pointing to a list of URLs (see supported protocoles below),
+5) YAML URLs listed in configuration key [`config.loaded_files`](#configloaded_files),
+6) Built-in Defaults
 
 URLs can use the following protocols: ["s3", "http", "https", "internal"]. 
 * `internal:` references a file contained inside the Lambda filesystem,
@@ -24,6 +25,24 @@ URLs can use the following protocols: ["s3", "http", "https", "internal"].
 
 Note: If an URL resource fails to load, a warning is generated but it is safely ignored by the configuration subsystem to avoid
 a service malfunction. Users needs to take into account this expected behavior.
+
+### Using `override:` syntax
+
+`override:` keyword can be placed in front of a key name to override the current value of this key.
+
+The following YAML snippet demoes how [`ec2.schedule.min_instance_count`](#ec2schedulemin_instance_count) value is overriden using this key word.
+
+Ex:
+
+	override:ec2.schedule.min_instance_count: 100%
+	ec2.schedule.min_instance_count: 2
+
+This keyword is valuable to implement maintenance use-cases easily. For instance, if you need to perform patch management of 
+CloneSquad instances, you can set the key [`override:ec2.schedule.min_instance_count`](#ec2schedulemin_instance_count) to `100%` to start all instances
+in a fleet without to care about the current value of this keyword.
+
+Combined with the TTL feature of the [CloneSquad API gateway](INTERACTING.md#api-configuration-1), you can also define an override for only a specified amount of time (ex: one hour) before the normal configuration
+takes place again.
 
 ### Customizing the Lambda package
 
