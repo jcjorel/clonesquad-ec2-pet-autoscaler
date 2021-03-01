@@ -1,7 +1,5 @@
-# aws ec2 describe-regions | jq -r '.["Regions"][]["RegionName"]'
-# 
-# Site for TZ discovry - https://www.zeitverschiebung.net/en/
-
+# AWS region timezone mapping
+#
 # US East (Ohio) 
 "us-east-2": "America/New_York"
 # US East (N. Virginia) 
