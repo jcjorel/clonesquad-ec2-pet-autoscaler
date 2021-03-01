@@ -53,7 +53,7 @@ class QueryCache:
     def load_cached_data(self):
         if self.interact_precomputed_data is None:
             interact_data = self.context["o_state"].get_state("interact.precomputed", direct=True)
-            log.info("interact_data=%s" % interact_data)
+            #log.info("interact_data=%s" % interact_data)
             if interact_data is not None:
                 log.log(log.NOTICE, "Loading Interact precomputed data...")
                 self.interact_precomputed_data = misc.decode_json(interact_data)
