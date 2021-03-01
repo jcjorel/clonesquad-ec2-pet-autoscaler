@@ -127,5 +127,19 @@ Coma separated list of DynamoDB Table PROVISIONED throughput. Table name must be
 
 Path to a ZIP file located in S3 expressed with the special format '<S3_bucket_name>:<S3_key_path>'.
 
+## `TimeZone`
+
+**Required: No**   
+**Format: String**
+
+	TimeZone=<TZ specification>
+
+A time zone specification following the TZ format (ex: Europe/Paris, America/Los_Angeles...)
+
+To list all valid timezones, use the following command:
+
+	python3 -c "from dateutil.zoneinfo import get_zonefile_instance ; zonenames = print(get_zonefile_instance().zones)"
+
+
 
 
