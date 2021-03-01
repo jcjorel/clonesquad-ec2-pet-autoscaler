@@ -18,18 +18,20 @@ from aws_xray_sdk.core import xray_recorder
 @xray_recorder.capture(name="config.init")
 def init(context, with_kvtable=True, with_predefined_configuration=True):
     global _init
-    _init = {}
-    _init["context"] = context
+    _init                = {}
+    _init["context"]     = context
     _init["all_configs"] = [{
         "source": "Built-in defaults",
         "config": {},
         "metas" : {}
         }]
+    _init["active_parameter_set"]    = None
+    _init["with_kvtable"]            = False
     if with_kvtable:
         _init["configuration_table"] = kvtable.KVTable(context, context["ConfigurationTable"])
         _init["configuration_table"].reread_table()
-    _init["with_kvtable"] = with_kvtable
-    _init["active_parameter_set"] = None
+        _init["with_kvtable"]        = True
+
     register({
              "config.dump_configuration,Stable" : {
                  "DefaultValue": "0",
@@ -153,7 +155,6 @@ def _parameterset_sanity_check():
                 break
         if not found:
             log.warning("Active parameter set is '%s' but no parameter set with this name exists!" % _init["active_parameter_set"])
-
     
 
 def register(config, ignore_double_definition=False):
@@ -168,6 +169,8 @@ def register(config, ignore_double_definition=False):
             raise Exception("Double definition of key '%s'!" % key)
         builtin_config[key] = config[c]
         builtin_metas[key]  = dict(p[0])
+    # Create a lookup efficient key cache
+    compile_keys()
 
 def _get_config_layers(reverse=False):
     l = []
@@ -254,68 +257,67 @@ def is_builtin_key_exist(key):
     builtin_layer = _init["all_configs"][0]["config"]
     return key in builtin_layer
 
-def get_extended(key):
-    """ Function responsible to walk through the configuration stack and return the requested config entry.
+def compile_keys():
+    """ Build a dictionary to quickly lookup keys.
 
     Note: This function searches 'override:{key}' before '{key}' names.
     """
-    active_parameter_set = _init["active_parameter_set"]
-    stable_key           = is_stable_key(key)
-    r = {
-            "Key": key,
-            "Value" : None,
-            "Success" : False,
-            "ConfigurationOrigin": "None",
-            "Status": "[WARNING] Unknown configuration key '%s'" % key,
-            "Stable": stable_key,
-            "Override": False
-    }
-    builtin_layer = _init["all_configs"][0]["config"]
+    active_parameter_set   = _init["active_parameter_set"]
+    builtin_layer          = _init["all_configs"][0]["config"]
+    _init["compiled_keys"] = {}
 
-    key_def = None
-    if key in builtin_layer and isinstance(builtin_layer[key], dict):
-        key_def = builtin_layer[key]
 
-    def _test_key(c, key):
-        if key not in c or isinstance(c[key], list):
+    for key in keys(only_stable_keys=False):
+        r = get_extended(key) # Retrieve the error structure.
+        stable_key  = is_stable_key(key)
+        r["Stable"] = stable_key
+
+        key_def = None
+        if key in builtin_layer and isinstance(builtin_layer[key], dict):
+            key_def = builtin_layer[key]
+
+        def _test_key(c, key):
+            if key not in c or isinstance(c[key], list):
+                return r
+            if c != builtin_layer and isinstance(c[key], dict):
+                return r
+            pset_txt = " (ParameterSet='%s')" % parameter_set if parameter_set != "None" else ""
+            res = {
+                    "Success": True,
+                    "ConfigurationOrigin" : config["source"],
+                    "Status": "Key found in '%s'%s" % (config["source"], pset_txt),
+                    "Stable": stable_key,
+                    "Override": key.startswith("override:")
+                }
+            res["Value"] = c[key]
+            if key_def is not None:
+                for k in key_def:
+                    res[k] = key_def[k]
+                if c == builtin_layer:
+                    res["Value"] = key_def["DefaultValue"]
+            r.update(res)
+            if _k(key) not in builtin_layer:
+                r["Status"] = "[WARNING] Key '%s' doesn't exist as built-in default (Misconfiguration??) but %s!" % (key, r["Status"])
             return r
-        if c != builtin_layer and isinstance(c[key], dict):
-            return r
-        pset_txt = " (ParameterSet='%s')" % parameter_set if parameter_set != "None" else ""
-        res = {
-                "Success": True,
-                "ConfigurationOrigin" : config["source"],
-                "Status": "Key found in '%s'%s" % (config["source"], pset_txt),
-                "Stable": stable_key,
-                "Override": key.startswith("override:")
-            }
-        res["Value"] = c[key]
-        if key_def is not None:
-            for k in key_def:
-                res[k] = key_def[k]
-            if c == builtin_layer:
-                res["Value"] = key_def["DefaultValue"]
-        r.update(res)
-        if _k(key) not in builtin_layer:
-            r["Status"] = "[WARNING] Key '%s' doesn't exist as built-in default (Misconfiguration??) but %s!" % (key, r["Status"])
-        return r
 
-    # Perform 2 iterations: once to detect if there is an override and finally normal key lookup
-    for key_pattern in [f"override:{key}", key]:
-        for config in _get_config_layers(reverse=True):
-            c = config["config"]
+        # Perform 2 iterations: once to detect if there is an override and finally normal key lookup
+        for key_pattern in [f"override:{key}", key]:
+            for config in _get_config_layers(reverse=True):
+                c = config["config"]
 
-            parameter_set = "None"
-            if active_parameter_set in c:
-                if key in c[active_parameter_set]:
-                    parameter_set = active_parameter_set
-                    r = _test_key(c[active_parameter_set], key_pattern)
-                    if r["Success"]: return r
+                parameter_set = "None"
+                if active_parameter_set in c:
+                    if key in c[active_parameter_set]:
+                        parameter_set = active_parameter_set
+                        r = _test_key(c[active_parameter_set], key_pattern)
+                        if r["Success"]: return r
 
-            r = _test_key(c, key_pattern)
-            if r["Success"]: return r
-
-    return r
+                r = _test_key(c, key_pattern)
+                if r["Success"]: 
+                    break
+            if r["Success"]: 
+                break
+        _init["compiled_keys"][key] = r
 
 def set(key, value, ttl=None):
     if _k(key) == "config.active_parameter_set":
@@ -337,20 +339,43 @@ def get_dict():
     t = _init["configuration_table"]
     return t.get_dict()
 
-def get(key, none_on_failure=False):
+def get_extended(key):
+    if key in _init["compiled_keys"]:
+        return _init["compiled_keys"][key]
+    return {
+        "Key": key,
+        "Value" : None,
+        "Success" : False,
+        "ConfigurationOrigin": "None",
+        "Status": "[WARNING] Unknown configuration key '%s'" % key,
+        "Stable": False,
+        "Override": False
+    }
+
+def get(key, cls=str, none_on_failure=False):
     r = get_extended(key)
     if not r["Success"]:
         if none_on_failure:
             return None
         else:
             raise Exception(r["Status"])
-    return str(r["Value"])
+    try:
+        if cls == str:
+            return str(r["Value"]) if r["Value"] is not None else None
+        if cls == int:
+            return int(r["Value"])
+        if cls == float:
+            return float(r["Value"])
+    except Exception as e:
+        if none_on_failure:
+            return None
+        raise Exception(f"Failed to convert key '{key}' with value '%s' : {e}" % r["Value"])
 
 def get_int(key):
-    return int(get(key))
+    return get(key, cls=int)
 
 def get_float(key):
-    return float(get(key))
+    return get(key, cls=float)
 
 def get_list(key, separator=";", default=None):
     v = get(key)

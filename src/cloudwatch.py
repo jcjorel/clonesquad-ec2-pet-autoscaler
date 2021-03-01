@@ -598,7 +598,9 @@ See [Alarm specification documentation](ALARMS_REFERENCE.md)  for more details.
         for k in self.context:
             content = content.replace("{%s}" % k, str(self.context[k]))
         for k in Cfg.keys():
-            content = content.replace("{%s}" % k, Cfg.get(k))
+            val = Cfg.get(k)
+            if val is not None:
+                content = content.replace("{%s}" % k, val)
         return content
 
     @xray_recorder.capture()

@@ -93,9 +93,15 @@ Ex:
 	# Stop the subfleet named 'mysubfleetname' at 7PM UTC
 	cron(0 19 * * ? *),subfleet.mysubfleetname.state=stopped
 
+	# SPECIAL SUBFLEET NAME `__all__` USAGE:
+	# Force all defined subfleets to be in a running state at 3AM UTC with special subfleet name `__all__`
+	cron(0 3 * * ? *),subfleet.__all__.state=running
+	# Delete the key subfleet.__all__.state at 4AM UTC
+	cron(0 4 * * ? *),subfleet.__all__.state=
+
 EC2 resources are subject to an additional configuration key named [`subfleet.<subfleetname>.ec2.schedule.desired_instance_count`](CONFIGURATION_REFERENCE.md#subfleetsubfleetnameec2scheduledesired_instance_count) which have a 
 similar semantic than in the Main fleet: It controls the number of running instances while [`subfleet.<subfleetname>.state`](CONFIGURATION_REFERENCE.md#subfleetsubfleetnamestate)
-is set to `running`. Unlike with the main fleet parameter variant, the value `-1` is invalid (and so, does not mean autoscaling). When this parameter is set 
+is set to `running`. When this parameter is set 
 to a value different than `100%`, standard remediation mechanisms are activated (AZ instance balancing, faulty instance replacement, instance bouncing, 
 instance eviction on faulty AZ, Spot interruption handling and replacement...)
 

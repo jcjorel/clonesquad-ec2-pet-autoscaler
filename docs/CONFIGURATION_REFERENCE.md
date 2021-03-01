@@ -770,6 +770,8 @@ Define the status of the subfleet named &lt;subfleetname&gt;.
 Can be one the following values ['`stopped`', '`undefined`', '`running`'].
 
 A subfleet can contain EC2 instances but also RDS and TransferFamilies tagged instances.
+
+Note: **When subfleet name is `__all__`, the key is overriden in all subfleets.**
                  
 
 

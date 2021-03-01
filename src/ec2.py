@@ -127,6 +127,8 @@ forcing their immediate replacement in healthy AZs in the region.
 Can be one the following values ['`stopped`', '`undefined`', '`running`'].
 
 A subfleet can contain EC2 instances but also RDS and TransferFamilies tagged instances.
+
+Note: **When subfleet name is `__all__`, the key is overriden in all subfleets.**
                  """},
                  "subfleet.<subfleetname>.ec2.schedule.desired_instance_count,Stable": {
                          "DefaultValue": "100%",
@@ -218,7 +220,7 @@ without any TargetGroup but another external health instance source exists).
 
 
     def get_prerequisites(self, only_if_not_already_done=False):
-        """ Gather instance status byt calling EC2 APIs.
+        """ Gather instance status by calling EC2 APIs.
         """
         if only_if_not_already_done and self.prereqs_done:
             return
@@ -314,12 +316,13 @@ without any TargetGroup but another external health instance source exists).
 
         # We need to register dynamically subfleet configuration keys to avoid a 'key unknown' warning 
         #   when the user is going to set it
-        subfleet_names = self.get_subfleet_names()
+        subfleet_names = ["__all__"]
+        subfleet_names.extend(self.get_subfleet_names())
         for subfleet in subfleet_names:
             for k in Cfg.keys():
                 key = k.replace("<subfleetname>", subfleet)
                 if k.startswith("subfleet.<subfleetname>.") and not Cfg.is_builtin_key_exist(key):
-                    Cfg.register({ f"{key},Stable" : Cfg.get(k) })
+                    Cfg.register({ f"{key},Stable" : Cfg.get(k) if subfleet != "__all__" else None })
         log.log(log.NOTICE, "Detected following subfleet names across EC2 resources: %s" % subfleet_names)
 
         # Load EC2 status override URL content

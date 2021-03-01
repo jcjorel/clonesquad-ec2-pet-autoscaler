@@ -13,6 +13,7 @@ import sqs
 import config as Cfg
 import debug as Dbg
 from notify import record_call_prefix as R
+from subfleet import get_subfleet_key
 
 from aws_xray_sdk.core import xray_recorder
 from aws_xray_sdk.core import patch_all
@@ -107,7 +108,7 @@ DEPRECATED. (Now automatic detection of TransferFamilty services is implemented)
             if re.match(forbidden_chars, subfleet_name):
                 log.warning("Subfleet name '%s' contains invalid characters (%s)!! Ignore %s..." % (subfleet_name, forbidden_chars, arn))
                 continue
-            expected_state = Cfg.get("subfleet.%s.state" % subfleet_name, none_on_failure=True)
+            expected_state = get_subfleet_key("state", subfleet_name, none_on_failure=True)
             if expected_state is None:
                 log.warn("Encountered a subfleet TransferFamily server (%s) without matching state directive. Please set 'subfleet.%s.state' configuration key..." % 
                         (arn, subfleet_name))

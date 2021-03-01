@@ -51,6 +51,8 @@ import kvtable
 import misc
 import config as Cfg
 import debug as Dbg
+from subfleet import get_subfleet_key
+from subfleet import get_subfleet_key_abs_or_percent
 
 from aws_xray_sdk.core import xray_recorder
 
@@ -532,7 +534,7 @@ By default, the dashboard is enabled.
 
         # Register dynamic keys for subfleets
         for subfleet in self.ec2.get_subfleet_names():
-            extended_metrics = Cfg.get_int(f"subfleet.{subfleet}.ec2.schedule.metrics.enable") 
+            extended_metrics = get_subfleet_key("ec2.schedule.metrics.enable", subfleet, cls=int) 
             if extended_metrics:
                 log.log(log.NOTICE, f"Enabled detailed metrics for subfleet '{subfleet}' (subfleet.{subfleet}.ec2.schedule.metrics.enable != 0).")
                 dimensions = [{
@@ -1163,12 +1165,12 @@ By default, the dashboard is enabled.
         # Prepare subfleet details
         subfleet_details = defaultdict(dict)
         for subfleet in self.ec2.get_subfleet_names():
-            subfleet_details[subfleet]["IsRunningState"]                  = Cfg.get("subfleet.%s.state" % subfleet, none_on_failure=True) == "running"
-            subfleet_details[subfleet]["Instances"]                       = self.ec2.get_subfleet_instances(subfleet_name=subfleet)
-            subfleet_details[subfleet]["desired_instance_count"]          = Cfg.get("subfleet.%s.ec2.schedule.desired_instance_count" % subfleet)
-            subfleet_details[subfleet]["max_number_crediting_instances"]  = Cfg.get_abs_or_percent("subfleet.%s.ec2.schedule.burstable_instance.max_cpu_crediting_instances" %
-                    subfleet, "50%", len(subfleet_details[subfleet]["Instances"]))
-            subfleet_details[subfleet]["cpu_credit_counter"]              = subfleet_details[subfleet]["max_number_crediting_instances"]
+            subfleet_details[subfleet]["IsRunningState"]                 = get_subfleet_key("state", subfleet, none_on_failure=True) == "running"
+            subfleet_details[subfleet]["Instances"]                      = self.ec2.get_subfleet_instances(subfleet_name=subfleet)
+            subfleet_details[subfleet]["desired_instance_count"]         = get_subfleet_key("ec2.schedule.desired_instance_count", subfleet)
+            subfleet_details[subfleet]["max_number_crediting_instances"] = get_subfleet_key_abs_or_percent(
+                    "ec2.schedule.burstable_instance.max_cpu_crediting_instances", subfleet, "50%", len(subfleet_details[subfleet]["Instances"]))
+            subfleet_details[subfleet]["cpu_credit_counter"]             = subfleet_details[subfleet]["max_number_crediting_instances"]
 
         # Retrieve list of instance marked as draining and running
         instances     = self.pending_running_instances_draining
@@ -1300,7 +1302,7 @@ By default, the dashboard is enabled.
                 Warn the user if inconsistencies are detected.
             """
             vertical_sorted_instances = self.verticalscaling_sort_instances(
-                    Cfg.get(f"subfleet.{subfleet}.ec2.schedule.verticalscale.instance_type_distribution"), 
+                    get_subfleet_key("ec2.schedule.verticalscale.instance_type_distribution", subfleet), 
                     candidates, reverse=reverse)
             candidates = []
             if not reverse:
@@ -1325,10 +1327,10 @@ By default, the dashboard is enabled.
             return candidates
         
         fleet_instances        = self.ec2.get_subfleet_instances(subfleet_name=subfleet) # Retrieve all instances matching the subfleet_name
-        min_instance_count     = max(0, Cfg.get_abs_or_percent(f"subfleet.{subfleet}.ec2.schedule.min_instance_count",
-            0, len(fleet_instances)) )
-        desired_instance_count = max(0, Cfg.get_abs_or_percent(f"subfleet.{subfleet}.ec2.schedule.desired_instance_count", 
-            len(fleet_instances), len(fleet_instances)))
+        min_instance_count     = max(0, get_subfleet_key_abs_or_percent("ec2.schedule.min_instance_count", subfleet,
+                                        0, len(fleet_instances)))
+        desired_instance_count = max(0, get_subfleet_key_abs_or_percent("ec2.schedule.desired_instance_count", subfleet,
+                                        len(fleet_instances), len(fleet_instances)))
 
         instance_count    = max(min_instance_count, desired_instance_count)
         running_instances = self.ec2.get_instances(cache=cache, instances=fleet_instances, 
@@ -1391,7 +1393,7 @@ By default, the dashboard is enabled.
             if re.match(forbidden_chars, subfleet_name):
                 log.warning("Instance '%s' contains invalid characters (%s)!! Ignore this instance..." % (instance_id, forbidden_chars))
                 continue
-            expected_state = Cfg.get("subfleet.%s.state" % subfleet_name, none_on_failure=True)
+            expected_state = get_subfleet_key("state", subfleet_name, none_on_failure=True)
             if expected_state is None:
                 log.log(log.NOTICE, "Encountered a subfleet instance (%s) without state directive. Please set 'subfleet.%s.state' configuration key..." % 
                         (instance_id, subfleet_name))
@@ -1463,7 +1465,7 @@ By default, the dashboard is enabled.
         fleet_with_details = []
         for i in range(0, len(subfleets)):
             subfleet_name = subfleets[i]
-            if not Cfg.get_int("subfleet.%s.ec2.schedule.metrics.enable" % subfleet_name):
+            if not get_subfleet_key(f"ec2.schedule.metrics.enable", subfleet_name, cls=int):
                 continue
             fleet_with_details.append(subfleet_name)
             widget = {
