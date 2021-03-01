@@ -417,7 +417,7 @@ class Interact:
                 return True
 
             event["OpType"] = command
-            log.log(log.NOTICE, "Processing API Gateway command '%s'" % (command))
+            #log.log(log.NOTICE, "Processing API Gateway command '%s'" % (command))
             if "apigw" not in cmd["interface"]:
                 response["statusCode"] = 404
                 response["body"]       = "Command not available through API Gateway"
@@ -426,7 +426,7 @@ class Interact:
             is_cacheable  = cmd["cache"] in ["global", "client"]
             if is_cacheable:
                 cacheable_url = "%s?%s_%s" % (command, querystring, "" if cmd["cache"] == "global" else event["requestContext"]["identity"]["userArn"])
-                log.log(log.NOTICE, "Cacheable query '%s'" % cacheable_url)
+                #log.log(log.NOTICE, "Cacheable query '%s'" % cacheable_url)
                 entry = query_cache.get(cacheable_url)
                 if entry is not None:
                     response.update(entry)
@@ -436,7 +436,7 @@ class Interact:
             misc.load_prerequisites(self.context, cmd["prerequisites"])
             cacheddata = None
             if "prepare" in cmd:
-                log.log(log.NOTICE, "Loading cached data...")
+                #log.log(log.NOTICE, "Loading cached data...")
                 query_cache.load_cached_data()
                 if command not in query_cache.interact_precomputed_data["data"]:
                     response["statusCode"] = 500
