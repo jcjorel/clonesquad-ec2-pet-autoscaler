@@ -1,6 +1,7 @@
+import os
 import math
 import boto3
-import json
+import yaml
 import pdb
 import re
 import arrow
@@ -43,9 +44,15 @@ class Scheduler:
             return
 
         # Get Timezone related info 
-        self.local_now = arrow.now() # Get local time (with local timezone)
+        self.timezones  = yaml.safe_load(misc.get_url("internal:region-timezones.yaml"))
+        self.tz         = os.getenv("TimeZone") 
+        self.tz         = self.timezones.get(self.context["AWS_DEFAULT_REGION"]) if (self.tz is None or self.tz == "") else self.tz
+        self.tz         = self.tz if self.tz else "UTC"
+        self.local_now  = arrow.now(self.tz) # Get local time (with local timezone)
         self.utc_offset = self.local_now.utcoffset()
         self.dst_offset = self.local_now.dst()
+        log.log(log.NOTICE, "Current timezone offset to UTC: %s, DST: %s, TimeZone: %s" % 
+                (self.utc_offset, self.dst_offset, self.tz))
 
         # Load scheduler KV table
         self.scheduler_table        = kvtable.KVTable(self.context, self.context["SchedulerTable"])
@@ -129,7 +136,6 @@ class Scheduler:
                 except Exception as e:
                     log.exception("Failed to delete rule '%s' : %s" % (r, e))
 
-        log.log(log.NOTICE, "Current timezone offset to UTC: %s, DST: %s" % (self.utc_offset, self.dst_offset))
 
     def process_cron_expression(self, expression, tz=None):
         """ Return an UTC cron expression based on local timezone supplied one.
@@ -179,7 +185,7 @@ class Scheduler:
                 continue # Ignore commented out rules
             if not isinstance(self.events[e], str): continue
 
-            digest     = misc.sha256("%s:%s" % (e, self.events[e]))
+            digest     = misc.sha256(f"{e}:%s:%s" % (self.context["AWS_DEFAULT_REGION"], self.events[e]))
             event_name = "CS-Cron-%s-%s" % (self.context["GroupName"], digest[:10])
             try:
                 self.event_names.append({
