@@ -139,7 +139,7 @@ A time zone specification following the TZ format (ex: Europe/Paris, America/Los
 To list all valid timezones, use the following command:
 
 ```shell
-python3 -c "import dateutil.zoneinfo ; print(dateutil.zoneinfo.get_zonefile_instance().zones.keys())"
+python3 -c "import dateutil.zoneinfo ; print(list(dateutil.zoneinfo.get_zonefile_instance().zones.keys()))"
 ```
 
 
