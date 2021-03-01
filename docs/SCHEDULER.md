@@ -34,7 +34,7 @@ This is working well when minutes and hours are not wildcard based. When wildcar
 some imprecisions could occur. **When wildcards are used, please always check the generated UTC time base cron rule in CloudWatch event to check it is what you want.**
 
 > **The local time zone is [guessed from the AWS region](../src/resources/region-timezones.yaml) where CloneSquad is deployed and can be overriden with 
-the [TimeZone deployment parameter](DEPLOYMENT_REFERENCE.md#timezone)**
+the [TimeZone deployment parameter](DEPLOYMENT_REFERENCE.md#timezone).**
 
 ## CloudWatch Limitations about cron scheduling expression
 
