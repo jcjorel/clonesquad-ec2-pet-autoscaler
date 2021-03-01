@@ -77,7 +77,7 @@ class Scheduler:
                 if max_rules_per_batch <= 0:
                     break
                 rule_def            = self.get_ruledef_by_name(r)
-                schedule_expression = process_cron_expression(rule_def["Data"][0]["schedule"])
+                schedule_expression = self.process_cron_expression(rule_def["Data"][0]["schedule"])
 
                 # In order to remove burden on user, we perform a sanity check about a wellknown 
                 #    limitation of Cloudwatch.
