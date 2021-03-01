@@ -187,7 +187,7 @@ class Scheduler:
                 continue # Ignore commented out rules
             if not isinstance(self.events[e], str): continue
 
-            digest     = misc.sha256(f"{e}:%s:%s" % (self.tz, self.events[e]))
+            digest     = misc.sha256(f"{e}:%s:%s:%s" % (self.tz, self.dst_offset, self.events[e]))
             event_name = "CS-Cron-%s-%s" % (self.context["GroupName"], digest[:10])
             try:
                 self.event_names.append({
