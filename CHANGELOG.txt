@@ -1,3 +1,9 @@
+v0.15.0:
+- (Improvment/Major) Added support for 'localcron' keyword in scheduler. This keyword enables local zone cron entries. Please look at documentation for some limitations with wildcards.
+- (Improvment/Major) Introduced special subfleet name '__all__' which can be used to override values in all defined subfleets at once. Ex: 'subfleet.__all__.state=running' will force all subfleets to be in 'running' state whatever their current individual configuration is.
+- (Improvment/Major) A new key format is introduced to override configuration keys. Format: 'overrride:ec2.schedule.min_instance_count' will override 'ec2.schedule.min_instance_count' value. Combined with TTL specification, it is useful to set temporary configuration.
+- (Improvment/Major) API GW /configuration/<key>?ttl=<duration> can now be used to set an expiration delay on a key. On expiration, the key deletes by itself from the DynamoDB table.
+
 v0.14.0:
 - (Improvment/Major) Added support for FIFO SQS queue as event receiver.
 - (Improvment/Minor) Added support the SQS queue handling in sam-sample-lambda demo function.
