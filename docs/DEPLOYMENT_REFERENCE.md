@@ -138,7 +138,9 @@ A time zone specification following the TZ format (ex: Europe/Paris, America/Los
 
 To list all valid timezones, use the following command:
 
-	python3 -c "import dateutil.zoneinfo ; print(dateutil.zoneinfo.get_zonefile_instance().zones.keys())"
+```shell
+python3 -c "import dateutil.zoneinfo ; print(dateutil.zoneinfo.get_zonefile_instance().zones.keys())"
+```
 
 
 
