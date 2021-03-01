@@ -30,16 +30,17 @@ a service malfunction. Users needs to take into account this expected behavior.
 
 `override:` keyword can be placed in front of a key name to override the current value of this key.
 
-The following YAML snippet demoes how [`ec2.schedule.min_instance_count`](#ec2schedulemin_instance_count) value is overriden using this key word.
+The following YAML snippet demoes how [`ec2.schedule.min_instance_count`](#ec2schedulemin_instance_count) value is overriden using this keyword.
 
 Ex:
 
+	# In this setup, ec2.schedule.min_instance_count will be valued as '100%' due to the override.
 	override:ec2.schedule.min_instance_count: 100%
 	ec2.schedule.min_instance_count: 2
 
 This keyword is valuable to implement maintenance use-cases easily. For instance, if you need to perform patch management of 
-CloneSquad instances, you can set the key [`override:ec2.schedule.min_instance_count`](#ec2schedulemin_instance_count) to `100%` to start all instances
-in a fleet without to care about the current value of this keyword.
+CloneSquad managed instances, you can set the key [`override:ec2.schedule.min_instance_count`](#ec2schedulemin_instance_count) to `100%` to start all instances
+in a fleet without to care about the current value of this key.
 
 Combined with the TTL feature of the [CloneSquad API gateway](INTERACTING.md#api-configuration-1), you can also define an override for only a specified amount of time (ex: one hour) before the normal configuration
 takes place again.
