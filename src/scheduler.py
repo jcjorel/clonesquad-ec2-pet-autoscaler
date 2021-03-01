@@ -55,7 +55,7 @@ class Scheduler:
                 (self.utc_offset, self.dst_offset, self.tz))
 
         # Load scheduler KV table
-        self.scheduler_table        = kvtable.KVTable(self.context, self.context["SchedulerTable"])
+        self.scheduler_table = kvtable.KVTable(self.context, self.context["SchedulerTable"])
 
         # Compute event names
         self.load_event_definitions()
@@ -84,7 +84,9 @@ class Scheduler:
                 if max_rules_per_batch <= 0:
                     break
                 rule_def            = self.get_ruledef_by_name(r)
-                schedule_expression = self.process_cron_expression(rule_def["Data"][0]["schedule"])
+                schedule_spec       = rule_def["Data"][0]["schedule"]
+                schedule_expression = self.process_cron_expression(schedule_spec)
+                log.log(log.NOTICE, f"Creating {r} {schedule_spec} => {schedule_expression}...")
 
                 # In order to remove burden on user, we perform a sanity check about a wellknown 
                 #    limitation of Cloudwatch.
@@ -185,7 +187,7 @@ class Scheduler:
                 continue # Ignore commented out rules
             if not isinstance(self.events[e], str): continue
 
-            digest     = misc.sha256(f"{e}:%s:%s" % (self.context["AWS_DEFAULT_REGION"], self.events[e]))
+            digest     = misc.sha256(f"{e}:%s:%s" % (self.tz, self.events[e]))
             event_name = "CS-Cron-%s-%s" % (self.context["GroupName"], digest[:10])
             try:
                 self.event_names.append({

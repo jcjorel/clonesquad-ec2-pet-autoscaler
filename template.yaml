@@ -613,7 +613,7 @@ Resources:
                   LongTermEventTable:                         !Ref LongTermEventTable
                   ConfigurationURLs:                          !Ref ConfigurationURLs
                   LoggingS3Path:                              !Ref LoggingS3Path
-                  Timezone:                                   !Ref TimeZone
+                  TimeZone:                                   !Ref TimeZone
                   AWS_XRAY_SDK_ENABLED:                       !Ref XRayDiagnosis
               Events:
                 Schedule:
@@ -666,7 +666,7 @@ Resources:
                   StateTable:                                 !Ref StateTable
                   EventTable:                                 !Ref EventTable
                   ConfigurationURLs:                          !Ref ConfigurationURLs
-                  Timezone:                                   !Ref TimeZone
+                  TimeZone:                                   !Ref TimeZone
               Events:
                 ScaleUpTopic:
                   Type: SNS
@@ -718,7 +718,7 @@ Resources:
                   InteractAPIGWUrl:                           !Sub "https://${InteractApi}.execute-api.${AWS::Region}.amazonaws.com/v1/"
                   MainFunctionArn:                            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:CloneSquad-Main-${GroupName}"
                   InteractApi:                                !Ref InteractApi
-                  Timezone:                                   !Ref TimeZone
+                  TimeZone:                                   !Ref TimeZone
                   ApiGwVpcEndpointDNSEntry: !If 
                         - HasApiGWEndpointConfiguration 
                         - !Select [ 1, !Split [ ":", !Select [ 0, !GetAtt ApiGWVpcEndpoints.DnsEntries]]]
@@ -757,7 +757,7 @@ Resources:
                   LoggingS3Path:      !Ref LoggingS3Path
                   InteractQueue:      !Ref InteractQueue
                   MainFunctionArn:    !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:CloneSquad-Main-${GroupName}"
-                  Timezone:           !Ref TimeZone
+                  TimeZone:           !Ref TimeZone
               Events:
                 SQS:
                   Type: SQS
