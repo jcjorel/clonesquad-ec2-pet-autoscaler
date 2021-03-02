@@ -22,7 +22,7 @@ Note: Coma needs to be double-escaped with backslashes.
 ## Working with local timezone cron entries
 
 If you do not want to work with UTC based time, the event scheduler proposes the `localcron` keyword that replaces the `cron` one.
-Internally, the [`arrow` library](https://arrow.readthedocs.io/en/latest/) is used that is DST (Daylight Saving Time) aware: So, DST should
+Internally, the [`arrow` library](https://arrow.readthedocs.io/en/latest/) is used which is DST (Daylight Saving Time) aware: So, DST should
 be handled transparently. 
 
 	| Key                     | Value                                                           |
