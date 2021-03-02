@@ -31,7 +31,7 @@ be handled transparently.
 
 CloudWatch Event rules are still used internally so the event scheduler will attempt to translate local time specification into an UTC based one.
 This is working well when minutes and hours are not wildcard based. When wildcards are used (ex: `*/10`), they won't be translated. As consequence, 
-some imprecisions could occur. **When wildcards are used, please always check the generated UTC time base cron rule in CloudWatch event to check it is what you want.**
+some imprecisions could occur. **When wildcards are used, please always check the generated UTC time based cron rule in CloudWatch Event to check it is what you want.**
 
 > **The local time zone is [guessed from the AWS region](../src/resources/region-timezones.yaml) where CloneSquad is deployed and can be overriden with 
 the [TimeZone deployment parameter](DEPLOYMENT_REFERENCE.md#timezone).**
