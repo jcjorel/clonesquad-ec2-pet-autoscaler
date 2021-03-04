@@ -457,6 +457,11 @@ By default, the dashboard is enabled.
         self.ec2_alarmstate_table = kvtable.KVTable(self.context, self.context["AlarmStateEC2Table"])
         self.ec2_alarmstate_table.reread_table()
 
+        # Read instance control state
+        self.instance_control     = self.ec2.get_instance_control_state()
+        # Refresh TTL is needed
+        self.ec2.set_instance_control_state(self.instance_control)
+
         # The scheduler part is making an extensive use of filtered/sorted lists that could become
         #   cpu and time consuming to build. We build here a library of filtered/sorted lists 
         #   available to all algorithms.
@@ -925,6 +930,7 @@ By default, the dashboard is enabled.
         """ Return synthetics metrics (used by the API Gateway statistic methods.
         """
         return self.synthetic_metrics
+
 
     ###############################################
     #### LOW LEVEL INSTANCE HANDLING ##############

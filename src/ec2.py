@@ -1084,6 +1084,25 @@ without any TargetGroup but another external health instance source exists).
                 pass
         return recs
 
+    def get_instance_control_state(self):
+        state = self.get_state_json("ec2.schedule.instance.control", default={
+            "unstoppable": {},
+            "unstartable": {}
+        })
+        # Purge obsolete records
+        now = misc.seconds_from_epoch_utc()
+        for c in state:
+            ctrl = state[c]
+            for i in ctrl.keys():
+                if now > ctrl["TTL"]:
+                    del state[c][i]
+        return state
+
+    def set_instance_control_state(self, state):
+        self.set_state_json("ec2.schedule.instance.control", state, 
+                TTL=Cfg.get_duration_secs("ec2.state.default_ttl"))
+        
+
     def get_synthetic_metrics(self):
         s_metrics      = []
         az_with_issues = self.get_azs_with_issues()
