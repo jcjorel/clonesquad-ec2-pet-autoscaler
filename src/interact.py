@@ -210,7 +210,10 @@ class Interact:
             ids       = [ i["InstanceId"] for i in instances]
 
             instance_ids = split(",", filter_query["InstanceIds"]) if "InstanceIds" in filter_query else []
-            instance_ids = [i for i in instance_ids if i in ids] # Filter out unknown instance id
+            if "*" in instance_ids:
+                instance_ids = ids # Wildcard matches all instances
+            else:
+                instance_ids = [i for i in instance_ids if i in ids] # Filter out unknown instance id
 
             tags      = filter_query["Tags"] if "Tags" in filter_query else {}
             if len(tags.keys()):
