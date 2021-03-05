@@ -459,8 +459,10 @@ By default, the dashboard is enabled.
 
         # Read instance control state
         self.instance_control     = self.ec2.get_instance_control_state()
-        # Refresh TTL is needed
-        self.ec2.set_instance_control_state(self.instance_control)
+        if len(self.instance_control["unstoppable"]):
+            log.info("Instances %s are marked as 'unstoppable'." % list(self.instance_control["unstoppable"].keys()))
+        if len(self.instance_control["unstartable"]):
+            log.info("Instances %s are marked as 'unstartable'." % list(self.instance_control["unstartable"].keys()))
 
         # The scheduler part is making an extensive use of filtered/sorted lists that could become
         #   cpu and time consuming to build. We build here a library of filtered/sorted lists 

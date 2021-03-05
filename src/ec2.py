@@ -104,7 +104,7 @@ forcing their immediate replacement in healthy AZs in the region.
                  "ec2.state.default_ttl": "days=1",
                  "ec2.state.error_ttl" : "minutes=5",
                  "ec2.state.status_ttl" : "days=40",
-                 "ec2.instance.control.ttl" : "hours=1",
+                 "ec2.instance.control.ttl" : "minutes=10",
                  "ec2.instance.max_start_instance_at_once": "50",
                  "ec2.instance.max_stop_instance_at_once": "50",
                  "ec2.instance.spot.event.interrupted_at_ttl" : "minutes=10",
@@ -215,7 +215,10 @@ without any TargetGroup but another external health instance source exists).
                 "Prefix": "ec2.instance.",
                 "Compress": True,
                 "DefaultTTL": Cfg.get_duration_secs("ec2.state.default_ttl"),
-                "Exclude" : ["ec2.instance.scaling.state.", "ec2.instance.spot.event."]
+                "Exclude" : [
+                    "ec2.instance.scaling.state.", 
+                    "ec2.instance.spot.event."
+                    ]
             }
             ])
 
@@ -1086,7 +1089,7 @@ without any TargetGroup but another external health instance source exists).
         return recs
 
     def get_instance_control_state(self):
-        state = self.get_state_json("ec2.schedule.instance.control", default={
+        state = self.get_state_json("ec2.control.state", default={
             "unstoppable": {},
             "unstartable": {}
         })
@@ -1100,8 +1103,20 @@ without any TargetGroup but another external health instance source exists).
         return state
 
     def set_instance_control_state(self, state):
-        self.set_state_json("ec2.schedule.instance.control", state, 
-                TTL=Cfg.get_duration_secs("ec2.state.default_ttl"))
+        # Test if we are going to write an empty state so we may optimize it
+        if not len(state["unstoppable"]) and not len(state["unstartable"]):
+            former_state = self.get_instance_control_state()
+            if state == former_state:
+                # Former value was already empty => no need to create a record
+                return
+        min_ttl = Cfg.get_duration_secs("ec2.state.default_ttl")
+        now     = misc.seconds_from_epoch_utc() 
+        ttl     = now + min_ttl 
+        for c in state:
+            ctrl = state[c]
+            for i in ctrl.keys():
+                ttl = max(ttl, ctrl[i]["TTL"] + min_ttl)
+        self.set_state_json("ec2.control.state", state, TTL=(ttl-now))
 
     def update_instance_control_state(self, listname, mode, filter_query, ttl_string):
         ctrl = self.get_instance_control_state()
@@ -1152,7 +1167,6 @@ without any TargetGroup but another external health instance source exists).
         for instance_id in ctrl[listname].keys():
             if instance_id not in ids:
                 del ctrl[listname][instance_id]
-                continue
         self.set_instance_control_state(ctrl)
         
 
