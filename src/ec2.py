@@ -1095,7 +1095,7 @@ without any TargetGroup but another external health instance source exists).
         for c in state:
             ctrl = state[c]
             for i in ctrl.keys():
-                if now > ctrl["TTL"]:
+                if now > ctrl[i]["TTL"]:
                     del state[c][i]
         return state
 
@@ -1110,14 +1110,14 @@ without any TargetGroup but another external health instance source exists).
             if ttl: ttl = misc.str2duration_seconds(ttl_string) 
         except Exception as e:
             log.warning(f"Failed to parse TTL value '%s'! Defaulting to {ttl} seconds..." % ttl_string)
-        ttl  = (self.context["now"] + timedelta(seconds=ttl)).total_seconds()
+        ttl  = misc.seconds_from_epoch_utc(self.context["now"] + timedelta(seconds=ttl))
 
         # Lookup matching instances
         instances = self.get_instances()
         ids       = [ i["InstanceId"] for i in instances]
 
-        instance_ids = split(",", filter_query["InstanceIds"]) if "InstanceIds" in filter_query else []
-        if "*" in instance_ids:
+        instance_ids = filter_query["InstanceIds"] if "InstanceIds" in filter_query else []
+        if "all" in instance_ids:
             instance_ids = ids # Wildcard matches all instances
         else:
             instance_ids = [i for i in instance_ids if i in ids] # Filter out unknown instance id
@@ -1153,9 +1153,6 @@ without any TargetGroup but another external health instance source exists).
             if instance_id not in ids:
                 del ctrl[listname][instance_id]
                 continue
-            instance = filter(next(lambda i: i["InstanceId"] == instance_id, instances))
-            name     = filter(next(lambda t: t["Key"] == "Name", instance["Tags"]), None)
-            ctrl[listname][instance_id]["InstanceName"] = name["Value"] if name is not None else None,
         self.set_instance_control_state(ctrl)
         
 
