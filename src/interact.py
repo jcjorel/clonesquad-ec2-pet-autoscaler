@@ -218,19 +218,18 @@ class Interact:
                 response["statusCode"] = 400
                 response["body"]       = f"Invalid mode '{mode}'! (Must be one of {valid_modes})"
                 return False
-
             self.context["o_ec2"].update_instance_control_state(path, mode, filter_query, event.get("ttl"))
 
         ctrl      = self.context["o_ec2"].get_instance_control_state()
         # Decorate the structure with current name of instance if any
-        instances = self.get_instances()
+        instances = self.context["o_ec2"].get_instances()
         for instance_id in ctrl[path].keys():
             instance = next(filter(lambda i: i["InstanceId"] == instance_id, instances))
             name     = next(filter(lambda t: t["Key"] == "Name", instance["Tags"]), None)
-            ctrl[listname][instance_id]["InstanceName"] = name["Value"] if name is not None else None,
+            ctrl[path][instance_id]["InstanceName"] = name["Value"] if name is not None else None
         response["statusCode"] = 200
         response["body"]       = Dbg.pprint(ctrl[path])
-        return True
+        return False
 
     def control_reschedulenow(self, context, event, response, cacheddata):
         try:
