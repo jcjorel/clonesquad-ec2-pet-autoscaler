@@ -104,6 +104,7 @@ forcing their immediate replacement in healthy AZs in the region.
                  "ec2.state.default_ttl": "days=1",
                  "ec2.state.error_ttl" : "minutes=5",
                  "ec2.state.status_ttl" : "days=40",
+                 "ec2.instance.control.ttl" : "hours=1",
                  "ec2.instance.max_start_instance_at_once": "50",
                  "ec2.instance.max_stop_instance_at_once": "50",
                  "ec2.instance.spot.event.interrupted_at_ttl" : "minutes=10",
@@ -1101,6 +1102,61 @@ without any TargetGroup but another external health instance source exists).
     def set_instance_control_state(self, state):
         self.set_state_json("ec2.schedule.instance.control", state, 
                 TTL=Cfg.get_duration_secs("ec2.state.default_ttl"))
+
+    def update_instance_control_state(self, listname, mode, filter_query, ttl_string):
+        ctrl = self.get_instance_control_state()
+        ttl  = Cfg.get_duration_secs("ec2.instance.control.ttl")
+        try:
+            if ttl: ttl = misc.str2duration_seconds(ttl_string) 
+        except Exception as e:
+            log.warning(f"Failed to parse TTL value '%s'! Defaulting to {ttl} seconds..." % ttl_string)
+        ttl  = (self.context["now"] + timedelta(seconds=ttl)).total_seconds()
+
+        # Lookup matching instances
+        instances = self.get_instances()
+        ids       = [ i["InstanceId"] for i in instances]
+
+        instance_ids = split(",", filter_query["InstanceIds"]) if "InstanceIds" in filter_query else []
+        if "*" in instance_ids:
+            instance_ids = ids # Wildcard matches all instances
+        else:
+            instance_ids = [i for i in instance_ids if i in ids] # Filter out unknown instance id
+
+        tags      = filter_query["Tags"] if "Tags" in filter_query else {}
+        if len(tags.keys()):
+            for i in instances:
+                instance_id = i["InstanceId"]
+                if instance_id in instance_ids:
+                    continue
+                i_tags = {}
+                for t in i["Tags"]:
+                    i_tags[t["Key"]] = t["Value"]
+                for t in tags:
+                    if t not in i_tags or (i_tags[i] is not None and tags[i] != i_tags[i]):
+                        continue
+                instance_ids.append(instance_id)
+       
+        # Perform action according to specified mode
+        for instance_id in instance_ids:
+            if mode == "delete":
+                if instance_id in ctrl[listname]:
+                    del ctrl[listname][instance_id]
+            else:
+                ctrl[listname][instance_id] = {
+                    "TTL": ttl,
+                    "StartDate": str(self.context["now"]),
+                    "EndDate": str(misc.seconds2utc(ttl))
+                }
+
+    # Refresh instance name if needed
+    for instance_id in ctrl[listname].keys():
+        if instance_id not in ids:
+            del ctrl[listname][instance_id]
+            continue
+        instance = filter(next(lambda i: i["InstanceId"] == instance_id, instances))
+        name     = filter(next(lambda t: t["Key"] == "Name", instance["Tags"]), None)
+        ctrl[listname][instance_id]["InstanceName"] = name["Value"] if name is not None else None,
+    self.set_instance_control_state(ctrl)
         
 
     def get_synthetic_metrics(self):

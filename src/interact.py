@@ -192,61 +192,36 @@ class Interact:
             response["statusCode"] = 404
             response["body"]       = f"Unknown control state '{path}'!"
             return False
-        ctrl = self.context["o_ec2"].get_instance_control_state()
+
+        filter_query = {}
+        # The filter query can be sent by POST
         if "httpMethod" in event and event["httpMethod"] == "POST":
             try:
                 filter_query = json.loads(event["body"])
-                ttl          = misc.str2duration_seconds(event["ttl"]) if "ttl" in event else 3600
             except Exception as e:
                 response["statusCode"] = 400
-                response["body"]       = f"Failed to parse body or arguments : {e}'!"
+                response["body"]       = f"Failed to parse JSON body: {e}!"
+                return False
+        # instance ids can be specified in the URL query string
+        if event.get("instanceids"):
+            filter_query["InstanceIds"] = event["instanceids"].split(",")
+
+        mode = event.get("mode")
+        if len(filter_query.keys()):
+            response["statusCode"] = 400
+            response["body"]       = f"'mode' query string parameter must be specified in the request!"
+            return False
+
+        if mode is not None:
+            valid_modes = ["add", "delete"]
+            if mode not in valid_modes:
+                response["statusCode"] = 400
+                response["body"]       = f"Invalid mode '{mode}'! (Must be one of {valid_modes})"
                 return False
 
-            ttl  = (self.context["now"] + timedelta(seconds=ttl)).total_seconds()
-            mode = event.get("mode")
+            self.context["o_ec2"].update_instance_control_state(path, mode, filter_query, event.get("ttl"))
 
-            # Lookup matching instances
-            instances = self.context["o_ec2"].get_instances()
-            ids       = [ i["InstanceId"] for i in instances]
-
-            instance_ids = split(",", filter_query["InstanceIds"]) if "InstanceIds" in filter_query else []
-            if "*" in instance_ids:
-                instance_ids = ids # Wildcard matches all instances
-            else:
-                instance_ids = [i for i in instance_ids if i in ids] # Filter out unknown instance id
-
-            tags      = filter_query["Tags"] if "Tags" in filter_query else {}
-            if len(tags.keys()):
-                for i in instances:
-                    instance_id = i["InstanceId"]
-                    if instance_id in instance_ids:
-                        continue
-                    i_tags = {}
-                    for t in i["Tags"]:
-                        i_tags[t["Key"]] = t["Value"]
-                    for t in tags:
-                        if t not in i_tags or (i_tags[i] is not None and tags[i] != i_tags[i]):
-                            continue
-                    instance_ids.append(instance_id)
-           
-            for instance_id in instance_ids:
-                if mode == "delete":
-                    if instance_id in ctrl[path]:
-                        del ctrl[path][instance_id]
-                else:
-                    ctrl[path][instance_id] = {
-                        "TTL": ttl,
-                        "StartDate": str(self.context["now"]),
-                        "EndDate": str(misc.seconds2utc(ttl))
-                    }
-
-        # Update instance name if needed
-        for instance_id in ctrl[path]:
-            instance = filter(next(lambda i: i["InstanceId"] == instance_id, instances))
-            name     = filter(next(lambda t: t["Key"] == "Name", instance["Tags"]), None)
-            ctrl[path]["InstanceName"] = name["Value"] if name is not None else None,
-            
-        self.context["o_ec2"].set_instance_control_state(ctrl)
+        ctrl                   = self.context["o_ec2"].get_instance_control_state()
         response["statusCode"] = 200
         response["body"]       = Dbg.pprint(ctrl[path])
         return True
