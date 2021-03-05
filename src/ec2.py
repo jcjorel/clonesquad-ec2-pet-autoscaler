@@ -1094,7 +1094,7 @@ without any TargetGroup but another external health instance source exists).
         now = misc.seconds_from_epoch_utc()
         for c in state:
             ctrl = state[c]
-            for i in ctrl.keys():
+            for i in list(ctrl.keys()):
                 if now > ctrl[i]["TTL"]:
                     del state[c][i]
         return state
