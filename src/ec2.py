@@ -1148,15 +1148,15 @@ without any TargetGroup but another external health instance source exists).
                     "EndDate": str(misc.seconds2utc(ttl))
                 }
 
-    # Refresh instance name if needed
-    for instance_id in ctrl[listname].keys():
-        if instance_id not in ids:
-            del ctrl[listname][instance_id]
-            continue
-        instance = filter(next(lambda i: i["InstanceId"] == instance_id, instances))
-        name     = filter(next(lambda t: t["Key"] == "Name", instance["Tags"]), None)
-        ctrl[listname][instance_id]["InstanceName"] = name["Value"] if name is not None else None,
-    self.set_instance_control_state(ctrl)
+        # Refresh instance name if needed
+        for instance_id in ctrl[listname].keys():
+            if instance_id not in ids:
+                del ctrl[listname][instance_id]
+                continue
+            instance = filter(next(lambda i: i["InstanceId"] == instance_id, instances))
+            name     = filter(next(lambda t: t["Key"] == "Name", instance["Tags"]), None)
+            ctrl[listname][instance_id]["InstanceName"] = name["Value"] if name is not None else None,
+        self.set_instance_control_state(ctrl)
         
 
     def get_synthetic_metrics(self):
