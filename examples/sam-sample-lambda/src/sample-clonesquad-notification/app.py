@@ -1,27 +1,56 @@
+import os
 import json
 import gzip
 import base64
 import boto3
 
+def manage_event(event_date, event_type, input_data, meta_data):
+    """ Manage an event sent by CloneSquad.
+
+    >- CUSTOMIZE THIS FUNCTION TO ADD YOUR BUSINESS LOGIC -<
+
+    :param event_type
+    :param input_data
+    :param meta_data
+
+    :return True if the event can be acked. False if CloneSquad needs to send again this event (retry).
+    """
+    print(f"Date: {event_date}, Event: {event_type}, InputData: {input_data}")
+    # The instance ids associated with the current event
+    # Note: Not all events have the InstanceIds parameter
+    instance_ids           = input_data['**kwargs'].get("InstanceIds", [])
+    # Instance structures of all instances managed by CloneSquad (ec2.describe_instances() output)
+    describe_instance_data = meta_data.get("EC2", {}).get("AllInstanceDetails", [])
+    # The instance structures involved in this event
+    instances              = [i for i in describe_instance_data if i["InstanceId"] in instance_ids]
+
+    ####################################
+    # Put your business logic here !!!
+    ####################################
+
+    # DEMO - DEMO - DEMO - DELETE ME!
+    for instance in instances:
+        instance_id = instance["InstanceId"]
+        if event_type in ["start_instances", "drain_instances", "stop_instances"]:
+            print(f"DEMO - Received event {event_type} for instance id {instance_id}!")
+            # Parse instance tags to display the name of the instance (if any)
+            instance_name_tag = next(filter(lambda t: t["Key"] == "Name", instance["Tags"]), None)
+            if instance_name_tag is not None:
+                instance_name = instance_name_tag["Value"]
+                print(f"Instance name for '{instance_id}' : {instance_name}")
+            # Display all the Tags of each instance
+            print("DEMO - %s : Tags=%s" % (instance_id, instance["Tags"]))
+    # DEMO - DEMO - DEMO - DELETE ME!
+    return True
+
+
+
 def lambda_handler(event, context):
     """ Sample Lambda function reacting to CloneSquad events sent from a Lambda invoke or a SQS trigger
-
-    Parameters
-    ----------
-    event: dict, required
-
-
-    context: object, required
-        Lambda Context runtime methods and attributes
-
-        Context doc: https://docs.aws.amazon.com/lambda/latest/dg/python-context-object.html
-
-    Returns
-    ------
     """
 
-    print("Event:")
-    print(json.dumps(event, default=str))
+    #print("Event:")
+    #print(json.dumps(event, default=str))
 
     notifications = []
     if "Records" in event:
@@ -47,7 +76,7 @@ def lambda_handler(event, context):
             print("[ERROR] No 'AckSQSUrl' in event!! (???)")
 
 
-        metadata = None
+        metadata = {}
         for e in notif["Events"]:
             event_date = e["EventDate"]
 
@@ -55,34 +84,17 @@ def lambda_handler(event, context):
                 # Gunzip the Metadata field if present in the event
                 #   Note: Metadata field is only present if it has a different value than the previous event
                 uncompressed_metadata = str(gzip.decompress(base64.b64decode(e["Metadata"])), "utf-8")
-                print("Metadata content: (512 first bytes...)")
-                print(uncompressed_metadata[:512])
-                print(f"Metadata for the event '{event_date} is %d bytes long." % len(uncompressed_metadata))
+                #print("Metadata content: (512 first bytes...)")
+                #print(uncompressed_metadata[:512])
+                #print(f"Metadata for the event '{event_date} is %d bytes long." % len(uncompressed_metadata))
                 metadata              = json.loads(uncompressed_metadata)
             event_type = e["EventType"]
             input_data = json.loads(e["InputData"])
-            print(f"Received event {event_date} - {event_type} - {input_data}")
+            #print(f"Received event {event_date} - {event_type} - {input_data}")
 
-            ####################################
-            # Put your business logic here !!!
-            ####################################
+            if not manage_event(event_date, event_type, input_data, metadata):
+                continue # Do not ack event
 
-            # DEMO - DEMO - DEMO - DELETE ME!
-            if event_type in ["start_instances", "stop_instances"]:
-                instance_ids           = input_data['**kwargs']["InstanceIds"]
-                print(f"DEMO - Received event {event_type} for instance ids {instance_ids}!")
-                describe_instance_data = metadata["EC2"]["AllInstanceDetails"]
-                instances              = [i for i in describe_instance_data if i["InstanceId"] in instance_ids]
-                for instance in instances:
-                    instance_id       = instance["InstanceId"]
-                    # Display the name of the instance (if any)
-                    instance_name_tag = next(filter(lambda t: t["Key"] == "Name", instance["Tags"]), None)
-                    if instance_name_tag is not None:
-                        instance_name = instance_name_tag["Value"]
-                        print(f"Instance name for '{instance_id}' : {instance_name}")
-                    # Display the Tags of each instance
-                    print("DEMO - %s : Tags=%s" % (instance_id, instance["Tags"]))
-            # DEMO - DEMO - DEMO - DELETE ME!
 
             if ack_sqs_url is not None:
                 # Publish to the notification SQS queue to ack this event.
