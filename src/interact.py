@@ -167,7 +167,14 @@ class Interact:
                     "prerequisites": [],
                     "func": self.allmetadatas,
                 },
-                "control/reschedulenow"           : {
+                "control/instances/(.*)" : {
+                    "interface": ["apigw"],
+                    "cache": "global",
+                    "clients": [],
+                    "prerequisites": ["o_state", "o_ec2"],
+                    "func": self.control_instances,
+                },
+                "control/reschedulenow"  : {
                     "interface": ["apigw", "sqs"],
                     "cache": "global",
                     "clients": ["sqs"],
@@ -178,6 +185,51 @@ class Interact:
 
     def get_prerequisites(self):
         return
+
+    def control_instances(self, context, event, response, cacheddata):
+        path = event["path"].split("/")[-1:][0]
+        if path not in ["unstoppable", "unstartable"]:
+            response["statusCode"] = 404
+            response["body"]       = f"Unknown control state '{path}'!"
+            return False
+
+        filter_query = {}
+        # The filter query can be sent by POST
+        if "httpMethod" in event and event["httpMethod"] == "POST":
+            try:
+                filter_query = json.loads(event["body"])
+            except Exception as e:
+                response["statusCode"] = 400
+                response["body"]       = f"Failed to parse JSON body: {e}!"
+                return False
+        # instance ids can be specified in the URL query string
+        if event.get("instanceids"):
+            filter_query["InstanceIds"] = event["instanceids"].split(",")
+
+        mode = event.get("mode")
+        if not mode and len(filter_query.keys()):
+            response["statusCode"] = 400
+            response["body"]       = f"'mode' query string parameter must be specified in the request!"
+            return False
+
+        if mode is not None:
+            valid_modes = ["add", "delete"]
+            if mode not in valid_modes:
+                response["statusCode"] = 400
+                response["body"]       = f"Invalid mode '{mode}'! (Must be one of {valid_modes})"
+                return False
+            self.context["o_ec2"].update_instance_control_state(path, mode, filter_query, event.get("ttl"))
+
+        ctrl      = self.context["o_ec2"].get_instance_control_state()
+        # Decorate the structure with current name of instance if any
+        instances = self.context["o_ec2"].get_instances()
+        for instance_id in ctrl[path].keys():
+            instance = next(filter(lambda i: i["InstanceId"] == instance_id, instances))
+            name     = next(filter(lambda t: t["Key"] == "Name", instance["Tags"]), None)
+            ctrl[path][instance_id]["InstanceName"] = name["Value"] if name is not None else None
+        response["statusCode"] = 200
+        response["body"]       = Dbg.pprint(ctrl[path])
+        return False
 
     def control_reschedulenow(self, context, event, response, cacheddata):
         try:

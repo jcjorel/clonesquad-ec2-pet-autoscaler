@@ -457,6 +457,15 @@ By default, the dashboard is enabled.
         self.ec2_alarmstate_table = kvtable.KVTable(self.context, self.context["AlarmStateEC2Table"])
         self.ec2_alarmstate_table.reread_table()
 
+        # Read instance control state
+        self.instance_control     = self.ec2.get_instance_control_state()
+        self.unstoppable_ids      = list(self.instance_control["unstoppable"].keys())
+        self.unstartable_ids      = list(self.instance_control["unstartable"].keys())
+        if len(self.unstoppable_ids):
+            log.info("Instances %s are marked as 'unstoppable'." % self.unstoppable_ids)
+        if len(self.unstartable_ids):
+            log.info("Instances %s are marked as 'unstartable'." % self.unstartable_ids)
+
         # The scheduler part is making an extensive use of filtered/sorted lists that could become
         #   cpu and time consuming to build. We build here a library of filtered/sorted lists 
         #   available to all algorithms.
@@ -926,6 +935,7 @@ By default, the dashboard is enabled.
         """
         return self.synthetic_metrics
 
+
     ###############################################
     #### LOW LEVEL INSTANCE HANDLING ##############
     ###############################################
@@ -943,6 +953,8 @@ By default, the dashboard is enabled.
         :param stopped_instances: A list of stopped instances to sort and filter as starteable candidates.
         :return A sorted and filtered list of instances.
         """
+        # Filter out instances that are not startable
+        stopped_instances   = list(filter(lambda i: i["InstanceId"] not in self.unstartable_ids, stopped_instances))
         # Filter out Spot instance types that we know under interruption or close to interruption
         candidate_instances = self.ec2.filter_spot_instances(stopped_instances, filter_out_instance_types=self.excluded_spot_instance_types)
         if len(candidate_instances) != len(stopped_instances):
@@ -994,6 +1006,9 @@ By default, the dashboard is enabled.
         :param active_instances: List of running instances to filter and sort as candidates for stop
         :return A list of stoppable instances
         """
+        # Filter out instances that are not stoppable
+        active_instances = list(filter(lambda i: i["InstanceId"] not in self.unstoppable_ids, active_instances))
+
         # Ensure we picked instances in a way that keep AZs balanced
         active_instances = self.ec2.sort_by_balanced_az(active_instances, active_instances, smallest_to_biggest_az=False)
 

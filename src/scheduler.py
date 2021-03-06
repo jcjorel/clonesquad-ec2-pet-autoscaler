@@ -229,7 +229,6 @@ class Scheduler:
                     except Exception as e:
                         log.exception("[WARNING] Failed to read 'TTL' value '%s'!" % (TTL))
 
-                    log.info(Dbg.pprint(rule_def))
                     params = dict(rule_def["Data"][0])
                     for k in params:
                         if k in ["TTL", "schedule"]: continue

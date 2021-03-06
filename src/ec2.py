@@ -104,6 +104,7 @@ forcing their immediate replacement in healthy AZs in the region.
                  "ec2.state.default_ttl": "days=1",
                  "ec2.state.error_ttl" : "minutes=5",
                  "ec2.state.status_ttl" : "days=40",
+                 "ec2.instance.control.ttl" : "minutes=10",
                  "ec2.instance.max_start_instance_at_once": "50",
                  "ec2.instance.max_stop_instance_at_once": "50",
                  "ec2.instance.spot.event.interrupted_at_ttl" : "minutes=10",
@@ -214,7 +215,10 @@ without any TargetGroup but another external health instance source exists).
                 "Prefix": "ec2.instance.",
                 "Compress": True,
                 "DefaultTTL": Cfg.get_duration_secs("ec2.state.default_ttl"),
-                "Exclude" : ["ec2.instance.scaling.state.", "ec2.instance.spot.event."]
+                "Exclude" : [
+                    "ec2.instance.scaling.state.", 
+                    "ec2.instance.spot.event."
+                    ]
             }
             ])
 
@@ -1083,6 +1087,88 @@ without any TargetGroup but another external health instance source exists).
             except:
                 pass
         return recs
+
+    def get_instance_control_state(self):
+        state = self.get_state_json("ec2.control.state", default={
+            "unstoppable": {},
+            "unstartable": {}
+        })
+        # Purge obsolete records
+        now = misc.seconds_from_epoch_utc()
+        for c in state:
+            ctrl = state[c]
+            for i in list(ctrl.keys()):
+                if now > ctrl[i]["TTL"]:
+                    del state[c][i]
+        return state
+
+    def set_instance_control_state(self, state):
+        # Test if we are going to write an empty state so we may optimize it
+        if not len(state["unstoppable"]) and not len(state["unstartable"]):
+            former_state = self.get_instance_control_state()
+            if state == former_state:
+                # Former value was already empty => no need to create a record
+                return
+        min_ttl = Cfg.get_duration_secs("ec2.state.default_ttl")
+        now     = misc.seconds_from_epoch_utc() 
+        ttl     = now + min_ttl 
+        for c in state:
+            ctrl = state[c]
+            for i in ctrl.keys():
+                ttl = max(ttl, ctrl[i]["TTL"] + min_ttl)
+        self.set_state_json("ec2.control.state", state, TTL=(ttl-now))
+
+    def update_instance_control_state(self, listname, mode, filter_query, ttl_string):
+        ctrl = self.get_instance_control_state()
+        ttl  = Cfg.get_duration_secs("ec2.instance.control.ttl")
+        try:
+            if ttl: ttl = misc.str2duration_seconds(ttl_string) 
+        except Exception as e:
+            log.warning(f"Failed to parse TTL value '%s'! Defaulting to {ttl} seconds..." % ttl_string)
+        ttl  = misc.seconds_from_epoch_utc(self.context["now"] + timedelta(seconds=ttl))
+
+        # Lookup matching instances
+        instances = self.get_instances()
+        ids       = [ i["InstanceId"] for i in instances]
+
+        instance_ids = filter_query["InstanceIds"] if "InstanceIds" in filter_query else []
+        if "all" in instance_ids:
+            instance_ids = ids # Wildcard matches all instances
+        else:
+            instance_ids = [i for i in instance_ids if i in ids] # Filter out unknown instance id
+
+        tags      = filter_query["Tags"] if "Tags" in filter_query else {}
+        if len(tags.keys()):
+            for i in instances:
+                instance_id = i["InstanceId"]
+                if instance_id in instance_ids:
+                    continue
+                i_tags = {}
+                for t in i["Tags"]:
+                    i_tags[t["Key"]] = t["Value"]
+                for t in tags:
+                    if t not in i_tags or (i_tags[i] is not None and tags[i] != i_tags[i]):
+                        continue
+                instance_ids.append(instance_id)
+       
+        # Perform action according to specified mode
+        for instance_id in instance_ids:
+            if mode == "delete":
+                if instance_id in ctrl[listname]:
+                    del ctrl[listname][instance_id]
+            else:
+                ctrl[listname][instance_id] = {
+                    "TTL": ttl,
+                    "StartDate": str(self.context["now"]),
+                    "EndDate": str(misc.seconds2utc(ttl))
+                }
+
+        # Refresh instance name if needed
+        for instance_id in ctrl[listname].keys():
+            if instance_id not in ids:
+                del ctrl[listname][instance_id]
+        self.set_instance_control_state(ctrl)
+        
 
     def get_synthetic_metrics(self):
         s_metrics      = []
