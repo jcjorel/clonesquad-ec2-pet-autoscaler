@@ -1248,8 +1248,11 @@ By default, the dashboard is enabled.
                            continue
 
            if instance_id in draining_target_instance_ids:
-               log.info("Can't stop yet instance %s. Target Group is still draining it..." % instance_id)
+               log.info(f"Can't stop yet instance {instance_id}. Target Group is still draining it...")
                continue
+
+           if instance_id in self.unstoppable_ids:
+               log.info(f"Can't stop yes instance {instance_id} as it is marked as unstoppable...")
 
            if self.targetgroup.is_instance_registered(None, instance_id):
                log.log(log.NOTICE, "Instance %s if still part of a Target Group. Wait for eviction before to stop it..." % instance_id)

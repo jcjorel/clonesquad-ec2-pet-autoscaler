@@ -1139,6 +1139,7 @@ without any TargetGroup but another external health instance source exists).
 
         tags      = filter_query["Tags"] if "Tags" in filter_query else {}
         if len(tags.keys()):
+            log.info(f"Matching tags {tags}...")
             for i in instances:
                 instance_id = i["InstanceId"]
                 if instance_id in instance_ids:
@@ -1146,15 +1147,32 @@ without any TargetGroup but another external health instance source exists).
                 i_tags = {}
                 for t in i["Tags"]:
                     i_tags[t["Key"]] = t["Value"]
+                #log.info(f"Checking instance {instance_id} with tags {i_tags}...")
+                match = False
                 for t in tags:
-                    if t not in i_tags or (i_tags[i] is not None and tags[i] != i_tags[i]):
-                        continue
-                instance_ids.append(instance_id)
+                    # All instance tags must match the query
+                    if tags.get(t) is None:
+                        #log.info(f"Check tag {t}...")
+                        if t not in i_tags:
+                            #log.info(f"Check tag {t}... Match")
+                            match = True
+                            continue # Tag not present on the instance as requested
+                        #log.info(f"Check tag {t} No match")
+                        match = False
+                        break
+                    if t in i_tags and (i_tags[t] == "*" or re.match(tags[t], i_tags[t])):
+                        match = True
+                        continue # Tag not present or this a different value than the filtered one
+                    #log.info(f"Nothing match!")
+                    match = False
+                    break
+                if match: instance_ids.append(instance_id)
        
         # Perform action according to specified mode
+        log.info(f"Action {mode} for list {listname} on instance ids: {instance_ids}.")
         for instance_id in instance_ids:
             if mode == "delete":
-                if instance_id in ctrl[listname]:
+                if instance_id in list(ctrl[listname].keys()):
                     del ctrl[listname][instance_id]
             else:
                 ctrl[listname][instance_id] = {
@@ -1163,7 +1181,7 @@ without any TargetGroup but another external health instance source exists).
                     "EndDate": str(misc.seconds2utc(ttl))
                 }
 
-        # Refresh instance name if needed
+        # Garbage collection of older instance ids
         for instance_id in ctrl[listname].keys():
             if instance_id not in ids:
                 del ctrl[listname][instance_id]
