@@ -1252,7 +1252,7 @@ By default, the dashboard is enabled.
                continue
 
            if instance_id in self.unstoppable_ids:
-               log.info(f"Can't stop yet instance {instance_id} as it is marked as unstoppable...")
+               log.info(f"Can't stop yet instance {instance_id} as marked as unstoppable...")
                continue
 
            if self.targetgroup.is_instance_registered(None, instance_id):
