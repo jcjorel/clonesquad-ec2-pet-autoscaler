@@ -24,7 +24,7 @@ def logger(name):
         if level is None:
             level = getattr(logger, module_log_spec, None)
         if not isinstance(level, int):
-           log.warning('Invalid log level: %s' % level)
+           logger.warning('Invalid log level: %s' % level)
         else:
             log_level = level
 

@@ -198,10 +198,10 @@ class ManagedTargetGroup:
         Add and remove EC2 instances in optionally user supplied TargetGroup
         """
         cache = {}
-        running_instances  = self.ec2.get_instances(cache=cache, State="running", ScalingState="-excluded")
+        running_instances  = self.ec2.get_instances(State="running", ScalingState="-excluded")
 
         # Add excluded instances explicitly marked for forced inclusion to targetgroups
-        excluded_instances = self.ec2.get_instances(cache=cache, State="running", ScalingState="excluded")
+        excluded_instances = self.ec2.get_instances(State="running", ScalingState="excluded")
         running_instances.extend(self.ec2.filter_instance_list_by_tag(excluded_instances, 
             "clonesquad:force-excluded-instance-in-targetgroups", value=["True", "true"]))
 
@@ -220,7 +220,7 @@ class ManagedTargetGroup:
         registered_targets = self.get_registered_targets(targetgroup)[0]
 
         #  Generate events on instance state transition 
-        for instance in self.ec2.get_instances(cache=cache, ScalingState="-excluded"):
+        for instance in self.ec2.get_instances(ScalingState="-excluded"):
             instance_id    = instance["InstanceId"]
             previous_state = self.get_instance_state(instance_id, targetgroup)
             if previous_state is None: previous_state = "None"
@@ -261,7 +261,7 @@ class ManagedTargetGroup:
         # List instances that are no more running but still in the TargetGroup
         delayed_deregister_instance_ids = []
         instance_ids_to_delete          = []
-        draining_instances              = self.ec2.get_instances(cache=cache, ScalingState="excluded,draining,bounced,error")
+        draining_instances              = self.ec2.get_instances(ScalingState="excluded,draining,bounced,error")
         slow_deregister_timeout         = int(Cfg.get_duration_secs("targetgroup.slow_deregister_timeout"))
         for instance in registered_targets:
             instance_id = instance["Target"]["Id"]

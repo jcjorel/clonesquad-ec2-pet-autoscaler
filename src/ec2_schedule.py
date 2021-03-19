@@ -472,20 +472,19 @@ By default, the dashboard is enabled.
         # Library of filtered/sorted lists excluding the 'excluded' instances
         xray_recorder.begin_subsegment("prerequisites:prepare_instance_lists")
         log.debug("Computing all instance lists needed for scheduling")
-        cache = {} # Avoid to compute many times the same thing by providing a cache 
-        self.all_instances                                        = self.ec2.get_instances(cache=cache)
-        self.pending_running_instances                            = self.ec2.get_instances(cache=cache, State="pending,running")
-        self.instances_wo_excluded                                = self.ec2.get_instances(cache=cache, ScalingState="-excluded")
-        self.instances_wo_excluded_error                          = self.ec2.get_instances(cache=cache, instances=self.instances_wo_excluded, ScalingState="-error")
-        self.running_instances_wo_excluded                        = self.ec2.get_instances(cache=cache, instances=self.instances_wo_excluded, State="running")
-        self.pending_instances_wo_draining_excluded               = self.ec2.get_instances(cache=cache, instances=self.instances_wo_excluded, State="pending", ScalingState="-draining")
-        self.stopped_instances_wo_excluded                        = self.ec2.get_instances(cache=cache, instances=self.instances_wo_excluded, State="stopped")
-        self.stopped_instances_wo_excluded_error                  = self.ec2.get_instances(cache=cache, instances=self.instances_wo_excluded, State="stopped", ScalingState="-error")
-        self.stopping_instances_wo_excluded                       = self.ec2.get_instances(cache=cache, instances=self.instances_wo_excluded, State="stopping")
-        self.pending_running_instances_draining_wo_excluded       = self.ec2.get_instances(cache=cache, instances=self.instances_wo_excluded, State="pending,running", ScalingState="draining")
-        self.pending_running_instances_bounced_wo_excluded        = self.ec2.get_instances(cache=cache, instances=self.instances_wo_excluded, State="pending,running", ScalingState="bounced")
-        self.pending_running_instances_wo_excluded                = self.ec2.get_instances(cache=cache, instances=self.instances_wo_excluded, State="pending,running")
-        self.pending_running_instances_wo_excluded_draining_error = self.ec2.get_instances(cache=cache, instances=self.instances_wo_excluded, State="pending,running", ScalingState="-draining,error")
+        self.all_instances                                        = self.ec2.get_instances()
+        self.pending_running_instances                            = self.ec2.get_instances(State="pending,running")
+        self.instances_wo_excluded                                = self.ec2.get_instances(ScalingState="-excluded")
+        self.instances_wo_excluded_error                          = self.ec2.get_instances(instances=self.instances_wo_excluded, ScalingState="-error")
+        self.running_instances_wo_excluded                        = self.ec2.get_instances(instances=self.instances_wo_excluded, State="running")
+        self.pending_instances_wo_draining_excluded               = self.ec2.get_instances(instances=self.instances_wo_excluded, State="pending", ScalingState="-draining")
+        self.stopped_instances_wo_excluded                        = self.ec2.get_instances(instances=self.instances_wo_excluded, State="stopped")
+        self.stopped_instances_wo_excluded_error                  = self.ec2.get_instances(instances=self.instances_wo_excluded, State="stopped", ScalingState="-error")
+        self.stopping_instances_wo_excluded                       = self.ec2.get_instances(instances=self.instances_wo_excluded, State="stopping")
+        self.pending_running_instances_draining_wo_excluded       = self.ec2.get_instances(instances=self.instances_wo_excluded, State="pending,running", ScalingState="draining")
+        self.pending_running_instances_bounced_wo_excluded        = self.ec2.get_instances(instances=self.instances_wo_excluded, State="pending,running", ScalingState="bounced")
+        self.pending_running_instances_wo_excluded                = self.ec2.get_instances(instances=self.instances_wo_excluded, State="pending,running")
+        self.pending_running_instances_wo_excluded_draining_error = self.ec2.get_instances(instances=self.instances_wo_excluded, State="pending,running", ScalingState="-draining,error")
 
         # Useable and serving instances
         self.compute_spot_exclusion_lists()
@@ -507,17 +506,18 @@ By default, the dashboard is enabled.
         self.lh_stopped_instances_wo_excluded_error   = self.get_lighthouse_instance_ids(instances=self.stopped_instances_wo_excluded_error)
 
         # Other filtered/sorted lists
-        self.stopped_instances_wo_excluded_error    = self.ec2.get_instances(cache=cache, State="stopped", ScalingState="-excluded,error")
-        self.pending_running_instances_draining     = self.ec2.get_instances(cache=cache, State="pending,running", ScalingState="draining")
-        self.excluded_instances                     = self.ec2.get_instances(cache=cache, ScalingState="excluded")
-        self.error_instances                        = self.ec2.get_instances(cache=cache, ScalingState="error")
+        self.stopped_instances_wo_excluded_error    = self.ec2.get_instances(State="stopped", ScalingState="-excluded,error")
+        self.pending_running_instances_draining     = self.ec2.get_instances(State="pending,running", ScalingState="draining")
+        self.excluded_instances                     = self.ec2.get_instances(ScalingState="excluded")
+        self.error_instances                        = self.ec2.get_instances(ScalingState="error")
         self.non_burstable_instances                = self.ec2.get_non_burstable_instances()
-        self.stopped_instances_bounced_draining     = self.ec2.get_instances(cache=cache, State="stopped", ScalingState="bounced,draining")
+        self.stopped_instances_bounced_draining     = self.ec2.get_instances(State="stopped", ScalingState="bounced,draining")
 
         # Subfleets
         self.subfleet_instances              = self.ec2.get_subfleet_instances()
-        self.running_subfleet_instances      = self.ec2.get_instances(cache=cache, instances=self.subfleet_instances, State="pending,running")
-        self.draining_subfleet_instances     = self.ec2.get_instances(cache=cache, instances=self.subfleet_instances, ScalingState="draining")
+        self.subfleet_instances_w_excluded   = self.ec2.get_subfleet_instances(with_excluded_instances=True)
+        self.running_subfleet_instances      = self.ec2.get_instances(instances=self.subfleet_instances, State="pending,running")
+        self.draining_subfleet_instances     = self.ec2.get_instances(instances=self.subfleet_instances, ScalingState="draining")
         log.debug("End of instance list computation.")
         xray_recorder.end_subsegment()
 
@@ -551,6 +551,10 @@ By default, the dashboard is enabled.
                     "Value": subfleet}]
                 self.cloudwatch.register_metric([ 
                         { "MetricName": "Subfleet.EC2.Size",
+                          "Dimensions": dimensions,
+                          "Unit": "Count",
+                          "StorageResolution": self.metric_time_resolution },
+                        { "MetricName": "Subfleet.EC2.ExcludedInstances",
                           "Dimensions": dimensions,
                           "Unit": "Count",
                           "StorageResolution": self.metric_time_resolution },
@@ -833,7 +837,7 @@ By default, the dashboard is enabled.
         error_instances             = self.error_instances
         exhausted_cpu_credits       = self.cpu_exhausted_instances
         instances_with_issues       = self.instances_with_issues
-        subfleet_instances          = self.subfleet_instances
+        subfleet_instances          = self.subfleet_instances_w_excluded
         running_subfleet_instances  = self.running_subfleet_instances
         draining_subfleet_instances = self.draining_subfleet_instances
         fl_size                     = len(fleet_instances)
@@ -1306,7 +1310,7 @@ By default, the dashboard is enabled.
                 self.ec2.start_instances([instance_id])
                 self.scaling_state_changed = True
 
-    def subfleet_action(self, subfleet, delta, cache=None):
+    def subfleet_action(self, subfleet, delta):
         """ Method responsable to change the amount of running instances is a subfleet.
 
         It is similar to instance_action() but to manage subfleet instance count.
@@ -1314,7 +1318,6 @@ By default, the dashboard is enabled.
 
         :param subfleet:    Name of the subfleet to manage
         :param delta:       Number of instances to start or stop in the subfleet
-        :param cache:       (Optional) Pass a dict object that is used a cache for subsequent get_instances()
         """
         def _verticalscale_sort_and_warn(subfleet, candidates, reverse=False):
             """ Take into account vertical scaling policy if it exists for the subfleet.
@@ -1352,9 +1355,9 @@ By default, the dashboard is enabled.
                                         len(fleet_instances), len(fleet_instances)))
 
         instance_count    = max(min_instance_count, desired_instance_count)
-        running_instances = self.ec2.get_instances(cache=cache, instances=fleet_instances, 
+        running_instances = self.ec2.get_instances(instances=fleet_instances, 
                 State="pending,running", ScalingState="-error,draining,bounced")
-        stopped_instances = self.ec2.get_instances(cache=cache, instances=fleet_instances, State="stopped")
+        stopped_instances = self.ec2.get_instances(instances=fleet_instances, State="stopped")
         delta             = instance_count - len(running_instances) + delta
         if delta > 0:
             # Request to add new running instances.
@@ -1437,7 +1440,6 @@ By default, the dashboard is enabled.
             subfleets[subfleet_name]["All"].append(i)
 
         # Manage start/stop of 'running' subfleet
-        cache = {}
         for subfleet in subfleets:
             fleet                  = subfleets[subfleet]
             expected_state         = fleet["expected_state"]
@@ -1456,16 +1458,20 @@ By default, the dashboard is enabled.
 
             if expected_state == "running":
                 # Ensure that the right number of instances are started
-                min_instance_count, desired_instance_count = self.subfleet_action(subfleet, 0, cache=cache)
+                min_instance_count, desired_instance_count = self.subfleet_action(subfleet, 0)
 
             # Publish subfleet metrics if requested
             if Cfg.get_int(f"subfleet.{subfleet}.ec2.schedule.metrics.enable"):
                 dimensions = [{
                     "Name": "SubfleetName",
                     "Value": subfleet}]
-                running_instances  = self.ec2.get_instances(cache=cache, instances=fleet["All"], State="pending,running", ScalingState="-error")
-                draining_instances = self.ec2.get_instances(cache=cache, instances=fleet["All"], State="running", ScalingState="draining")
+                running_instances  = self.ec2.get_instances(instances=fleet["All"], State="pending,running", ScalingState="-error")
+                draining_instances = self.ec2.get_instances(instances=fleet["All"], State="running", ScalingState="draining")
+                subfleet_instances_w_excluded = self.ec2.get_subfleet_instances(subfleet_name=subfleet, 
+                        with_excluded_instances=True)
                 self.cloudwatch.set_metric("Subfleet.EC2.Size", len(fleet["All"]), dimensions=dimensions)
+                self.cloudwatch.set_metric("Subfleet.EC2.ExcludedInstances", 
+                        len(subfleet_instances_w_excluded) - len(fleet["All"]), dimensions=dimensions)
                 self.cloudwatch.set_metric("Subfleet.EC2.RunningInstances", len(running_instances), dimensions=dimensions)
                 self.cloudwatch.set_metric("Subfleet.EC2.DrainingInstances", len(draining_instances), dimensions=dimensions)
                 if expected_state == "running":
@@ -1498,6 +1504,7 @@ By default, the dashboard is enabled.
                         "stacked": False,
                         "metrics": [
                             [ "CloneSquad", "Subfleet.EC2.Size", "GroupName", self.context["GroupName"], "SubfleetName", subfleet_name ],
+                            [ ".", "Subfleet.EC2.ExcludedInstances", ".", ".", ".", "." ],
                             [ ".", "Subfleet.EC2.MinInstanceCount", ".", ".", ".", "." ],
                             [ ".", "Subfleet.EC2.DesiredInstanceCount", ".", ".", ".", "." ],
                             [ ".", "Subfleet.EC2.NbOfCPUCreditingInstances", ".", ".", ".", "." ],
@@ -2597,11 +2604,10 @@ By default, the dashboard is enabled.
             # Launch needed instances in the Main fleet
             self.instance_action(self.useable_instance_count + instance_count_to_launch, "manage_spot_events")
 
-        cache = {}
         for subfleet in subfleet_deltas:
             # Launch needed instances in each subfleet
             log.info(f"Due to Spot instance status change, %d instances have to be started in subfleet '{subfleet}'." % subfleet_deltas[subfleet])
-            self.subfleet_action(subfleet, subfleet_deltas[subfleet], cache=cache)
+            self.subfleet_action(subfleet, subfleet_deltas[subfleet])
 
         # Garbage collect old instance notifications
         for i in list(known_spot_advisories.keys()):

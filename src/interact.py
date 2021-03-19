@@ -202,9 +202,21 @@ class Interact:
                 response["statusCode"] = 400
                 response["body"]       = f"Failed to parse JSON body: {e}!"
                 return False
+        if "Tags" not in filter_query:
+            filter_query["Tags"] = {}
+
         # instance ids can be specified in the URL query string
         if event.get("instanceids"):
             filter_query["InstanceIds"] = event["instanceids"].split(",")
+        # subfleetname can be specified in the URL query string
+        if event.get("subfleetname"):
+            filter_query["Tags"]["clonesquad:subfleet-name"] = event["subfleetname"]
+        # subfleetname can be specified in the URL query string
+        if event.get("instancename"):
+            filter_query["Tags"]["Name"] = event["instancename"]
+        # Do we need to excluded the selected instance ids
+        if event.get("excluded"):
+            filter_query["Excluded"] = event.get("excluded") in ["true", "True"]
 
         mode = event.get("mode")
         if not mode and len(filter_query.keys()):

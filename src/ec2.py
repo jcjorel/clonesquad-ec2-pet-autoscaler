@@ -61,7 +61,6 @@ class EC2:
         self.ec2_status_override_url = ""
         self.ec2_status_override     = {}
         self.state_table             = None
-        self.scaling_state_cache     = {}
 
         Cfg.register({
                  "ec2.describe_instances.max_results" : "500",
@@ -233,6 +232,11 @@ without any TargetGroup but another external health instance source exists).
         self.state_table = self.o_state.get_state_table()
         client           = self.context["ec2.client"]
 
+        # Create the excluded instance id list coming from control state API
+        self.instance_control_excluded_ids = self.get_instance_control_excluded_instance_ids()
+        if len(self.instance_control_excluded_ids):
+            log.info("Instance ids excluded through Instance Control API GW: %s" % self.instance_control_excluded_ids)
+
         # Retrieve list of instances with appropriate tag
         Filters          = [{'Name': 'tag:clonesquad:group-name', 'Values': [self.context["GroupName"]]}]
         
@@ -339,6 +343,9 @@ without any TargetGroup but another external health instance source exists).
             except Exception as e:
                 log.warning("Failed to load 'ec2.instance.status.override_url' YAML file '%s' : %s" % (self.ec2_status_override_url, e))
 
+        # Pre-compute scaling states for instance tp be fast later
+        self.compute_scaling_states()
+
         self.prereqs_done = True
 
     def register_state_aggregates(self, aggregates):
@@ -391,15 +398,18 @@ without any TargetGroup but another external health instance source exists).
         """
         return [ az["ZoneName"] for az in self.az_with_issues ]
 
-    def get_subfleet_instances(self, subfleet_name=None):
+    def get_subfleet_instances(self, subfleet_name=None, with_excluded_instances=False):
         """ Return a list of instance structure that are part the specified subfleet.
 
         :param subfleet_name: If 'None', return all subfleets in all subfleets; if set, filter on the subfleet name specified.
         :return A list instance structures
         """
-        value = [subfleet_name] if subfleet_name is not None else None
+        value     = [subfleet_name] if subfleet_name is not None else None
         instances = self.filter_instance_list_by_tag(self.instances, "clonesquad:subfleet-name", value)
-        return self.filter_instance_list_by_tag(instances, "-clonesquad:excluded", ["True", "true"])
+        if not with_excluded_instances:
+            instances = self.filter_instance_list_by_tag(instances, "-clonesquad:excluded", ["True", "true"])
+            instances = [i for i in instances if i["InstanceId"] not in self.instance_control_excluded_ids]
+        return instances
 
     def get_subfleet_names(self):
         """ Return the list of all active subfleets.
@@ -435,7 +445,7 @@ without any TargetGroup but another external health instance source exists).
         # Sort instance list starting from the oldest launch to the newest
         return sorted(instances, key=lambda i: i["_LastStartAttemptTime"])
 
-    def get_instances(self, instances=None, State=None, ScalingState=None, details=None, max_results=-1, azs_filtered_out=None, cache=None):
+    def get_instances(self, instances=None, State=None, ScalingState=None, details=None, max_results=-1, azs_filtered_out=None):
         """ Return a list of instance structures based on specified criteria.
 
         This method is a critical one used in all scheduling algorithms.
@@ -460,21 +470,13 @@ without any TargetGroup but another external health instance source exists).
                 "filtered-out": []},
             })
 
-        # Optimize by providing a cache if possible
-        scaling_state_cache = None
-        if cache is not None:
-            if "ScalingState" not in cache:
-                cache["ScalingState"] = defaultdict(dict)
-            scaling_state_cache = cache["ScalingState"]
-
-
         ref_instances = self.instances if instances is None else instances
         instances = []
         for instance in ref_instances:
            state_test        = self._match_instance(details["state"], instance, State, 
                    lambda i, value: i["State"]["Name"] in value.split(","))
            scalingstate_test = self._match_instance(details["scalingstate"], instance, ScalingState, 
-                   lambda i, value: self.get_scaling_state(i["InstanceId"], do_not_return_excluded=True, cache=scaling_state_cache) in value.split(",") or self.get_scaling_state(i["InstanceId"], cache=scaling_state_cache) in value.split(","))
+                   lambda i, value: self.get_scaling_state(i["InstanceId"], do_not_return_excluded=True) in value.split(",") or self.get_scaling_state(i["InstanceId"]) in value.split(","))
            if state_test and scalingstate_test:
                instances.append(instance)
 
@@ -937,7 +939,30 @@ without any TargetGroup but another external health instance source exists).
             r[state].append(instance_id)
         return dict(r)
 
-    def get_scaling_state(self, instance_id, default=None, meta=None, default_date=None, do_not_return_excluded=False, raw=False, cache=None):
+    def compute_scaling_states(self):
+        """ Compute an optimized lookup structure of scaling instance state.
+        """
+        excluded_instances  = Cfg.get_list("ec2.state.excluded_instance_ids", default=[])
+        error_instance_ids  = Cfg.get_list("ec2.state.error_instance_ids", default=[]) 
+        self.scaling_states = defaultdict(dict)
+        for i in self.get_instances():
+            instance_id  = i["InstanceId"]
+            state        = self.scaling_states[instance_id]
+            key          = f"ec2.instance.scaling.state.{instance_id}"
+            state["raw"] = self.get_state(key, default=None)
+            state["state"]             = state["raw"]
+            state["state_no_excluded"] = state["raw"]
+            if (self.instance_has_tag(i, "clonesquad:excluded", value=["1", "True", "true"])
+                or i in excluded_instances 
+                or self.is_subfleet_instance(instance_id)
+                or instance_id in self.instance_control_excluded_ids):
+                state["state"] = "excluded"
+            # Force error state for some VM (debug usage)
+            if instance_id in error_instance_ids:
+                state["state_no_excluded"] = "error"
+                state["state"]             = "error"
+
+    def get_scaling_state(self, instance_id, default=None, meta=None, default_date=None, do_not_return_excluded=False, raw=False):
         """ Return the scaling state for  specified instance.
 
         TODO: Rewrite with method as it is highly CPU intensive and so inefficient in a Lambda context.
@@ -946,30 +971,15 @@ without any TargetGroup but another external health instance source exists).
             for i in ["action", "draining", "error", "bounced"]:
                 meta["last_%s_date" % i] = misc.str2utc(self.get_state("ec2.instance.scaling.last_%s_date.%s" %
                         (i, instance_id), default=self.context["now"]))
-        key       = "ec2.instance.scaling.state.%s" % instance_id
-        if cache is not None and do_not_return_excluded in cache[key]:
-            return cache[key][do_not_return_excluded]
 
-        r   = self.get_state(key, default=default)
+        state = self.scaling_states.get(instance_id, {"raw": default, "state_no_excluded": default, "state": default})
         if raw:
-            return r
-        #Special case for 'excluded': We test it here so tags will override the value
-        i   = self.get_instance_by_id(instance_id)
-        excluded_instances = Cfg.get_list("ec2.state.excluded_instance_ids", default=[])
-        if (i is not None and not do_not_return_excluded and (
-                self.instance_has_tag(i, "clonesquad:excluded", value=["1", "True", "true"])
-                or i in excluded_instances
-                or self.is_subfleet_instance(instance_id))):
-            r = "excluded"
-        # Force error state for some VM (debug usage)
-        error_instance_ids = Cfg.get_list("ec2.state.error_instance_ids", default=[]) 
-        if instance_id in error_instance_ids:
-            r = "error"
-        if cache is not None: 
-            cache[key][do_not_return_excluded] = r
-        return r
+            return state["raw"] if state["raw"] is not None else default
+        if do_not_return_excluded:
+            return state["state_no_excluded"] if state["state_no_excluded"] is not None else default
+        return state["state"] if state["state"] is not None else default
 
-    def set_scaling_state(self, instance_id, value, ttl=None, meta=None, default_date=None, cache=None):
+    def set_scaling_state(self, instance_id, value, ttl=None, meta=None, default_date=None):
         if ttl is None: ttl = Cfg.get_duration_secs("ec2.state.default_ttl") 
         if default_date is None: default_date = self.context["now"]
 
@@ -980,8 +990,6 @@ without any TargetGroup but another external health instance source exists).
         self.set_state("ec2.instance.scaling.last_%s_date.%s" % (value, instance_id), date, ttl)
         previous_value = self.get_scaling_state(instance_id, meta=meta)
         key            = "ec2.instance.scaling.state.%s" % instance_id
-        if cache is not None:
-            del cache[key]
         return self.set_state(key, value, ttl)
 
     def list_states(self, prefix="ec2.instance.scaling_state.", not_matching_instances=None):
@@ -1088,6 +1096,15 @@ without any TargetGroup but another external health instance source exists).
                 pass
         return recs
 
+    def get_instance_control_excluded_instance_ids(self):
+        instance_control_states = self.get_instance_control_state()
+        ids = []
+        for l in ["unstoppable", "unstartable"]:
+            lt = instance_control_states[l]
+            el = [i for i in lt.keys() if lt[i]["Excluded"]]
+            [ids.append(i) for i in el if i not in ids]
+        return ids
+
     def get_instance_control_state(self):
         state = self.get_state_json("ec2.control.state", default={
             "unstoppable": {},
@@ -1152,18 +1169,18 @@ without any TargetGroup but another external health instance source exists).
                 for t in tags:
                     # All instance tags must match the query
                     if tags.get(t) is None:
-                        #log.info(f"Check tag {t}...")
                         if t not in i_tags:
-                            #log.info(f"Check tag {t}... Match")
                             match = True
                             continue # Tag not present on the instance as requested
-                        #log.info(f"Check tag {t} No match")
                         match = False
                         break
-                    if t in i_tags and (i_tags[t] == "*" or re.match(tags[t], i_tags[t])):
+                    if (t in i_tags and (
+                            tags[t] == "*" 
+                            or (re.match(tags[t], i_tags[t])) if "*" in tags[t] else False)
+                            or (tags[t] == i_tags[t])
+                            ):
                         match = True
                         continue # Tag not present or this a different value than the filtered one
-                    #log.info(f"Nothing match!")
                     match = False
                     break
                 if match: instance_ids.append(instance_id)
@@ -1178,7 +1195,8 @@ without any TargetGroup but another external health instance source exists).
                 ctrl[listname][instance_id] = {
                     "TTL": ttl,
                     "StartDate": str(self.context["now"]),
-                    "EndDate": str(misc.seconds2utc(ttl))
+                    "EndDate": str(misc.seconds2utc(ttl)),
+                    "Excluded": filter_query.get("Excluded", False)
                 }
 
         # Garbage collection of older instance ids
