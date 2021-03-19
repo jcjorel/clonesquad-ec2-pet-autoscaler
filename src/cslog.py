@@ -18,10 +18,11 @@ def logger(name):
     is_sam_local = "AWS_SAM_LOCAL" in os.environ and os.environ["AWS_SAM_LOCAL"] == "true"
 
     log_level = logging.DEBUG if is_sam_local else logging.INFO 
-    if log_spec is not None and name in log_spec:
-        level = getattr(logging, log_spec[name], None)
+    if log_spec is not None and (name in log_spec or "*" in log_spec):
+        module_log_spec = log_spec[name] if name in log_spec else log_spec["*"]
+        level = getattr(logging, module_log_spec, None)
         if level is None:
-            level = getattr(logger, log_spec[name], None)
+            level = getattr(logger, module_log_spec, None)
         if not isinstance(level, int):
            log.warning('Invalid log level: %s' % level)
         else:
