@@ -543,6 +543,8 @@ By default, the dashboard is enabled.
 
         # Register dynamic keys for subfleets
         for subfleet in self.ec2.get_subfleet_names():
+            if subfleet in ["__all__"]:
+                continue
             extended_metrics = get_subfleet_key("ec2.schedule.metrics.enable", subfleet, cls=int) 
             if extended_metrics:
                 log.log(log.NOTICE, f"Enabled detailed metrics for subfleet '{subfleet}' (subfleet.{subfleet}.ec2.schedule.metrics.enable != 0).")
@@ -1273,13 +1275,18 @@ By default, the dashboard is enabled.
                    continue
            ids_to_stop.append(instance_id)
 
-        cw.set_metric("NbOfCPUCreditingInstances", nb_cpu_crediting)
+        # Configure NbOfCPUCreditingInstances metric
+        burstable_instances = [i for i in self.instances_wo_excluded if self.is_instance_cpu_crediting_eligible(i)]
+        cw.set_metric("NbOfCPUCreditingInstances", nb_cpu_crediting if len(burstable_instances) else None)
         for subfleet in self.ec2.get_subfleet_names():
             dimensions = [{
                 "Name": "SubfleetName",
                 "Value": subfleet}]
+            ins                 = subfleet_details[subfleet]["Instances"]
+            burstable_instances = [i for i in ins if self.is_instance_cpu_crediting_eligible(i)]
+            count               = subfleet_details[subfleet]["max_number_crediting_instances"] - subfleet_details[subfleet]["cpu_credit_counter"] 
             self.cloudwatch.set_metric("Subfleet.EC2.NbOfCPUCreditingInstances", 
-                    subfleet_details[subfleet]["max_number_crediting_instances"] - subfleet_details[subfleet]["cpu_credit_counter"], dimensions=dimensions)
+                    count if len(burstable_instances) else None, dimensions=dimensions)
 
         if len(ids_to_stop) > 0:
             if self.scaling_state_changed:
@@ -1406,7 +1413,7 @@ By default, the dashboard is enabled.
     def manage_subfleets(self):
         """ Module entrypoint for subfleet instance management.
         """
-        instances = self.subfleet_instances
+        instances = self.subfleet_instances_w_excluded
         subfleets = {}
         for i in instances:
             instance_id    = i["InstanceId"]
@@ -1429,6 +1436,10 @@ By default, the dashboard is enabled.
 
             if subfleet_name not in subfleets:
                 subfleets[subfleet_name] = defaultdict(list)
+            subfleets[subfleet_name]["expected_state"] = expected_state
+
+            if self.ec2.is_instance_excluded(instance_id):
+                continue # Ignore instances marked as excluded
 
             if expected_state == "running":
                 subfleets[subfleet_name]["ToStart"].append(i)
@@ -1436,7 +1447,6 @@ By default, the dashboard is enabled.
             if (expected_state == "stopped" and i["State"]["Name"] in ["pending", "running"]):
                 subfleets[subfleet_name]["ToStop"].append(i)
 
-            subfleets[subfleet_name]["expected_state"] = expected_state
             subfleets[subfleet_name]["All"].append(i)
 
         # Manage start/stop of 'running' subfleet
@@ -1461,25 +1471,34 @@ By default, the dashboard is enabled.
                 min_instance_count, desired_instance_count = self.subfleet_action(subfleet, 0)
 
             # Publish subfleet metrics if requested
+            dimensions = [{
+                "Name": "SubfleetName",
+                "Value": subfleet}]
+            cw = self.cloudwatch
             if Cfg.get_int(f"subfleet.{subfleet}.ec2.schedule.metrics.enable"):
-                dimensions = [{
-                    "Name": "SubfleetName",
-                    "Value": subfleet}]
-                running_instances  = self.ec2.get_instances(instances=fleet["All"], State="pending,running", ScalingState="-error")
-                draining_instances = self.ec2.get_instances(instances=fleet["All"], State="running", ScalingState="draining")
+                running_instances  = self.ec2.get_instances(instances=fleet["All"], 
+                        State="pending,running", ScalingState="-error")
+                draining_instances = self.ec2.get_instances(instances=fleet["All"], 
+                        State="running", ScalingState="draining")
                 subfleet_instances_w_excluded = self.ec2.get_subfleet_instances(subfleet_name=subfleet, 
                         with_excluded_instances=True)
-                self.cloudwatch.set_metric("Subfleet.EC2.Size", len(fleet["All"]), dimensions=dimensions)
-                self.cloudwatch.set_metric("Subfleet.EC2.ExcludedInstances", 
-                        len(subfleet_instances_w_excluded) - len(fleet["All"]), dimensions=dimensions)
-                self.cloudwatch.set_metric("Subfleet.EC2.RunningInstances", len(running_instances), dimensions=dimensions)
-                self.cloudwatch.set_metric("Subfleet.EC2.DrainingInstances", len(draining_instances), dimensions=dimensions)
-                if expected_state == "running":
-                    self.cloudwatch.set_metric("Subfleet.EC2.MinInstanceCount", min_instance_count, dimensions=dimensions)
-                    self.cloudwatch.set_metric("Subfleet.EC2.DesiredInstanceCount", desired_instance_count, dimensions=dimensions)
-                else:
-                    self.cloudwatch.set_metric("Subfleet.EC2.MinInstanceCount", None, dimensions=dimensions)
-                    self.cloudwatch.set_metric("Subfleet.EC2.DesiredInstanceCount", None, dimensions=dimensions)
+                fleet_size     = len(fleet["All"])
+                excluded_count = len(subfleet_instances_w_excluded) - fleet_size
+                cw.set_metric("Subfleet.EC2.Size", fleet_size if fleet_size else None, dimensions=dimensions)
+                cw.set_metric("Subfleet.EC2.ExcludedInstances", 
+                        excluded_count if fleet_size or excluded_count else None, dimensions=dimensions)
+                cw.set_metric("Subfleet.EC2.RunningInstances", len(running_instances) if fleet_size else None, dimensions=dimensions)
+                cw.set_metric("Subfleet.EC2.DrainingInstances", len(draining_instances) if fleet_size else None, dimensions=dimensions)
+                send_metric    = (expected_state == "running") and (fleet_size or excluded_count)
+                cw.set_metric("Subfleet.EC2.MinInstanceCount", min_instance_count if send_metric else None, dimensions=dimensions)
+                cw.set_metric("Subfleet.EC2.DesiredInstanceCount", desired_instance_count if send_metric else None, dimensions=dimensions)
+            else:
+                cw.set_metric("Subfleet.EC2.Size", None, dimensions=dimensions)
+                cw.set_metric("Subfleet.EC2.ExcludedInstances", None, dimensions=dimensions)
+                cw.set_metric("Subfleet.EC2.RunningInstances", None, dimensions=dimensions)
+                cw.set_metric("Subfleet.EC2.DrainingInstances", None, dimensions=dimensions)
+                cw.set_metric("Subfleet.EC2.MinInstanceCount", None, dimensions=dimensions)
+                cw.set_metric("Subfleet.EC2.DesiredInstanceCount", None, dimensions=dimensions)
 
     def generate_subfleet_dashboard(self):
         """ Create / Destroy CloudWatch dashboards.

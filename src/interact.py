@@ -202,28 +202,21 @@ class Interact:
                 response["statusCode"] = 400
                 response["body"]       = f"Failed to parse JSON body: {e}!"
                 return False
-        if "Tags" not in filter_query:
-            filter_query["Tags"] = {}
 
         # instance ids can be specified in the URL query string
         if event.get("instanceids"):
             filter_query["InstanceIds"] = event["instanceids"].split(",")
-        # subfleetname can be specified in the URL query string
-        if event.get("subfleetname"):
-            filter_query["Tags"]["clonesquad:subfleet-name"] = event["subfleetname"]
-        # subfleetname can be specified in the URL query string
-        if event.get("instancename"):
-            filter_query["Tags"]["Name"] = event["instancename"]
+        # instance names can be specified in the URL query string
+        if event.get("instancenames"):
+            filter_query["InstanceNames"] = event["instancenames"].split(",")
         # Do we need to excluded the selected instance ids
         if event.get("excluded"):
             filter_query["Excluded"] = event.get("excluded") in ["true", "True"]
+        # subfleet names can be specified in the URL query string
+        if event.get("subfleetnames"):
+            filter_query["SubfleetNames"] = event.get("subfleetnames").split(",") if event.get("subfleetnames") != "" else None
 
         mode = event.get("mode")
-        if not mode and len(filter_query.keys()):
-            response["statusCode"] = 400
-            response["body"]       = f"'mode' query string parameter must be specified in the request!"
-            return False
-
         if mode is not None:
             valid_modes = ["add", "delete"]
             if mode not in valid_modes:
@@ -236,9 +229,11 @@ class Interact:
         # Decorate the structure with current name of instance if any
         instances = self.context["o_ec2"].get_instances()
         for instance_id in ctrl[path].keys():
-            instance = next(filter(lambda i: i["InstanceId"] == instance_id, instances))
-            name     = next(filter(lambda t: t["Key"] == "Name", instance["Tags"]), None)
+            instance      = next(filter(lambda i: i["InstanceId"] == instance_id, instances))
+            name          = next(filter(lambda t: t["Key"] == "Name", instance["Tags"]), None)
             ctrl[path][instance_id]["InstanceName"] = name["Value"] if name is not None else None
+            subfleet_name = next(filter(lambda t: t["Key"] == "clonesquad:subfleet-name", instance["Tags"]), None)
+            ctrl[path][instance_id]["SubfleetName"] = subfleet_name["Value"] if subfleet_name is not None else None
         response["statusCode"] = 200
         response["body"]       = Dbg.pprint(ctrl[path])
         return False

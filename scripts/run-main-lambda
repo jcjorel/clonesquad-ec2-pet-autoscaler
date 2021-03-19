@@ -9,6 +9,6 @@ source ${CLONESQUAD_DIR}/scripts/_source-me.sh
 export PYTHONPATH=$PWD/src/
 export AWS_SAM_LOCAL=true
 export LAMBDA_TASK_ROOT=.
-export CLONESQUAD_LOGLEVELS="kvtable=INFO,notify=INFO,targetgroup=INFO"
+export CLONESQUAD_LOGLEVELS=${CLONESQUAD_LOGLEVELS:-"kvtable=INFO,notify=INFO,targetgroup=INFO"}
 .venv/bin/python3 src/app.py $*
 

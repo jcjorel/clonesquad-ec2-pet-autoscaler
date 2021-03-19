@@ -103,7 +103,7 @@ forcing their immediate replacement in healthy AZs in the region.
                  "ec2.state.default_ttl": "days=1",
                  "ec2.state.error_ttl" : "minutes=5",
                  "ec2.state.status_ttl" : "days=40",
-                 "ec2.instance.control.ttl" : "minutes=10",
+                 "ec2.instance.control.ttl" : "hours=1",
                  "ec2.instance.max_start_instance_at_once": "50",
                  "ec2.instance.max_stop_instance_at_once": "50",
                  "ec2.instance.spot.event.interrupted_at_ttl" : "minutes=10",
@@ -398,6 +398,17 @@ without any TargetGroup but another external health instance source exists).
         """
         return [ az["ZoneName"] for az in self.az_with_issues ]
 
+    def is_instance_excluded(self, instance_id):
+        """ Test if an instance is excluded.
+        """
+        excluded_instances  = Cfg.get_list("ec2.state.excluded_instance_ids", default=[])
+        instance            = self.get_instance_by_id(instance_id)
+        if ((instance and self.instance_has_tag(instance, "clonesquad:excluded", value=["1", "True", "true"]))
+            or instance_id in excluded_instances 
+            or instance_id in self.instance_control_excluded_ids):
+            return True
+        return False
+
     def get_subfleet_instances(self, subfleet_name=None, with_excluded_instances=False):
         """ Return a list of instance structure that are part the specified subfleet.
 
@@ -414,7 +425,7 @@ without any TargetGroup but another external health instance source exists).
     def get_subfleet_names(self):
         """ Return the list of all active subfleets.
         """
-        instances = self.get_subfleet_instances()
+        instances = self.get_subfleet_instances(with_excluded_instances=True)
         names     = []
         for i in instances:
             tags = self.get_instance_tags(i)
@@ -942,7 +953,6 @@ without any TargetGroup but another external health instance source exists).
     def compute_scaling_states(self):
         """ Compute an optimized lookup structure of scaling instance state.
         """
-        excluded_instances  = Cfg.get_list("ec2.state.excluded_instance_ids", default=[])
         error_instance_ids  = Cfg.get_list("ec2.state.error_instance_ids", default=[]) 
         self.scaling_states = defaultdict(dict)
         for i in self.get_instances():
@@ -952,10 +962,7 @@ without any TargetGroup but another external health instance source exists).
             state["raw"] = self.get_state(key, default=None)
             state["state"]             = state["raw"]
             state["state_no_excluded"] = state["raw"]
-            if (self.instance_has_tag(i, "clonesquad:excluded", value=["1", "True", "true"])
-                or i in excluded_instances 
-                or self.is_subfleet_instance(instance_id)
-                or instance_id in self.instance_control_excluded_ids):
+            if (self.is_instance_excluded(instance_id) or self.is_subfleet_instance(instance_id)):
                 state["state"] = "excluded"
             # Force error state for some VM (debug usage)
             if instance_id in error_instance_ids:
@@ -1139,7 +1146,7 @@ without any TargetGroup but another external health instance source exists).
         ctrl = self.get_instance_control_state()
         ttl  = Cfg.get_duration_secs("ec2.instance.control.ttl")
         try:
-            if ttl: ttl = misc.str2duration_seconds(ttl_string) 
+            if ttl_string: ttl = misc.str2duration_seconds(ttl_string) 
         except Exception as e:
             log.warning(f"Failed to parse TTL value '%s'! Defaulting to {ttl} seconds..." % ttl_string)
         ttl  = misc.seconds_from_epoch_utc(self.context["now"] + timedelta(seconds=ttl))
@@ -1154,6 +1161,15 @@ without any TargetGroup but another external health instance source exists).
         else:
             instance_ids = [i for i in instance_ids if i in ids] # Filter out unknown instance id
 
+        for i in instances:
+            # Match instance by name
+            for tag, values in [("Name", "InstanceNames"), ("clonesquad:subfleet-name", "SubfleetNames")]:
+                t = next(filter(lambda t: t["Key"] == tag, i["Tags"]), None)
+                if (t and t["Value"] in filter_query.get(values, [])) or (not t and not filter_query.get(values, None)):
+                    if i["InstanceId"] not in instance_ids:
+                        instance_ids.append(i["InstanceId"]) 
+
+        # Match tags specified in query filter
         tags      = filter_query["Tags"] if "Tags" in filter_query else {}
         if len(tags.keys()):
             log.info(f"Matching tags {tags}...")

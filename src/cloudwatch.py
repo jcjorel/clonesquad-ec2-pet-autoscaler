@@ -505,28 +505,31 @@ See [Alarm specification documentation](ALARMS_REFERENCE.md)  for more details.
                 if nb_of_updated_alarms > max_update_per_batch: break
 
     def register_metric(self, spec):
+        for s in spec:
+            if "Dimensions" not in s:
+                s["Dimensions"] = []
+            else:
+                s["Dimensions"] = s["Dimensions"].copy()
+            s["Dimensions"].extend([{
+                "Name": "GroupName",
+                "Value": self.context["GroupName"]
+                }])
         self.metrics.extend(spec)
 
     def sent_metrics(self):
         return self.metrics
 
     def set_metric(self, name, value, dimensions=None):
-        metric = None
+        ms = list(filter(lambda m: m["MetricName"] == name, self.metrics))
         if dimensions is None:
-            m = next(filter(lambda m: m["MetricName"] == name and "Dimensions" not in m, self.metrics), None)
+            m = next(filter(lambda m: len(m["Dimensions"]) == 1, ms), None)
         else:
-            m = next(filter(lambda m: m["MetricName"] == name and "Dimensions" in m and m["Dimensions"] == dimensions, self.metrics), None)
+            m = next(filter(lambda m: dimensions[0] in m["Dimensions"], ms), None)
         if m is None:
             raise Exception("Unknown metric set '%s' (Dimensions=%s)"  % (name, dimensions))
 
         m["Value"]     = float(value) if value is not None else None
         m["Timestamp"] = self.context["now"]
-        m["Dimensions"] = [{
-                "Name": "GroupName",
-                "Value": self.context["GroupName"]
-                }]
-        if dimensions is not None:
-            m["Dimensions"].extend(dimensions)
         log.log(log.NOTICE, f"Metric[{name}] = {value} (Dimensions={dimensions})")
 
     @xray_recorder.capture()
