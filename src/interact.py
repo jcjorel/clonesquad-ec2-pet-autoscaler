@@ -167,7 +167,7 @@ class Interact:
                     "prerequisites": [],
                     "func": self.allmetadatas,
                 },
-                "control/instances/(.*)" : {
+                "control/instances/(unstoppable|unstartable)" : {
                     "interface": ["apigw"],
                     "cache": "global",
                     "clients": [],
@@ -438,7 +438,7 @@ class Interact:
         if path in self.commands.keys():
             return self.commands[path]
         # Look up for regex command match.
-        candidates = [ c for c in self.commands.keys() if "*" in c and re.match(c, path) ]
+        candidates = [ c for c in self.commands.keys() if ("*" in c or "(" in c) and re.match(c, path) ]
         return self.commands[candidates[0]] if len(candidates) else None
 
     def handler(self, event, context, response):
