@@ -66,6 +66,12 @@ Parameters:
     Default: ""
     Description: "(Optional) A timezone specification (ex: Europe/Paris, Asia/Kolkata...). By default, the timezone is guessed from the region name."
 
+  LogLevels:
+    Type: String
+    Default: ""
+    Description: "(Debug) Set the logging level of Lambda functions (Default: '*=INFO'. Set to '*=DEBUG' for highest verbosity)"
+
+
   XRayDiagnosis:
     Type: String
     Default: 1
@@ -615,6 +621,7 @@ Resources:
                   LoggingS3Path:                              !Ref LoggingS3Path
                   TimeZone:                                   !Ref TimeZone
                   AWS_XRAY_SDK_ENABLED:                       !Ref XRayDiagnosis
+                  CLONESQUAD_LOGLEVELS:                       !Ref LogLevels
               Events:
                 Schedule:
                   Type: Schedule
@@ -667,6 +674,7 @@ Resources:
                   EventTable:                                 !Ref EventTable
                   ConfigurationURLs:                          !Ref ConfigurationURLs
                   TimeZone:                                   !Ref TimeZone
+                  CLONESQUAD_LOGLEVELS:                       !Ref LogLevels
               Events:
                 ScaleUpTopic:
                   Type: SNS
@@ -719,6 +727,7 @@ Resources:
                   MainFunctionArn:                            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:CloneSquad-Main-${GroupName}"
                   InteractApi:                                !Ref InteractApi
                   TimeZone:                                   !Ref TimeZone
+                  CLONESQUAD_LOGLEVELS:                       !Ref LogLevels
                   ApiGwVpcEndpointDNSEntry: !If 
                         - HasApiGWEndpointConfiguration 
                         - !Select [ 1, !Split [ ":", !Select [ 0, !GetAtt ApiGWVpcEndpoints.DnsEntries]]]
@@ -758,6 +767,7 @@ Resources:
                   InteractQueue:      !Ref InteractQueue
                   MainFunctionArn:    !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:CloneSquad-Main-${GroupName}"
                   TimeZone:           !Ref TimeZone
+                  CLONESQUAD_LOGLEVELS: !Ref LogLevels
               Events:
                 SQS:
                   Type: SQS
