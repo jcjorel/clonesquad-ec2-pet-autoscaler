@@ -13,8 +13,9 @@ def logger(name):
     if "CLONESQUAD_LOGLEVELS" in os.environ:
         log_spec = {}
         for spec in os.environ["CLONESQUAD_LOGLEVELS"].split(","):
-            k, v = spec.split("=")
-            log_spec[k] = v
+            if "=" in spec:
+                k, v = spec.split("=")
+                log_spec[k] = v
     is_sam_local = "AWS_SAM_LOCAL" in os.environ and os.environ["AWS_SAM_LOCAL"] == "true"
 
     log_level = logging.DEBUG if is_sam_local else logging.INFO 
