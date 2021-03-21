@@ -402,7 +402,8 @@ without any TargetGroup but another external health instance source exists).
         """ Test if an instance is excluded.
         """
         excluded_instances  = Cfg.get_list("ec2.state.excluded_instance_ids", default=[])
-        instance            = self.get_instance_by_id(instance_id)
+        instance            = self.get_instance_by_id(instance_id) if isinstance(instance_id, str) else instance_id
+        instance_id         = instance["InstanceId"]
         if ((instance and self.instance_has_tag(instance, "clonesquad:excluded", value=["1", "True", "true"]))
             or instance_id in excluded_instances 
             or instance_id in self.instance_control_excluded_ids):
@@ -456,7 +457,7 @@ without any TargetGroup but another external health instance source exists).
         # Sort instance list starting from the oldest launch to the newest
         return sorted(instances, key=lambda i: i["_LastStartAttemptTime"])
 
-    def get_instances(self, instances=None, State=None, ScalingState=None, details=None, max_results=-1, azs_filtered_out=None):
+    def get_instances(self, instances=None, State=None, ScalingState=None, main_fleet_only=False, details=None, max_results=-1, azs_filtered_out=None):
         """ Return a list of instance structures based on specified criteria.
 
         This method is a critical one used in all scheduling algorithms.
@@ -482,6 +483,8 @@ without any TargetGroup but another external health instance source exists).
             })
 
         ref_instances = self.instances if instances is None else instances
+        if main_fleet_only: # Filter out all subfleet instances
+            ref_instances = [i for i in ref_instances if self.get_subfleet_name_for_instance(i) is None]
         instances = []
         for instance in ref_instances:
            state_test        = self._match_instance(details["state"], instance, State, 
@@ -844,6 +847,9 @@ without any TargetGroup but another external health instance source exists).
 
         return res
 
+    def filter_out_excluded_instances(self, instances):
+        return [i for i in instances if not self.is_instance_excluded(i)]
+
     def filter_instance_recently_stopped(self, instances, min_age, filter_only_spot=True):
         """ Filter out recently stopped instance.
         TODO: Remove this method as it was used by scaling algorithms to exclude Spot instances recently stopped but as start_instances()
@@ -962,7 +968,7 @@ without any TargetGroup but another external health instance source exists).
             state["raw"] = self.get_state(key, default=None)
             state["state"]             = state["raw"]
             state["state_no_excluded"] = state["raw"]
-            if (self.is_instance_excluded(instance_id) or self.is_subfleet_instance(instance_id)):
+            if (self.is_instance_excluded(i) or self.is_subfleet_instance(instance_id)):
                 state["state"] = "excluded"
             # Force error state for some VM (debug usage)
             if instance_id in error_instance_ids:
@@ -1164,6 +1170,8 @@ without any TargetGroup but another external health instance source exists).
         for i in instances:
             # Match instance by name
             for tag, values in [("Name", "InstanceNames"), ("clonesquad:subfleet-name", "SubfleetNames")]:
+                if not len(filter_query.get(values, [])):
+                    continue
                 t = next(filter(lambda t: t["Key"] == tag, i["Tags"]), None)
                 if (t and t["Value"] in filter_query.get(values, [])) or (not t and not filter_query.get(values, None)):
                     if i["InstanceId"] not in instance_ids:

@@ -473,6 +473,7 @@ By default, the dashboard is enabled.
         xray_recorder.begin_subsegment("prerequisites:prepare_instance_lists")
         log.debug("Computing all instance lists needed for scheduling")
         self.all_instances                                        = self.ec2.get_instances()
+        self.all_main_fleet_instances                             = self.ec2.get_instances(main_fleet_only=True)
         self.pending_running_instances                            = self.ec2.get_instances(State="pending,running")
         self.instances_wo_excluded                                = self.ec2.get_instances(ScalingState="-excluded")
         self.instances_wo_excluded_error                          = self.ec2.get_instances(instances=self.instances_wo_excluded, ScalingState="-error")
@@ -629,7 +630,7 @@ By default, the dashboard is enabled.
 
         :return An integer (number of instances)
         """
-        instances = self.instances_wo_excluded 
+        instances = self.all_main_fleet_instances 
         c         = Cfg.get_abs_or_percent("ec2.schedule.min_instance_count", -1, len(instances))
         return c if c > 0 else 0
 
@@ -639,7 +640,7 @@ By default, the dashboard is enabled.
 
         :return An integer (number of instances
         """
-        instances = self.instances_wo_excluded 
+        instances = self.all_main_fleet_instances 
         return Cfg.get_abs_or_percent("ec2.schedule.desired_instance_count", -1, len(instances))
 
     def get_instances_with_issues(self):
@@ -828,7 +829,7 @@ By default, the dashboard is enabled.
         """ Compute all module CloudWatch metrics and Synthetic metrics available through the API Gateway.
         """
         cw = self.cloudwatch
-        fleet_instances             = self.instances_wo_excluded
+        fleet_instances             = self.all_main_fleet_instances
         draining_instances          = self.pending_running_instances_draining_wo_excluded
         running_instances           = self.running_instances_wo_excluded
         pending_instances           = self.pending_instances_wo_draining_excluded
@@ -1355,7 +1356,7 @@ By default, the dashboard is enabled.
                         ([i["InstanceId"] for i in vertical_sorted_instances["lh_instances"]]))
             return candidates
         
-        fleet_instances        = self.ec2.get_subfleet_instances(subfleet_name=subfleet) # Retrieve all instances matching the subfleet_name
+        fleet_instances             = self.ec2.get_subfleet_instances(subfleet_name=subfleet, with_excluded_instances=True) 
         min_instance_count     = max(0, get_subfleet_key_abs_or_percent("ec2.schedule.min_instance_count", subfleet,
                                         0, len(fleet_instances)))
         desired_instance_count = max(0, get_subfleet_key_abs_or_percent("ec2.schedule.desired_instance_count", subfleet,
@@ -1364,7 +1365,9 @@ By default, the dashboard is enabled.
         instance_count    = max(min_instance_count, desired_instance_count)
         running_instances = self.ec2.get_instances(instances=fleet_instances, 
                 State="pending,running", ScalingState="-error,draining,bounced")
+        running_instances = self.ec2.filter_out_excluded_instances(running_instances)
         stopped_instances = self.ec2.get_instances(instances=fleet_instances, State="stopped")
+        stopped_instances = self.ec2.filter_out_excluded_instances(stopped_instances)
         delta             = instance_count - len(running_instances) + delta
         if delta > 0:
             # Request to add new running instances.
@@ -1436,7 +1439,9 @@ By default, the dashboard is enabled.
 
             if subfleet_name not in subfleets:
                 subfleets[subfleet_name] = defaultdict(list)
+                subfleets[subfleet_name]["size"] = 0
             subfleets[subfleet_name]["expected_state"] = expected_state
+            subfleets[subfleet_name]["size"] += 1
 
             if self.ec2.is_instance_excluded(instance_id):
                 continue # Ignore instances marked as excluded
@@ -1482,14 +1487,15 @@ By default, the dashboard is enabled.
                         State="running", ScalingState="draining")
                 subfleet_instances_w_excluded = self.ec2.get_subfleet_instances(subfleet_name=subfleet, 
                         with_excluded_instances=True)
-                fleet_size     = len(fleet["All"])
-                excluded_count = len(subfleet_instances_w_excluded) - fleet_size
+                fleet_size             = fleet["size"]
+                fleet_size_wo_excluded = len(fleet["All"]) 
+                excluded_count = len(subfleet_instances_w_excluded) - fleet_size_wo_excluded
                 cw.set_metric("Subfleet.EC2.Size", fleet_size if fleet_size else None, dimensions=dimensions)
                 cw.set_metric("Subfleet.EC2.ExcludedInstances", 
-                        excluded_count if fleet_size or excluded_count else None, dimensions=dimensions)
+                        excluded_count if excluded_count else None, dimensions=dimensions)
                 cw.set_metric("Subfleet.EC2.RunningInstances", len(running_instances) if fleet_size else None, dimensions=dimensions)
                 cw.set_metric("Subfleet.EC2.DrainingInstances", len(draining_instances) if fleet_size else None, dimensions=dimensions)
-                send_metric    = (expected_state == "running") and (fleet_size or excluded_count)
+                send_metric    = (expected_state == "running") and fleet_size
                 cw.set_metric("Subfleet.EC2.MinInstanceCount", min_instance_count if send_metric else None, dimensions=dimensions)
                 cw.set_metric("Subfleet.EC2.DesiredInstanceCount", desired_instance_count if send_metric else None, dimensions=dimensions)
             else:
