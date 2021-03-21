@@ -852,23 +852,19 @@ By default, the dashboard is enabled.
         cw.set_metric("StoppingInstances",     len(stopping_instances) if fl_size > 0 else None)
         cw.set_metric("MinInstanceCount",      self.get_min_instance_count() if fl_size > 0 else None)
         cw.set_metric("DesiredInstanceCount",  max(self.desired_instance_count(), 0) if fl_size > 0 else None)
-        cw.set_metric("NbOfExcludedInstances", len(excluded_instances) - len(subfleet_instances))
+        cw.set_metric("NbOfExcludedInstances", len(excluded_instances) - len(subfleet_instances) if fl_size else None)
         cw.set_metric("NbOfBouncedInstances",  len(bounced_instances) if fl_size > 0 else None)
         cw.set_metric("NbOfInstancesInError",  len(error_instances) if fl_size > 0 else None)
         cw.set_metric("InstanceScaleScore",    self.instance_scale_score if fl_size > 0 else None)
         cw.set_metric("RunningLighthouseInstances", len(self.get_lighthouse_instance_ids(running_instances)) if fl_size > 0 else None)
         cw.set_metric("NbOfInstanceInInitialState", len(self.get_initial_instances()) if fl_size > 0 else None)
         cw.set_metric("NbOfInstanceInUnuseableState", len(instances_with_issues) if fl_size > 0 else None)
-        cw.set_metric("NbOfCPUCreditExhaustedInstances", len(exhausted_cpu_credits))
-        if len(subfleet_instances):
-            # Send metrics only if there are fleet instances
-            cw.set_metric("Subfleet.EC2.Size", len(subfleet_instances))
-            cw.set_metric("Subfleet.EC2.RunningInstances", len(running_subfleet_instances))
-            cw.set_metric("Subfleet.EC2.DrainingInstances", len(draining_subfleet_instances))
-        else:
-            cw.set_metric("Subfleet.EC2.Size", None)
-            cw.set_metric("Subfleet.EC2.RunningInstances", None)
-            cw.set_metric("Subfleet.EC2.DrainingInstances", None)
+        cw.set_metric("NbOfCPUCreditExhaustedInstances", len(exhausted_cpu_credits) if fl_size > 0 else None)
+        subfleet_count = len(subfleet_instances)
+        # Send metrics only if there are fleet instances
+        cw.set_metric("Subfleet.EC2.Size", len(subfleet_instances) if subfleet_count else None)
+        cw.set_metric("Subfleet.EC2.RunningInstances", len(running_subfleet_instances) if subfleet_count else None)
+        cw.set_metric("Subfleet.EC2.DrainingInstances", len(draining_subfleet_instances) if subfleet_count else None)
 
         # vCPU + Mem need estimations
         serving_instances = self.ec2.get_instances(self.pending_running_instances_wo_excluded_draining_error, ScalingState="-bounced")
