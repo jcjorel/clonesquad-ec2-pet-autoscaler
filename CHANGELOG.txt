@@ -1,3 +1,7 @@
+v0.16.0
+- (Improvment/Major) Added support for marking/unmarking instances as unstoppable and/or unstartable. (+Improved time execution improvments)
+- (Improvment/Minor) CLONESQUAD_LOGLEVELS Lambda environment variable now supports wildcards. Ex: CLONESQUAD_LOGLEVELS='*=DEBUG' to activate maximum verbose level
+
 v0.15.1:
 - (Bug/Minor) Make sure that CW event rules are regenerated on DST status change.
 
