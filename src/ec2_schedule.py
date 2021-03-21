@@ -821,6 +821,7 @@ By default, the dashboard is enabled.
             self.scale_bounce_instances_with_issues()
             self.scale_in_out()
         self.wakeup_burstable_instances()
+        self.manage_excluded_instances()
         self.manage_subfleets()
         self.generate_subfleet_dashboard()
 
@@ -1439,7 +1440,7 @@ By default, the dashboard is enabled.
             subfleets[subfleet_name]["expected_state"] = expected_state
             subfleets[subfleet_name]["size"] += 1
 
-            if self.ec2.is_instance_excluded(instance_id):
+            if self.ec2.is_instance_excluded(i):
                 continue # Ignore instances marked as excluded
 
             if expected_state == "running":
@@ -1479,8 +1480,10 @@ By default, the dashboard is enabled.
             if Cfg.get_int(f"subfleet.{subfleet}.ec2.schedule.metrics.enable"):
                 running_instances  = self.ec2.get_instances(instances=fleet["All"], 
                         State="pending,running", ScalingState="-error")
+                running_instances  = self.ec2.filter_out_excluded_instances(running_instances)
                 draining_instances = self.ec2.get_instances(instances=fleet["All"], 
-                        State="running", ScalingState="draining")
+                        State="pending,running", ScalingState="draining")
+                draining_instances  = self.ec2.filter_out_excluded_instances(draining_instances)
                 subfleet_instances_w_excluded = self.ec2.get_subfleet_instances(subfleet_name=subfleet, 
                         with_excluded_instances=True)
                 fleet_size             = fleet["size"]
@@ -1579,6 +1582,44 @@ By default, the dashboard is enabled.
     ###############################################
     #### SCALE DESIRED & SCALE BOUNCE ALGOS #######
     ###############################################
+
+    @xray_recorder.capture()
+    def manage_excluded_instances(self):
+        """ This function is responsible to send events linked excluded/unexcluded instances and start needed
+            instances in the Main fleet when in auto-scaling mode.
+        """
+        current_excluded    = [i["InstanceId"] for i in self.all_instances if self.ec2.is_instance_excluded(i)]
+        known_excluded      = self.ec2.get_state_json("ec2.schedule.instance.known_excluded_instances", default=[])
+
+        if Cfg.get_int("ec2.schedule.desired_instance_count") == -1:
+            # When autoscaling mode is acticated, we compensate excluded instances by fresh instances
+            main_excluded = [i["InstanceId"] for i in self.ec2.get_instances(main_fleet_only=True) if self.ec2.is_instance_excluded(i)]
+            new_main_excl = [i for i in main_excluded if i not in known_excluded]
+            if len(new_main_excl):
+                log.info(f"Starting %s main fleet instance(s) due to new detected excluded instances: {new_main_excl}...")
+                self.instance_action(self.useable_instance_count + len(new_main_excl), "manage_excluded_instances") 
+
+        new_excluded        = []
+        for ex_id in current_excluded:
+            if ex_id not in known_excluded:
+                new_excluded.append(ex_id)
+        new_unexcluded      = []
+        for ex_id in known_excluded:
+            if ex_id not in current_excluded:
+                new_unexcluded.append(ex_id)
+
+        new_known_excluded  = [i for i in known_excluded if i not in new_unexcluded]
+        new_known_excluded.extend(new_excluded)
+        if known_excluded != new_known_excluded:
+            log.log(log.NOTICE, f"Notify excluded_instance_transitions: {new_known_excluded},"
+                " {new_excluded}, {new_known_excluded}")
+            R(None, self.excluded_instance_transitions, ExcludedInstanceIds=new_known_excluded, 
+                    NewExcludedInstanceIds=new_excluded, NewUnexcludedInstanceIds=new_unexcluded)
+        self.ec2.set_state_json("ec2.schedule.instance.known_excluded_instances", new_known_excluded, TTL=self.state_ttl)
+
+    def excluded_instance_transitions(self, ExcludedInstanceIds=None, NewExcludedInstanceIds=None, NewUnexcludedInstanceIds=None):
+        return {}
+
 
     @xray_recorder.capture()
     def scale_desired(self):
