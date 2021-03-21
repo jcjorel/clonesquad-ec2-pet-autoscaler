@@ -1382,7 +1382,7 @@ By default, the dashboard is enabled.
                         % (missing_count, subfleet))
                 self.letter_box_subfleet_to_stop_drained_instances[subfleet] = delta - len(instances_to_start)
             if len(instances_to_start):
-                log.info("Starting up to %d subfleet instance(s) (fleet=%s)..." % (len(instances_to_start), subfleet))
+                log.info(f"Starting up to {delta} subfleet instance(s) (fleet={subfleet})...")
                 self.ec2.start_instances(instances_to_start, max_started_instances=delta)
                 self.scaling_state_changed = True
         if delta < 0:
