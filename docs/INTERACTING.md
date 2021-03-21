@@ -401,9 +401,9 @@ When no argument is specified, it returns the current list of unstoppable instan
 	    ...
 	}
 
-	To perform complex query based on instance tags, use the POST version of the API to submit a query filter JSON document.
+To perform complex query based on instance tags, use the POST version of the API to submit a query filter JSON document.
 
-	Ex: Match all instances with tag 'Project' and the value starting with the string 'Dev' but excluding the ones that do not define the tag 'Team'.
+Ex: Match all instances with tag 'Project' and the value starting with the string 'Dev' but excluding the ones that do not define the tag 'Team'.
 
 	{
 		"Tags": {
@@ -412,7 +412,7 @@ When no argument is specified, it returns the current list of unstoppable instan
 		}
 	}
 
-	Send the query filter with a POST request:
+Send the query filter with a POST request:
 
 	# awscurl -X POST -d @query_filter.json 'https://pqf4dyt777.execute-api.eu-west-1.amazonaws.com/v1/control/instances/unstoppable?ttl=1800&mode=add'
 	{
