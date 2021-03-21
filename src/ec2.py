@@ -1119,6 +1119,8 @@ without any TargetGroup but another external health instance source exists).
         return ids
 
     def get_instance_control_state(self):
+        """ Retrieve the structure describing unstoppable/unstartable instances maintained through the API GW.
+        """
         state = self.get_state_json("ec2.control.state", default={
             "unstoppable": {},
             "unstartable": {}
@@ -1134,11 +1136,6 @@ without any TargetGroup but another external health instance source exists).
 
     def set_instance_control_state(self, state):
         # Test if we are going to write an empty state so we may optimize it
-        if not len(state["unstoppable"]) and not len(state["unstartable"]):
-            former_state = self.get_instance_control_state()
-            if state == former_state:
-                # Former value was already empty => no need to create a record
-                return
         min_ttl = Cfg.get_duration_secs("ec2.state.default_ttl")
         now     = misc.seconds_from_epoch_utc() 
         ttl     = now + min_ttl 
@@ -1146,7 +1143,12 @@ without any TargetGroup but another external health instance source exists).
             ctrl = state[c]
             for i in ctrl.keys():
                 ttl = max(ttl, ctrl[i]["TTL"] + min_ttl)
+        former_state = self.get_instance_control_state()
+        if former_state == state:
+            # Former value was already empty => no need to create a record
+            return
         self.set_state_json("ec2.control.state", state, TTL=(ttl-now))
+        self.set_state("cache.flush", "1") # Force state cache flush
 
     def update_instance_control_state(self, listname, mode, filter_query, ttl_string):
         ctrl = self.get_instance_control_state()

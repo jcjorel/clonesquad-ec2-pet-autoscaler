@@ -45,9 +45,9 @@ If an operation takes parameters, they have to be passed as URL Query string.
 
 The API gateway requires SiGV4 authentication (`AWS_IAM` authorizer) so you must present valid STS credentials to get access.
 Using a tool like '[awscurl](https://github.com/okigan/awscurl)' (version 0.17 is known to work) or the Python `requests-iamauth` package can simplify 
-this process or other AWS SDK managing as well with this kind of authentication.
+this process or other AWS SDK managing as with this kind of authentication.
 
-> This API is designed with the assumption that it will be called from authenticated entities (ex: EC2 instances, Lambda function) 
+> These APIs are designed with the assumption that they will be called from authenticated entities (ex: EC2 instances, Lambda functions) 
 that use service roles.
 
 ### Controlling acces to the API Gateway with IAM roles
@@ -138,7 +138,7 @@ with the assumption the issue is transient.
 	These field comes from describe_instance_status() EC2 API and returns the `["InstanceState"]["Name"]` response field for the instance.
 	A special value `az_evicted` is added by CloneSquad to indicate that this instance is going to be evicted very soon as it is 
 	running in an AZ with issues.
-* `SubfleetName`: 'null' or name of the subfleet the instance belongs to.
+* `SubfleetName`: 'null' if instance part of the Main fleet or name of the subfleet the instance belongs to.
 * `Tags`: The describe_instance() EC2 API reponse field named `["Tags"]` for this instance.
 
 ## API `fleet/metadata`
@@ -353,6 +353,79 @@ This API acts on the DynamoDB Scheduler table and follows the same semantic than
 * Callable from : `API Gateway`
 
 This API acts on the DynamoDB Scheduler table and follows the same semantic than API `configuration/(.*)` (see `configuration/(.*)` documentation).
+
+## API `control/instances/unstoppable`
+
+* Callable from : API Gateway
+
+This API marks/unmarks instance(s) as unstoppable (and, optionally, excluded from their fleet). It is useful when you need to forbid any instance stop action **during a period of time** (ex: It is useful, for example, when a backup or patch management window starts on CloneSquad managed EC2 instances).
+
+**Arguments:**
+
+When no argument is specified, it returns the current list of unstoppable instances with associated TTL.
+
+* `instanceids`: URL-encoded coma separated list of instance Ids or the `all` special value,
+* `instancenames`: URL-encoded coma separated list of instance names,
+* `subfleetnames`: URL-encoded coma separated list of instance names (Note: Specifying an empty string matches all Main fleet instances),
+* `excluded`: Mark the matching instances as temporarily excluded from their fleets (Valid values: [`False`, `True`]. Default: `False`). **When user requests to exclude a currently serving instance (either with this API or with the `clonesquad:excluded` tag), the scheduler is going to react by starting a replacement instance immediatly.**,
+* `mode`: Either `add` or `delete`,
+* `ttl`: Nb of seconds or URL-encoded timedelta format (ex: hours=12,days=1). When not specififed, the TTL default to one hour.
+
+**API Gateway synopsis:**
+
+	# Add all currently managed instances (whatever their fleet - subfleet or main fleet)
+	# awscurl 'https://pqf4dyt777.execute-api.eu-west-1.amazonaws.com/v1/control/instances/unstoppable?ttl=1800&instanceids=all&mode=add'
+	{
+	    "i-000xxxxxxxxxxxxxx": {
+	        "EndDate": "2021-03-08 21:15:55+00:00",
+	        "InstanceName": "MyCloneSquadManagedInstance",
+	        "SubfleetName": null,
+	        "StartDate": "2021-03-08 21:05:55.836748+00:00",
+	        "TTL": 1615202155
+	    },
+	    ...
+	}
+	# Delete a specific instance id from the 'unstoppable' list.
+	# awscurl 'https://pqf4dyt777.execute-api.eu-west-1.amazonaws.com/v1/control/instances/unstoppable?instanceids=i-000xxxxxxxxxxxxxx&mode=delete'
+	{
+	    ...
+	}
+	# Add instances with names ["name1", "name2"]
+	# awscurl 'https://pqf4dyt777.execute-api.eu-west-1.amazonaws.com/v1/control/instances/unstoppable?ttl=1800&instancenames=name1%2Cname2&mode=add'
+	{
+	    ...
+	}
+	# Add all Main fleet instances 
+	# awscurl 'https://pqf4dyt777.execute-api.eu-west-1.amazonaws.com/v1/control/instances/unstoppable?subfleetnames=&mode=add'
+	{
+	    ...
+	}
+
+	To perform complex query based on instance tags, use the POST version of the API to submit a query filter JSON document.
+
+	Ex: Match all instances with tag 'Project' and the value starting with the string 'Dev' but excluding the ones that do not define the tag 'Team'.
+
+	{
+		"Tags": {
+			"Project": "Dev.*",
+			"Team": None
+		}
+	}
+
+	Send the query filter with a POST request:
+
+	# awscurl -X POST -d @query_filter.json 'https://pqf4dyt777.execute-api.eu-west-1.amazonaws.com/v1/control/instances/unstoppable?ttl=1800&mode=add'
+	{
+	    ...
+	}
+
+> Note: This call can be performed at any time (whatever the current state of matched instances is). 
+
+
+## API `control/instances/unstartable`
+
+This API is semantically similar to `control/instance/unstoppable` API but applies to startable instance ids.
+
 
 ## API `control/reschedulenow`
 
