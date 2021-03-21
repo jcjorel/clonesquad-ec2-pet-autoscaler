@@ -142,6 +142,17 @@ To list all valid timezones, use the following command:
 python3 -c "import dateutil.zoneinfo ; print(list(dateutil.zoneinfo.get_zonefile_instance().zones.keys()))"
 ```
 
+## `LogLevels`
 
+**Required: No**   
+**Format: StringLits**
+
+	LogLevels=<module=LEVEL>,<module=LEVEL>...
+
+Module names are the Python filenames contained in the Github repository named src/ (ex: `kvtable.py` => `kvtable` module name).
+
+Ex: Activate maximum verbosity of logs in all modules.
+
+	LogLevels=*=DEBUG
 
 
