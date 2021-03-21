@@ -1488,12 +1488,16 @@ By default, the dashboard is enabled.
                 excluded_count = len(subfleet_instances_w_excluded) - fleet_size_wo_excluded
                 cw.set_metric("Subfleet.EC2.Size", fleet_size if fleet_size else None, dimensions=dimensions)
                 cw.set_metric("Subfleet.EC2.ExcludedInstances", 
-                        excluded_count if excluded_count else None, dimensions=dimensions)
-                cw.set_metric("Subfleet.EC2.RunningInstances", len(running_instances) if fleet_size else None, dimensions=dimensions)
-                cw.set_metric("Subfleet.EC2.DrainingInstances", len(draining_instances) if fleet_size else None, dimensions=dimensions)
+                        excluded_count if fleet_size else None, dimensions=dimensions)
+                cw.set_metric("Subfleet.EC2.RunningInstances", 
+                        len(running_instances) if fleet_size else None, dimensions=dimensions)
+                cw.set_metric("Subfleet.EC2.DrainingInstances", 
+                        len(draining_instances) if fleet_size else None, dimensions=dimensions)
                 send_metric    = (expected_state == "running") and fleet_size
-                cw.set_metric("Subfleet.EC2.MinInstanceCount", min_instance_count if send_metric else None, dimensions=dimensions)
-                cw.set_metric("Subfleet.EC2.DesiredInstanceCount", desired_instance_count if send_metric else None, dimensions=dimensions)
+                cw.set_metric("Subfleet.EC2.MinInstanceCount", 
+                        min_instance_count if send_metric else None, dimensions=dimensions)
+                cw.set_metric("Subfleet.EC2.DesiredInstanceCount", 
+                        desired_instance_count if send_metric else None, dimensions=dimensions)
             else:
                 cw.set_metric("Subfleet.EC2.Size", None, dimensions=dimensions)
                 cw.set_metric("Subfleet.EC2.ExcludedInstances", None, dimensions=dimensions)
