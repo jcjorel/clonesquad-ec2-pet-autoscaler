@@ -1,5 +1,6 @@
 v0.17.0:
-- (Improvment/Minor) Allow to specify an IAM boundary on all roles created by the CloneSquad deployment template.
+- (Improvment/Major) Allow to specify an IAM boundary on all roles created by the CloneSquad deployment template.
+- (Improvment/Major) Make notification messages smaller and more robust.
 
 v0.16.0
 - (Improvment/Major) Added support for marking/unmarking instances as unstoppable and/or unstartable. (+Improved time execution improvments)
