@@ -286,7 +286,7 @@ improve CloneSquad over time by allowing easy sharing of essential data for remo
                """
            },
            "notify.event.keep_acked_records"    : "0",
-           "notify.event.seconds_between_sending"    : "2",
+           "notify.event.seconds_between_sending"    : "1",
            "notify.debug.obfuscate_s3_reports" : "1",
            "notify.debug.send_s3_reports"      : "1"
         })
@@ -388,7 +388,7 @@ improve CloneSquad over time by allowing easy sharing of essential data for remo
         # Optimize message size by deduplicating metadata
         if len(events_r):
             m = events_r[0]["Metadata"]
-            for i in range(1, len(events_r)-1):
+            for i in range(1, len(events_r)):
                 meta = events_r[i]["Metadata"]
                 if m == meta:
                     del events_r[i]["Metadata"]
@@ -431,7 +431,7 @@ improve CloneSquad over time by allowing easy sharing of essential data for remo
             if len(events_r):
                 # To help ordering of messages. Wait wait a few seconds...
                 seconds_to_wait = Cfg.get_int("notify.event.seconds_between_sending")
-                log.warning("Had to split the notification messages as too big to fit in 256kB. "
+                log.log(log.NOTICE, "Had to split the notification messages as too big to fit in 256kB. "
                         f"Wait {seconds_to_wait} seconds before to send the remaining events. "
                         "Note: This can happen when no user notification target is acknowledging the event and so they stack for a while. "
                         "Please consider acknowledging all events as soon as generated.")
