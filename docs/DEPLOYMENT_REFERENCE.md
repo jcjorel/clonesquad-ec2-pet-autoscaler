@@ -157,7 +157,7 @@ Ex: Activate maximum verbosity of logs in all modules.
 
 ## `PermissionBoundary`
 
-**Required: No**
+**Required: No**   
 **Format: ARN string**
 
 Specify an optional IAM policy ARN as boundary for all roles created by the CloudFormation template.
