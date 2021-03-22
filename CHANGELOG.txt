@@ -1,3 +1,6 @@
+v0.17.0:
+- (Improvment/Minor) Allow to specify a IAM boundary on all role created by CloneSquad deployment template.
+
 v0.16.0
 - (Improvment/Major) Added support for marking/unmarking instances as unstoppable and/or unstartable. (+Improved time execution improvments)
 - (Improvment/Minor) CLONESQUAD_LOGLEVELS Lambda environment variable now supports wildcards. Ex: CLONESQUAD_LOGLEVELS='*=DEBUG' to activate maximum verbose level
