@@ -104,37 +104,25 @@ if this flag changed its status and allow normal operation again."""
 
     log.debug("Setup management objects.")
     log.debug("o_state setup...")
-    o_state           = state.StateManager(ctx)
+    ctx["o_state"]           = state.StateManager(ctx)
     log.debug("o_ec2 setup...")
-    o_ec2             = ec2.EC2(ctx, o_state)
+    ctx["o_ec2"]             = ec2.EC2(ctx, ctx["o_state"])
     log.debug("o_targetgroup setup...")
-    o_targetgroup     = targetgroup.ManagedTargetGroup(ctx, o_ec2)
+    ctx["o_targetgroup"]     = targetgroup.ManagedTargetGroup(ctx, ctx["o_ec2"])
     log.debug("o_cloudwatch setup...")
-    o_cloudwatch      = cloudwatch.CloudWatch(ctx, o_ec2)
+    ctx["o_cloudwatch"]      = cloudwatch.CloudWatch(ctx, ctx["o_ec2"])
     log.debug("o_notify setup...")
-    o_notify          = notify.NotifyMgr(ctx, o_state, o_ec2, o_targetgroup, o_cloudwatch)
+    ctx["o_notify"]          = notify.NotifyMgr(ctx, ctx["o_state"], ctx["o_ec2"], ctx["o_targetgroup"], ctx["o_cloudwatch"])
     log.debug("o_ec2_schedule setup...")
-    o_ec2_schedule    = ec2_schedule.EC2_Schedule(ctx, o_ec2, o_targetgroup, o_cloudwatch)
+    ctx["o_ec2_schedule"]    = ec2_schedule.EC2_Schedule(ctx, ctx["o_ec2"], ctx["o_targetgroup"], ctx["o_cloudwatch"])
     log.debug("o_scheduler setup...")
-    o_scheduler       = scheduler.Scheduler(ctx, o_ec2, o_cloudwatch)
+    ctx["o_scheduler"]       = scheduler.Scheduler(ctx, ctx["o_ec2"], ctx["o_cloudwatch"])
     log.debug("o_interact setup...")
-    o_interact        = interact.Interact(ctx)
+    ctx["o_interact"]        = interact.Interact(ctx)
     log.debug("o_rds setup...")
-    o_rds             = rds.RDS(ctx, o_state, o_cloudwatch)
+    ctx["o_rds"]             = rds.RDS(ctx, ctx["o_state"], ctx["o_cloudwatch"])
     log.debug("o_transferfamily setup...")
-    o_transferfamily  = transferfamily.TransferFamily(ctx, o_state, o_cloudwatch)
-    ctx.update({
-        "o_state"         : o_state,
-        "o_ec2"           : o_ec2,
-        "o_targetgroup"   : o_targetgroup,
-        "o_cloudwatch"    : o_cloudwatch,
-        "o_notify"        : o_notify,
-        "o_ec2_schedule"  : o_ec2_schedule,
-        "o_scheduler"     : o_scheduler,
-        "o_interact"      : o_interact,
-        "o_rds"           : o_rds,
-        "o_transferfamily": o_transferfamily
-        })
+    ctx["o_transferfamily"]  = transferfamily.TransferFamily(ctx, ctx["o_state"], ctx["o_cloudwatch"])
 
 
 @xray_recorder.capture()
