@@ -614,6 +614,7 @@ Resources:
                   UserNotificationArns:                       !Ref UserNotificationArns
                   InteractLambdaArn:                          !GetAtt InteractFunction.Arn
                   InteractSQSUrl:                             !Ref InteractQueue
+                  InteractAPIGWUrl:                           !Sub "https://${InteractApi}.execute-api.${AWS::Region}.amazonaws.com/v1/"
                   GroupName:                                  !Ref GroupName
                   GenericOkActions_SNSTopicArn:               !Ref SNSOk
                   ScaleUp_SNSTopicArn:                        !Ref SNSScaleUp

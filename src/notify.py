@@ -379,7 +379,8 @@ improve CloneSquad over time by allowing easy sharing of essential data for remo
             "Date" : misc.utc_now(),
             "Metadata": {
             "AckLambdaARN" : self.context["InteractLambdaArn"],
-            "AckSQSUrl"    : self.context["InteractSQSUrl"]
+            "AckSQSUrl"    : self.context["InteractSQSUrl"],
+            "ApiGWUrl"     : self.context["InteractAPIGWUrl"]
             }
         }
         events_r = events.copy()

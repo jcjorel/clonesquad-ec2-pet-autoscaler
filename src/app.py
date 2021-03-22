@@ -59,6 +59,7 @@ def fix_sam_bugs():
         ctx["SchedulerTable"]     = "CloneSquad-%s-Scheduler" % (ctx["GroupName"])
         ctx["MainSQSQueue"]       = "https://sqs.%s.amazonaws.com/%s/CloneSquad-Main-%s" % (ctx["AWS_DEFAULT_REGION"], account_id, ctx["GroupName"])
         ctx["InteractSQSUrl"]     = "https://sqs.%s.amazonaws.com/%s/CloneSquad-Interact-%s" % (ctx["AWS_DEFAULT_REGION"], account_id, ctx["GroupName"])
+        ctx["InteractAPIGWUrl"]   = "https://dummy-apigw-url"
         ctx["CloudWatchEventRoleArn"] = "arn:aws:iam::%s:role/CloneSquad-%s-CWRole" % (account_id, ctx["GroupName"])
         ctx["GenericInsufficientDataActions_SNSTopicArn"] = "arn:aws:sns:%s:%s:CloneSquad-CloudWatchAlarm-InsufficientData-%s" % (ctx["AWS_DEFAULT_REGION"], account_id, ctx["GroupName"])
         ctx["GenericOkActions_SNSTopicArn"] = "arn:aws:sns:%s:%s:CloneSquad-CloudWatchAlarm-Ok-%s"  % (ctx["AWS_DEFAULT_REGION"], account_id, ctx["GroupName"])
