@@ -145,7 +145,7 @@ python3 -c "import dateutil.zoneinfo ; print(list(dateutil.zoneinfo.get_zonefile
 ## `LogLevels`
 
 **Required: No**   
-**Format: StringLits**
+**Format: StringList**
 
 	LogLevels=<module=LEVEL>,<module=LEVEL>...
 
@@ -154,5 +154,13 @@ Module names are the Python filenames contained in the Github repository named s
 Ex: Activate maximum verbosity of logs in all modules.
 
 	LogLevels=*=DEBUG
+
+## `PermissionBoundary`
+
+**Required: No**
+**Format: ARN string**
+
+Specify an optional IAM policy ARN as boundary for all roles created by the CloudFormation template.
+
 
 

@@ -71,6 +71,11 @@ Parameters:
     Default: ""
     Description: "(Debug) Set the logging level of Lambda functions (Default: '*=INFO'. Set to '*=DEBUG' for highest verbosity)"
 
+  PermissionsBoundary:
+    Type: String
+    Default: ""
+    Description: "(Optional) IAM boundary to apply to all created roles."
+
 
   XRayDiagnosis:
     Type: String
@@ -81,6 +86,7 @@ Parameters:
 Conditions:
     HasCustomizationZipParameters: !Not [ !Equals [ !Ref CustomizationZipParameters, ""]]
     HasApiGWEndpointConfiguration: !Not [ !Equals [ !Ref ApiGWEndpointConfiguration, ""]]
+    HasPermissionsBoundary:        !Not [ !Equals [ !Ref PermissionsBoundary, ""]]
 
 
 Resources:
@@ -497,6 +503,7 @@ Resources:
     CustomResourceFunction:
             Type: AWS::Serverless::Function 
             Properties:
+              PermissionsBoundary: !If [HasPermissionsBoundary, !Ref PermissionsBoundary, !Ref "AWS::NoValue"]
               Handler: customresource.handler
               Runtime: python3.7
               CodeUri: custo/
@@ -586,6 +593,7 @@ Resources:
             Type: AWS::Serverless::Function 
             DependsOn: MainFunctionLogGroup
             Properties:
+              PermissionsBoundary: !If [HasPermissionsBoundary, !Ref PermissionsBoundary, !Ref "AWS::NoValue"]
               Handler: app.main_handler
               Runtime: python3.7
               CodeUri: custo/
@@ -649,6 +657,7 @@ Resources:
             Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
             DependsOn: SNSMgrFunctionLogGroup
             Properties:
+              PermissionsBoundary: !If [HasPermissionsBoundary, !Ref PermissionsBoundary, !Ref "AWS::NoValue"]
               Handler: app.sns_handler
               Runtime: python3.7
               CodeUri: custo/
@@ -699,6 +708,7 @@ Resources:
             Type: AWS::Serverless::Function 
             DependsOn: SNSDiscoveryFunctionLogGroup
             Properties:
+              PermissionsBoundary: !If [HasPermissionsBoundary, !Ref PermissionsBoundary, !Ref "AWS::NoValue"]
               Handler: app.discovery_handler
               Runtime: python3.7
               CodeUri: custo/
@@ -737,6 +747,7 @@ Resources:
             Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
             DependsOn: InteractFunctionLogGroup
             Properties:
+              PermissionsBoundary: !If [HasPermissionsBoundary, !Ref PermissionsBoundary, !Ref "AWS::NoValue"]
               Handler: app.interact_handler
               Runtime: python3.7
               CodeUri: custo/
