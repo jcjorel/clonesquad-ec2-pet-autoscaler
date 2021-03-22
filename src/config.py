@@ -310,7 +310,8 @@ def compile_keys():
                     if key in c[active_parameter_set]:
                         parameter_set = active_parameter_set
                         r = _test_key(c[active_parameter_set], key_pattern)
-                        if r["Success"]: return r
+                        if r["Success"]: 
+                            break
 
                 r = _test_key(c, key_pattern)
                 if r["Success"]: 

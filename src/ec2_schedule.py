@@ -1591,7 +1591,7 @@ By default, the dashboard is enabled.
         current_excluded    = [i["InstanceId"] for i in self.all_instances if self.ec2.is_instance_excluded(i)]
         known_excluded      = self.ec2.get_state_json("ec2.schedule.instance.known_excluded_instances", default=[])
 
-        if Cfg.get_int("ec2.schedule.desired_instance_count") == -1:
+        if Cfg.get("ec2.schedule.desired_instance_count") == "-1":
             # When autoscaling mode is acticated, we compensate excluded instances by fresh instances
             main_excluded = [i["InstanceId"] for i in self.ec2.get_instances(main_fleet_only=True) if self.ec2.is_instance_excluded(i)]
             new_main_excl = [i for i in main_excluded if i not in known_excluded]
