@@ -4,7 +4,7 @@ import gzip
 import base64
 import boto3
 
-def manage_event(event_date, event_type, input_data, meta_data):
+def manage_event(event_date, event_type, input_data, meta_data, api_gw_url):
     """ Manage an event sent by CloneSquad.
 
     >- CUSTOMIZE THIS FUNCTION TO ADD YOUR BUSINESS LOGIC -<
@@ -23,6 +23,9 @@ def manage_event(event_date, event_type, input_data, meta_data):
     describe_instance_data = meta_data.get("EC2", {}).get("AllInstanceDetails", [])
     # The instance structures involved in this event
     instances              = [i for i in describe_instance_data if i["InstanceId"] in instance_ids]
+
+    # API GW URL to interact with calling CloneSquad deployment.
+    print(f"Calling CloneSquad endpoint URL: {api_gw_url}.")
 
     ####################################
     # Put your business logic here !!!
@@ -74,6 +77,7 @@ def lambda_handler(event, context):
             ack_sqs_url = notif["Metadata"]["AckSQSUrl"]
         else:
             print("[ERROR] No 'AckSQSUrl' in event!! (???)")
+        api_gw_url = notif["Metadata"].get("ApiGWUrl")
 
 
         metadata = {}
@@ -92,7 +96,7 @@ def lambda_handler(event, context):
             input_data = json.loads(e["InputData"])
             #print(f"Received event {event_date} - {event_type} - {input_data}")
 
-            if not manage_event(event_date, event_type, input_data, metadata):
+            if not manage_event(event_date, event_type, input_data, metadata, api_gw_url):
                 continue # Do not ack event
 
 
@@ -105,9 +109,12 @@ def lambda_handler(event, context):
                             "Events" : [event_date]})
 
                 print("Sending EventAck to SQS queue '%s' for event '%s'..." % (ack_sqs_url, event_date))
-                response = sqs_client.send_message(
-                    QueueUrl=ack_sqs_url,
-                    MessageBody=payload)
+                try:
+                    response = sqs_client.send_message(
+                        QueueUrl=ack_sqs_url,
+                        MessageBody=payload)
+                except Exception as e:
+                    print(f"Failed to ack event: {e}!")
 
         # If event received from an SQS queue, delete the message
         if "_sqs.receiptHandle" in notif:

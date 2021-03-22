@@ -631,6 +631,7 @@ Resources:
                   TimeZone:                                   !Ref TimeZone
                   AWS_XRAY_SDK_ENABLED:                       !Ref XRayDiagnosis
                   CLONESQUAD_LOGLEVELS:                       !Ref LogLevels
+                  ACCOUNT_ID:                                 !Ref "AWS::AccountId"
               Events:
                 Schedule:
                   Type: Schedule
@@ -685,6 +686,7 @@ Resources:
                   ConfigurationURLs:                          !Ref ConfigurationURLs
                   TimeZone:                                   !Ref TimeZone
                   CLONESQUAD_LOGLEVELS:                       !Ref LogLevels
+                  ACCOUNT_ID:                                 !Ref "AWS::AccountId"
               Events:
                 ScaleUpTopic:
                   Type: SNS
@@ -739,6 +741,7 @@ Resources:
                   InteractApi:                                !Ref InteractApi
                   TimeZone:                                   !Ref TimeZone
                   CLONESQUAD_LOGLEVELS:                       !Ref LogLevels
+                  ACCOUNT_ID:                                 !Ref "AWS::AccountId"
                   ApiGwVpcEndpointDNSEntry: !If 
                         - HasApiGWEndpointConfiguration 
                         - !Select [ 1, !Split [ ":", !Select [ 0, !GetAtt ApiGWVpcEndpoints.DnsEntries]]]
@@ -762,24 +765,25 @@ Resources:
               - AdministratorAccess
               Environment:
                 Variables:
-                  PYTHONPATH:         "/opt:/opt/site-packages"
-                  GroupName:          !Ref GroupName
-                  MainSQSQueue:       !Ref MainQueue
-                  GenericOkActions_SNSTopicArn: !Ref SNSOk
-                  ScaleUp_SNSTopicArn: !Ref SNSScaleUp
+                  PYTHONPATH:                                 "/opt:/opt/site-packages"
+                  GroupName:                                  !Ref GroupName
+                  MainSQSQueue:                               !Ref MainQueue
+                  GenericOkActions_SNSTopicArn:               !Ref SNSOk
+                  ScaleUp_SNSTopicArn:                        !Ref SNSScaleUp
                   GenericInsufficientDataActions_SNSTopicArn: !Ref SNSInsufficientData
-                  ConfigurationTable: !Ref ConfigTable
-                  AlarmStateEC2Table: !Ref AlarmStateEC2Table
-                  StateTable:         !Ref StateTable
-                  EventTable:         !Ref EventTable
-                  LongTermEventTable: !Ref LongTermEventTable
-                  SchedulerTable:     !Ref SchedulerTable
-                  ConfigurationURLs:  !Ref ConfigurationURLs
-                  LoggingS3Path:      !Ref LoggingS3Path
-                  InteractQueue:      !Ref InteractQueue
-                  MainFunctionArn:    !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:CloneSquad-Main-${GroupName}"
-                  TimeZone:           !Ref TimeZone
-                  CLONESQUAD_LOGLEVELS: !Ref LogLevels
+                  ConfigurationTable:                         !Ref ConfigTable
+                  AlarmStateEC2Table:                         !Ref AlarmStateEC2Table
+                  StateTable:                                 !Ref StateTable
+                  EventTable:                                 !Ref EventTable
+                  LongTermEventTable:                         !Ref LongTermEventTable
+                  SchedulerTable:                             !Ref SchedulerTable
+                  ConfigurationURLs:                          !Ref ConfigurationURLs
+                  LoggingS3Path:                              !Ref LoggingS3Path
+                  InteractQueue:                              !Ref InteractQueue
+                  MainFunctionArn:                            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:CloneSquad-Main-${GroupName}"
+                  TimeZone:                                   !Ref TimeZone
+                  CLONESQUAD_LOGLEVELS:                       !Ref LogLevels
+                  ACCOUNT_ID:                                 !Ref "AWS::AccountId"
               Events:
                 SQS:
                   Type: SQS

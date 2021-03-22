@@ -286,7 +286,7 @@ improve CloneSquad over time by allowing easy sharing of essential data for remo
                """
            },
            "notify.event.keep_acked_records"    : "0",
-           "notify.event.seconds_between_sending"    : "5",
+           "notify.event.seconds_between_sending"    : "2",
            "notify.debug.obfuscate_s3_reports" : "1",
            "notify.debug.send_s3_reports"      : "1"
         })
@@ -378,34 +378,34 @@ improve CloneSquad over time by allowing easy sharing of essential data for remo
         msg = {
             "Date" : misc.utc_now(),
             "Metadata": {
-            "AckLambdaARN" : self.context["InteractLambdaArn"],
-            "AckSQSUrl"    : self.context["InteractSQSUrl"],
-            "ApiGWUrl"     : self.context["InteractAPIGWUrl"]
+                "AckLambdaARN" : self.context["InteractLambdaArn"],
+                "AckSQSUrl"    : self.context["InteractSQSUrl"],
+                "ApiGWUrl"     : self.context["InteractAPIGWUrl"]
             }
         }
         events_r = events.copy()
         events_r.reverse()
+        # Optimize message size by deduplicating metadata
+        if len(events_r):
+            m = events_r[0]["Metadata"]
+            for i in range(1, len(events_r)-1):
+                meta = events_r[i]["Metadata"]
+                if m == meta:
+                    del events_r[i]["Metadata"]
+                else:
+                    m = meta
+
         while len(notification_message.keys()) and len(events_r):
             events_to_send    = len(events_r)
             msg["Events"]     = events_r[:events_to_send]
             content_str       = json.dumps(msg, default=str)
             # Verify that message is not too big to send
-            while len(content_str) >= 256*1024:
-                if events_to_send >= 2:
-                    if "Metadata" in events_r[events_to_send-1] and events_r[events_to_send-2]["Metadata"] == events_r[events_to_send-1]["Metadata"]:
-                        del events_r[events_to_send-1]["Metadata"] # Do not repeat the same metadata field than the older one
-                    else:
-                        events_to_send -= 1
-                else:
+            while len(content_str) >= 256*1024 and events_to_send > 2:
+                events_to_send -= 1
+                while ("Metadata" not in events_r[events_to_send]):
                     events_to_send -= 1
                 msg["Events"] = events_r[:events_to_send]
                 content_str   = json.dumps(msg, default=str)
-
-            if events_to_send != len(events_r) and "Metadata" not in events_r[events_to_send]:
-                # We can't let the first message of the next sending without Metadata field
-                events_to_send -= 1
-                msg["Events"]   = events_r[:events_to_send]
-                content_str     = json.dumps(msg, default=str)
 
             event_types = []
             [event_types.append(e["EventType"]) for e in events_r[:events_to_send] if e["EventType"] not in event_types]
