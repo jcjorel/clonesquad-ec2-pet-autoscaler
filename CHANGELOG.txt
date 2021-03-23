@@ -1,7 +1,7 @@
 v0.17.0:
 - (Improvment/Major) Allow to specify an IAM boundary on all roles created by the CloneSquad deployment template.
 - (Improvment/Major) Make notification messages smaller and more robust.
-- (Bug/Major) Fixed regression related to parameter set handling regression introduced in v0.15.0
+- (Bug/Major) Fixed regression related to parameter set handling introduced in v0.15.0
 - (Bug/Minor) Devkit Configuration Wizard tool: All CloneSquad deployments were not displayed in some circumstances. Added paginator to handle accounts with lots of CloudFormation stacks deployed.
 
 v0.16.0
