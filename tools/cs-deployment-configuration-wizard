@@ -41,11 +41,15 @@ d.set_background_title("CloneSquad configuration wizard")
 def wizard_stack_name(key, value):
     while True:
         d.infobox("Fetching CloudFormation template list...\n\nPlease wait...", height=8, width=60)
-        client = boto3.client("cloudformation")
-        response = client.describe_stacks()
+        client    = boto3.client("cloudformation")
+        paginator = client.get_paginator('describe_stacks')
+        response_iterator = paginator.paginate()
+        stacks    = []
+        for response in response_iterator:
+            stacks.extend(response["Stacks"])
 
         choices = []
-        for s in response["Stacks"]:
+        for s in stacks:
             if "Outputs" not in s:
                 continue
             group_name = next(filter(lambda o: o["OutputKey"] == "GroupName", s["Outputs"]), None)
@@ -56,7 +60,7 @@ def wizard_stack_name(key, value):
                 choices=choices, width=80, height=20)
         if code != Dialog.OK:
             return False
-        stack = next(filter(lambda s: s["StackName"] == tag, response["Stacks"]), None)
+        stack = next(filter(lambda s: s["StackName"] == tag, stacks), None)
         if stack is None:
             d.msgbox("Please select one item in the list!")
             continue
@@ -142,14 +146,13 @@ def wizard_ssh_key(key, value):
 
 def wizard_iam_role(key, value):
     while True:
-        choices  = []
         d.infobox("Looking for your IAM roles in the region...\n\nPlease wait...", height=8, width=60)
-        client   = boto3.client("iam")
-        max_items= 10
-        response = client.list_roles(MaxItems=max_items)
-        roles    = response["Roles"]
-        while "Marker" in response and response["Marker"] != "":
-            response = client.list_roles(MaxItems=max_items, Marker=response["Marker"])
+        client            = boto3.client("iam")
+        max_items         = 10
+        paginator         = client.get_paginator('list_roles')
+        response_iterator = paginator.paginate()
+        roles             = []
+        for response in response_iterator:
             roles.extend(response["Roles"])
 
         def _filter_role_for_ec2_service(r):
