@@ -588,6 +588,101 @@ Resources:
           - Key: Name
             Value: !Join ['', [!Ref "AWS::StackName", "-APIGWEndpointSecurityGroup" ]]
           
+    GeneralParameters:
+            Type: "Custom::CustomResourceFunction"
+            Properties:
+              ServiceToken: !GetAtt CustomResourceFunction.Arn
+              Helper: GeneralParameters
+              AccountId: !Ref AWS::AccountId
+              Region: !Ref AWS::Region
+              LoggingS3Path: !Ref LoggingS3Path
+
+    CloneSquadPolicyDocument:
+        Type: 'AWS::IAM::Policy'
+        Properties:
+          PolicyName: !Sub "CloneSquad-${GroupName}-LambdaPolicy"
+          Roles:
+              - !Ref MainFunctionRole
+              - !Ref SNSMgrFunctionRole
+              - !Ref InteractFunctionRole
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Resource: 
+                  - !GetAtt GeneralParameters.LoggingS3PathArn
+                Action:
+                  - 's3:PutObject'
+                  - 's3:CreateMultipartUpload'
+              - Effect: Allow
+                Resource: 
+                  - !GetAtt ConfigTable.Arn
+                  - !GetAtt AlarmStateEC2Table.Arn
+                  - !GetAtt SchedulerTable.Arn
+                  - !GetAtt StateTable.Arn
+                  - !GetAtt EventTable.Arn
+                  - !GetAtt LongTermEventTable.Arn
+                Action:
+                  - 'dynamodb:DeleteItem'
+                  - 'dynamodb:GetItem'
+                  - 'dynamodb:UpdateItem'
+                  - 'dynamodb:PutItem'
+                  - 'dynamodb:Scan'
+              - Effect: Allow
+                Resource: "*"
+                Condition:
+                  StringEquals: 
+                      "aws:ResourceTag/clonesquad:group-name": !Ref GroupName
+                Action:
+                  - 'ec2:StartInstances'
+                  - 'ec2:StopInstances'
+                  - 'rds:StartDBCluster'
+                  - 'rds:StartDBInstance'
+                  - 'rds:StopDBCluster'
+                  - 'rds:StopDBInstance'
+                  - 'transfer:StopServer'
+                  - 'transfer:StartServer'
+              - Effect: Allow
+                Resource: '*'
+                Action:
+                  - 'dynamodb:DescribeTable'
+                  - 'sqs:SendMessage'
+                  - 'sqs:ReceiveMessage'
+                  - 'sqs:GetQueueUrl'
+                  - 'sqs:DeleteMessage'
+                  - 'sns:Publish'
+                  - 's3:GetObject'
+                  - 'ec2:DescribeAvailabilityZones'
+                  - 'ec2:DescribeInstances'
+                  - 'ec2:DescribeInstanceStatus'
+                  - 'ec2:DescribeInstanceTypes'
+                  - 'elasticloadbalancing:Describe*'
+                  - 'elasticloadbalancing:RegisterTargets'
+                  - 'elasticloadbalancing:DeregisterTargets'
+                  - 'ec2:DescribeAccountAttributes'
+                  - 'ec2:DescribeInternetGateways'
+                  - 'ec2:DescribeSubnets'
+                  - 'ec2:DescribeVpcs'
+                  - 'events:DeleteRule'
+                  - 'events:ListRules'
+                  - 'events:PutRule'
+                  - 'events:PutTargets'
+                  - 'events:RemoveTargets'
+                  - 'iam:PassRole'
+                  - 'kms:Decrypt'
+                  - 'logs:CreateLogStream'
+                  - 'cloudwatch:DeleteAlarms'
+                  - 'cloudwatch:DescribeAlarms'
+                  - 'cloudwatch:DeleteDashboards'
+                  - 'cloudwatch:GetMetricData'
+                  - 'cloudwatch:GetMetricWidgetImage'
+                  - 'cloudwatch:PutDashboard'
+                  - 'cloudwatch:PutMetricAlarm'
+                  - 'cloudwatch:PutMetricData'
+                  - 'rds:DescribeDBClusters'
+                  - 'rds:DescribeDBInstances'
+                  - 'tag:GetResources'
+                  - 'transfer:ListServers'
 
     MainFunction:
             Type: AWS::Serverless::Function 
@@ -606,7 +701,9 @@ Resources:
               ReservedConcurrentExecutions: 1
               Tracing: Active
               Policies:
-              - AdministratorAccess
+                  - AWSLambdaBasicExecutionRole 
+                  - AWSXRayDaemonWriteAccess
+                  - AWSLambdaRole 
               Environment:
                 Variables:
                   PYTHONPATH:                                 "/opt:/opt/site-packages"
@@ -670,7 +767,8 @@ Resources:
               MemorySize: 256
               Timeout: 60
               Policies:
-              - AdministratorAccess
+                  - AWSLambdaBasicExecutionRole 
+                  - AWSXRayDaemonWriteAccess
               Environment:
                 Variables:
                   PYTHONPATH:                                 "/opt:/opt/site-packages"
@@ -762,7 +860,8 @@ Resources:
               MemorySize: !Ref LambdaMemorySize
               Timeout: 900
               Policies:
-              - AdministratorAccess
+                  - AWSLambdaBasicExecutionRole 
+                  - AWSXRayDaemonWriteAccess
               Environment:
                 Variables:
                   PYTHONPATH:                                 "/opt:/opt/site-packages"

@@ -34,6 +34,7 @@ def get_policy_content(url, account_id, region, api_gw_id=None):
     content = misc.get_url(url)
     if content is None:
         raise ValueError("Failed to load specified GWPolicyUrl '%s'!" % url)
+    log.info(f"Success for get URL {url} : %s" % str(content, "utf-8"))
     try:
         content = str(content, "utf-8").replace("%(AccountId)", account_id).replace("%(Region)", region)
         if api_gw_id is not None:
@@ -41,7 +42,6 @@ def get_policy_content(url, account_id, region, api_gw_id=None):
         return json.loads(content)
     except:
         log.exception("Failed to parse the API Gateway policy located at '%s'!" % url)
-    return None
 
 def generate_igress_sg_rule(trusted_clients):
     rule = []
@@ -185,6 +185,23 @@ def DynamoDBParameters_CreateOrUpdate(data, AccountId=None, Region=None,
                     }
             except Exception as e:
                 raise ValueError("Failed to parse DynamoDBParameters keyword '%s' with value '%s'!" % (c, config[0][c]))
+
+def GeneralParameters_CreateOrUpdate(data, AccountId=None, Region=None, 
+        LoggingS3Path=None):
+    logging_bucket_name = f"clonesquad-logging-s3-path-bucket-name-{AccountId}-{Region}"
+    logging_key_name    = "is-not-configured"
+    if LoggingS3Path.startswith("s3://"):
+        path  = LoggingS3Path[5:]
+        parts = path.split("/", 1)
+        logging_bucket_name = parts[0]
+        logging_key_name    = parts[1] if len(parts) > 1 else ""
+        if not logging_key_name.endswith("/") and not logging_key_name.endswith("*"):
+            logging_key_name += "/*"
+        if logging_key_name.endswith("/"):
+            logging_key_name += "*"
+    elif LoggingS3Path != "" and len(LoggingS3Path):
+        raise ValueError("LoggingS3Path must start with s3://! : {LoggingS3Path}")
+    data["LoggingS3PathArn"] = f"arn:aws:s3:::{logging_bucket_name}/{logging_key_name}"
 
 def call(event, context):
     parameters    = event["ResourceProperties"].copy()

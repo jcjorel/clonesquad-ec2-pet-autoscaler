@@ -121,7 +121,6 @@ metrics will generate a significant part of the demonstration CloudWatch bill an
 ## Roadmap
 
 * Improve documentation,
-* Refine the IAM Role used by the CloneSquad Lambda that are far too wide,
 * Implement a CI/CD pipeline for release (beyond the existing [release-everything script](scripts/release-everything)...),
 
 

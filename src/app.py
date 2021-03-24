@@ -211,11 +211,14 @@ def main_handler_entrypoint(event, context):
     ctx["o_rds"].manage_subfleet()
     log.debug("Main - TransferFamily - manage_subfleet()")
     ctx["o_transferfamily"].manage_subfleet()
-    log.debug("Main - metrics()")
+    log.debug("Main - prepara_metrics()")
     ctx["o_ec2_schedule"].prepare_metrics()
+    log.debug("Main - send_metrics()")
     ctx["o_cloudwatch"].send_metrics()
 
+    log.debug("Main - configure_dashboard()")
     ctx["o_cloudwatch"].configure_dashboard()
+    log.debug("Main - pregenerate_interact_data()")
     ctx["o_interact"].pregenerate_interact_data()
 
     # If we got woke up by SNS, acknowledge the message(s) now
