@@ -1,5 +1,5 @@
 v0.18.0:
-- (Improvment/Major) Added fine-grained IAM policy for Lambda functions => No more AdministratorAccess default policygit diff! :-)
+- (Improvment/Major) Added fine-grained IAM policy for Lambda functions => No more AdministratorAccess default policy! :-)
 - (Bug/Major) Fixed improprer management of notification events when, for any reason, a large amount is pending for processing.
 - (Bug/Major) Fixed improper state management of TransferFamily instance.
 - (Improvment/Minor) URL specified in configuration with https:// protocol can now automatically authenticate with SigV4.
