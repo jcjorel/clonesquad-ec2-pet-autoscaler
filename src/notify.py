@@ -229,7 +229,7 @@ def record_call_extended(records_args, is_success_func, f, *args, **kwargs):
 
         # Manage Debug report export to S3
         url = ctx["LoggingS3Path"]
-        if url != "" and table["DebugReport"] and Cfg.get_int("notify.debug.send_s3_reports"):
+        if url not in ["", "None"] and table["DebugReport"] and Cfg.get_int("notify.debug.send_s3_reports"):
             xray_recorder.begin_subsegment("notifycall-publish_all_reports:%s" % f.__name__)
             if ctx["FunctionName"] == "Interact":
                 # Avoid recursion if throwing from InteractFunction
@@ -335,6 +335,8 @@ improve CloneSquad over time by allowing easy sharing of essential data for remo
 
     @xray_recorder.capture()
     def notify_user_arn_resources(self):
+        if self.context["UserNotificationArns"] in ["", "None"]:
+            return
         # Notify specified resources if needed
         user_notification_arns = self.context["UserNotificationArns"].split(",")
         notification_message   = {}

@@ -199,7 +199,7 @@ def GeneralParameters_CreateOrUpdate(data, AccountId=None, Region=None,
             logging_key_name += "/*"
         if logging_key_name.endswith("/"):
             logging_key_name += "*"
-    elif LoggingS3Path != "" and len(LoggingS3Path):
+    elif LoggingS3Path not in ["", "None"] and len(LoggingS3Path):
         raise ValueError("LoggingS3Path must start with s3://! : {LoggingS3Path}")
     data["LoggingS3PathArn"] = f"arn:aws:s3:::{logging_bucket_name}/{logging_key_name}"
 

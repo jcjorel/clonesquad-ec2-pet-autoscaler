@@ -38,12 +38,12 @@ Parameters:
   UserNotificationArns: 
     Type: String
     ConstraintDescription: "[-/:A-Za-z0-9]*"
-    Default: ""
+    Default: "None"
     Description: "(Optional) Comma seperated list of user provided ARNs (Lambda, SQS, SNS) to receive real-time notifications (TargetGroup Register/Deregister events, instances start/stop...)"
 
   LoggingS3Path:
     Type: String
-    Default: ""
+    Default: "None"
     Description: "(Optional) S3 Path for detailed logging (s3://<bucket_name>/<path>)"
 
   ApiGWConfiguration:
@@ -599,6 +599,7 @@ Resources:
 
     CloneSquadPolicyDocument:
         Type: 'AWS::IAM::Policy'
+        DependsOn: GeneralParameters
         Properties:
           PolicyName: !Sub "CloneSquad-${GroupName}-LambdaPolicy"
           Roles:
@@ -681,8 +682,8 @@ Resources:
                   - 'cloudwatch:PutMetricData'
                   - 'rds:DescribeDBClusters'
                   - 'rds:DescribeDBInstances'
-                  - 'tag:GetResources'
                   - 'transfer:ListServers'
+                  - 'tag:GetResources'
 
     MainFunction:
             Type: AWS::Serverless::Function 
