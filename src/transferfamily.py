@@ -115,7 +115,8 @@ DEPRECATED. (Now automatic detection of TransferFamilty services is implemented)
                 continue
 
             current_state  = server["State"]
-            if server["State"] == "ONLINE": current_state = "running"
+            if server["State"] == "ONLINE":  current_state = "running"
+            if server["State"] == "OFFLINE": current_state = "stopped"
             log.log(log.NOTICE, "Manage TransferFamily '%s': subfleet_name=%s, current_state=%s, expected_state=%s" % 
                     (arn, subfleet_name, current_state, expected_state))
 
