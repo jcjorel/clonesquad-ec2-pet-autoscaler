@@ -21,6 +21,7 @@ from datetime import timedelta
 import requests
 from requests_file import FileAdapter
 from collections import defaultdict
+from iamauth import IAMAuth
 import pdb
 import debug as Dbg
 
@@ -116,6 +117,8 @@ def str2utc(s, default=None):
     return None
 
 def sha256(s):
+    """ Return the SHA256 HEX digest related to the specified string.
+    """
     m = hashlib.sha256()
     m.update(bytes(s,"utf-8"))
     return m.hexdigest()
@@ -222,7 +225,8 @@ def get_url(url, throw_exception_on_warning=False):
             return None
 
     # <other>:// protocols management
-    s = Session()
+    s      = Session()
+    s.auth = IAMAuth()
     try:
         response = s.get(url)
     except Exception as e:
