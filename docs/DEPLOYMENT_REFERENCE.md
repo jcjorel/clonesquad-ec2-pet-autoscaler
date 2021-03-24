@@ -37,7 +37,7 @@ the maximum possible compute power the Lambda functions.
 
 	ApiGWConfiguration=[REGIONAL|PRIVATE],GWPolicy=<url_to_a_json_resource_file>,VpcEndpointDNS=vpce-0aaaaaaaaaaaaaaaa-bbbbbbbb.execute-api.eu-west-1.vpce.amazonaws.com
 
-* [REGIONAL|PRIVATE]: (Optional) By default, the API Gateway is a REGIONAL one. This switch allows to define explictily if the API Gateway is private or public regional.
+* [REGIONAL|PRIVATE]: By default, the API Gateway is a REGIONAL one. This switch allows to define explicitly if the API Gateway is private or public regional.
 * GWPolicy: (Optional) Url to a customized API Gateway resource policy file. By default, the policy
 [api-gw-default-policy.json](../src/resources/api-gw-default-policy.json) is automatically loaded. This default policy allows access only to `AWS_IAM`authenticated 
 requests coming from the resource located in the AWS account where CloneSquad is deployed.
