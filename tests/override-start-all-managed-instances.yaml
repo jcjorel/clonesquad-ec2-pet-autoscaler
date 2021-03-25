@@ -1,5 +1,5 @@
 #
-# Configuration to start immedialty all managed instances by a CloneSquad deployment.
+# Configuration to start immediatly all managed instances by a CloneSquad deployment.
 # Note: Use override: syntax to not overwrite the current active configuration.
 
 # Start all instances of the Main fleet
