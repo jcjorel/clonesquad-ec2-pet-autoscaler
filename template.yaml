@@ -514,7 +514,10 @@ Resources:
               MemorySize: 128
               Timeout: 60
               Policies:
-              - AdministratorAccess
+                  - AWSLambdaBasicExecutionRole 
+                  - AWSXRayDaemonWriteAccess
+                  - AmazonEC2ReadOnlyAccess
+                  - AmazonS3ReadOnlyAccess
               Environment:
                 Variables:
                   PYTHONPATH:                                 "/opt:/opt/site-packages"
