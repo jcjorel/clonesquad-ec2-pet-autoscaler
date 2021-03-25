@@ -674,7 +674,6 @@ Resources:
                   - 'events:RemoveTargets'
                   - 'iam:PassRole'
                   - 'kms:Decrypt'
-                  - 'logs:CreateLogStream'
                   - 'cloudwatch:DeleteAlarms'
                   - 'cloudwatch:DescribeAlarms'
                   - 'cloudwatch:DeleteDashboards'
