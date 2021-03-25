@@ -1,0 +1,9 @@
+#
+# Configuration to start immedialty all managed instances by a CloneSquad deployment.
+# Note: Use override: syntax to not overwrite the current active configuration.
+
+# Start all instances of the Main fleet
+override:ec2.schedule.desired_instance_count: 100%
+# Start all instances in all Subfleets
+override:subfleet.__all__.ec2.schedule.desired_instance_count: 100%
+override:subfleet.__all__.state: running
