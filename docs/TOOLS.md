@@ -86,8 +86,8 @@ The tool takes command line arguments:
 * `--on-draining-block-new-connections-to-ports <port> <port>`: Activate the builtin algorithm which forbids new TCP connections to the specified ports on `draining` condition. Default: `None`
 * `--stale-context-timeout <seconds>`: Period of time for running instance data caching (Tags especially). Default: `30`
 * `--log-file <path_to_a_file>`: Path to the rotated log file. Default: `stderr`
-* `--log-file-rotate log_rotate_spec`: Log rotation specification. Format: TimeUnit,RotationPerTimeUnit,BackupFileCount. Default: `d,1,7`
-	* Default `d,1,7` means: Every day rotates logs and keep 7 days of rotated files.
+* `--log-file-rotate log_rotate_spec`: Log rotation specification. Format: TimeUnit,RotationPerTimeUnit,BackupFileCount. Default: `h,1,24`
+	* Default `h,1,24` means: Every hour rotates logs and keep 24 hours of rotated files.
 * `--generate-systemd <systemd_service_file>`: Path to a systemd service configuration file to create.
 * `--script-dir <directory>`: A directory containing scripts to launch on state change. Default: /etc/cs-instance-watcher.d/
 

@@ -343,7 +343,7 @@ WantedBy=multi-user.target
     if first_pass:
         log_file = next(filter(lambda a: a[0] == "log_file", _args), None)
         if log_file and log_file[1] is not None:
-            rotate_params = ["d", "1", "7"] # Default value for log rotate
+            rotate_params = ["h", "1", "24"] # Default value for log rotate
             log_file_rotate = next(filter(lambda a: a[0] == "log_file_rotate", _args), None)
             if log_file_rotate:
                 params = log_file_rotate[1].split(",")
