@@ -12,6 +12,9 @@ if [ -e ${CLONESQUAD_PARAMETER_DIR}/deployment-parameters.txt ] ; then
 	export $(grep -v '#.*' ${CLONESQUAD_PARAMETER_DIR}/deployment-parameters.txt | xargs)
 fi
 
+export s3_bucket=$(crudini --get /clonesquad-deployment-parameters/samconfig.toml default.deploy.parameters s3_bucket |sed 's/"//g')
+export s3_prefix=$(crudini --get /clonesquad-deployment-parameters/samconfig.toml default.deploy.parameters s3_prefix |sed 's/"//g')
+
 get_parameters()
 {
 	grep -v '#.*' ${CLONESQUAD_PARAMETER_DIR}/deployment-parameters.txt | tr '\n' ' '

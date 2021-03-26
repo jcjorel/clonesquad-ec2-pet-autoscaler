@@ -16,7 +16,8 @@ TemplatefileName="$demo_run_dir/template-generated.yaml"
 	--subfleet-rds-specs $STATIC_FLEET_RDS_SPECIFICATION | tee $TemplatefileName
 
 aws cloudformation deploy  --template-file $TemplatefileName --stack-name "CS-Demo-TestEC2nRDSInstances-$GroupName$1" --capabilities CAPABILITY_IAM \
-	--parameter-overrides $(get_parameters) GroupName=$GroupName
+	--parameter-overrides $(get_parameters) GroupName=$GroupName \
+	--s3-bucket $s3_bucket --s3-prefix $s3_prefix/demo-instance-fleet/
 
 cat <<EOF
 Stack ready!
