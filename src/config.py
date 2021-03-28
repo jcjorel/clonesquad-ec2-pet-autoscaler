@@ -340,21 +340,25 @@ def get_dict():
     t = _init["configuration_table"]
     return t.get_dict()
 
-def get_extended(key):
+def get_extended(key, fmt=None):
     if key in _init["compiled_keys"]:
-        return _init["compiled_keys"][key]
-    return {
-        "Key": key,
-        "Value" : None,
-        "Success" : False,
-        "ConfigurationOrigin": "None",
-        "Status": "[WARNING] Unknown configuration key '%s'" % key,
-        "Stable": False,
-        "Override": False
-    }
+        r = _init["compiled_keys"][key]
+    else:
+        r = {
+            "Key": key,
+            "Value" : None,
+            "Success" : False,
+            "ConfigurationOrigin": "None",
+            "Status": "[WARNING] Unknown configuration key '%s'" % key,
+            "Stable": False,
+            "Override": False
+        }
+    if fmt:
+        r["Value"] = r["Value"].format(**fmt)
+    return r
 
-def get(key, cls=str, none_on_failure=False):
-    r = get_extended(key)
+def get(key, cls=str, none_on_failure=False, fmt=None):
+    r = get_extended(key, fmt=fmt)
     if not r["Success"]:
         if none_on_failure:
             return None
@@ -372,35 +376,35 @@ def get(key, cls=str, none_on_failure=False):
             return None
         raise Exception(f"Failed to convert key '{key}' with value '%s' : {e}" % r["Value"])
 
-def get_int(key):
-    return get(key, cls=int)
+def get_int(key, fmt=None):
+    return get(key, cls=int, fmt=fmt)
 
-def get_float(key):
-    return get(key, cls=float)
+def get_float(key, fmt=None):
+    return get(key, cls=float, fmt=fmt)
 
-def get_list(key, separator=";", default=None):
-    v = get(key)
+def get_list(key, separator=";", default=None, fmt=None):
+    v = get(key, fmt=fmt)
     if v is None or v == "": return default
     return v.split(separator)
 
-def get_duration_secs(key):
+def get_duration_secs(key, fmt=None):
     try:
-        return misc.str2duration_seconds(get(key))
+        return misc.str2duration_seconds(get(key, fmt=fmt))
     except Exception as e:
         raise Exception("[ERROR] Failed to parse config key '%s' as a duration! : %s" % (key, e))
 
-def get_list_of_dict(key):
-    v = get(key)
+def get_list_of_dict(key, fmt=None):
+    v = get(key, fmt=fmt)
     if v is None: return []
     return misc.parse_line_as_list_of_dict(v)
 
-def get_date(key, default=None):
-    v = get(key)
+def get_date(key, default=None, fmt=None):
+    v = get(key, fmt=fmt)
     if v is None: return default
     return misc.str2utc(v, default=default)
 
-def get_abs_or_percent(value_name, default, max_value):
-    value = get(value_name)
+def get_abs_or_percent(value_name, default, max_value, fmt=None):
+    value = get(value_name, fmt=fmt)
     return misc.abs_or_percent(value, default, max_value)
 
 

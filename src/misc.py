@@ -110,6 +110,10 @@ def seconds2utc(seconds):
     return datetime.utcfromtimestamp(int(seconds)).replace(tzinfo=timezone.utc)
 
 def str2utc(s, default=None):
+    if isinstance(s, datetime):
+        return s
+    if s.endswith("Z"):
+        s = s[:-1] + "+00:00"
     try:
         return datetime.fromisoformat(s)
     except:

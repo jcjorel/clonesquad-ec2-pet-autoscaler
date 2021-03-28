@@ -14,6 +14,7 @@ import config
 import misc
 import sqs
 import ec2
+import ssm
 import ec2_schedule
 import sns
 import cloudwatch
@@ -108,6 +109,8 @@ if this flag changed its status and allow normal operation again."""
     ctx["o_state"]           = state.StateManager(ctx)
     log.debug("o_ec2 setup...")
     ctx["o_ec2"]             = ec2.EC2(ctx, ctx["o_state"])
+    log.debug("o_ssm setup...")
+    ctx["o_ssm"]             = ssm.SSM(ctx)
     log.debug("o_targetgroup setup...")
     ctx["o_targetgroup"]     = targetgroup.ManagedTargetGroup(ctx, ctx["o_ec2"])
     log.debug("o_cloudwatch setup...")
@@ -189,7 +192,7 @@ def main_handler_entrypoint(event, context):
         return
 
     log.debug("Load prerequisites.")
-    misc.load_prerequisites(ctx, ["o_state", "o_ec2", "o_notify", "o_cloudwatch", "o_targetgroup", 
+    misc.load_prerequisites(ctx, ["o_state", "o_ec2", "o_notify", "o_ssm", "o_cloudwatch", "o_targetgroup", 
         "o_ec2_schedule", "o_scheduler", "o_rds", "o_transferfamily"])
 
     # Remember 'now' as the last execution date
