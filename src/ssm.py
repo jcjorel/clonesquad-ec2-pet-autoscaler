@@ -124,12 +124,25 @@ class SSM:
                     'Values': [GroupName]
                 },
             ])
+
         self.instance_infos = []
         for r in response_iterator:
             self.instance_infos.extend([d for d in r["InstanceInformationList"]])
         instance_info_ids = [i["InstanceId"] for i in self.instance_infos]
+
+        instances           = self.o_ec2.get_instances(State="pending,running")
+        instance_ids        = [i["InstanceId"] for i in instances]
         for info in self.o_state.get_state_json("ssm.instance_infos", default=[]):
-            if info["InstanceId"] not in instance_info_ids and (misc.str2utc(info["LastPingDateTime"]) - now) < timedelta(seconds=ttl):
+            instance_id    = info["InstanceId"]
+            if instance_id in instance_info_ids:
+                # We just recived an update...
+                continue
+            instance       = next(filter(lambda i: i["InstanceId"] == instance_id, instances), None)
+            if instance is None:
+                # This instance is not more pending or running...
+                continue
+            last_ping_time = misc.str2utc(info["LastPingDateTime"])
+            if instance["LaunchTime"] < last_ping_time and (last_ping_time - now) < timedelta(seconds=ttl):
                 self.instance_infos.append(info)
         # Remove useless fields
         for info in self.instance_infos:
@@ -138,8 +151,10 @@ class SSM:
         self.o_state.set_state_json("ssm.instance_infos", self.instance_infos, compress=True, TTL=ttl)
         pdb.set_trace()
 
-    def is_instance_online(self, instance_id):
-        return next(filter(lambda i: i["PingStatus"] == "Online", self.instance_infos), None) 
+    def is_instance_online(self, i):
+        instance_id = i["InstanceId"]
+        launch_time = i["LaunchTime"]
+        return next(filter(lambda i: i["InstanceId"] == instance_id and i["LastPingDateTime"] > launch_time and i["PingStatus"] == "Online", self.instance_infos), None) 
 
     def _get_maintenance_window_for_fleet(self, fleet=None):
         default_names             = self.maintenance_windows["__default__"]["Names"]
