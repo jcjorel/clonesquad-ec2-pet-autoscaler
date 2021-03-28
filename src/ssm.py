@@ -148,6 +148,8 @@ class SSM:
         for info in self.instance_infos:
             if "AssociationStatus" in info:   del info["AssociationStatus"]
             if "AssociationOverview" in info: del info["AssociationOverview"]
+            if "IPAddress" in info:           del info["IPAddress"]
+            if "ComputerName" in info:        del info["ComputerName"]
         self.o_state.set_state_json("ssm.instance_infos", self.instance_infos, compress=True, TTL=ttl)
         pdb.set_trace()
 
