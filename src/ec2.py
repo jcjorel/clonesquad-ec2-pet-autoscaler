@@ -1031,14 +1031,10 @@ without any TargetGroup but another external health instance source exists).
             return default
 
     def get_state_json(self, key, default=None, direct=False):
-        try:
-            v = misc.decode_json(self.get_state(key, direct=direct))
-            return v if v is not None else default
-        except:
-            return default
+        return self.o_state.get_state_json(key, default=default, direct=direct)
 
     def set_state_json(self, key, value, compress=True, TTL=0):
-        self.set_state(key, misc.encode_json(value, compress=compress), TTL=TTL)
+        self.o_state.set_state_json(key, value, compress=compress, TTL=TTL)
 
     def get_state_date(self, key, default=None, direct=False):
         d = self.get_state(key, default=default, direct=direct)

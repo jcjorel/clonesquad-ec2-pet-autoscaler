@@ -38,7 +38,7 @@ class SSM:
         GroupName                    = self.context["GroupName"]
 
         Cfg.register({
-            "ssm.state.default_ttl": "hours=2",
+            "ssm.state.default_ttl": "hours=1",
             "ssm.maintenance_window.start_ahead": "minutes=15",
             "ssm.maintenance_window.defaults": "CS-{GroupName}",
             "ssm.maintenance_window.mainfleet.defaults": "CS-{GroupName}-__main__",
@@ -59,6 +59,8 @@ class SSM:
     def get_prerequisites(self):
         """ Gather instance status by calling SSM APIs.
         """
+        now       = self.context["now"]
+        ttl       = Cfg.get_duration_secs("ssm.state.default_ttl")
         GroupName = self.context["GroupName"]
         for SubfleetName in self.o_ec2.get_subfleet_names():
             Cfg.register({
@@ -112,6 +114,32 @@ class SSM:
         }
         if len(mws):
             log.log(log.NOTICE, f"Found matching SSM maintenance windows: %s" % self.maintenance_windows)
+
+        # Update instance inventory
+        paginator = client.get_paginator('describe_instance_information')
+        response_iterator = paginator.paginate(
+            Filters=[
+                {
+                    'Key': 'tag:clonesquad:group-name',
+                    'Values': [GroupName]
+                },
+            ])
+        self.instance_infos = []
+        for r in response_iterator:
+            self.instance_infos.extend([d for d in r["InstanceInformationList"]])
+        instance_info_ids = [i["InstanceId"] for i in self.instance_infos]
+        for info in self.o_state.get_state_json("ssm.instance_infos", default=[]):
+            if info["InstanceId"] not in instance_info_ids and (misc.str2utc(info["LastPingDateTime"]) - now) < timedelta(seconds=ttl):
+                self.instance_infos.append(info)
+        # Remove useless fields
+        for info in self.instance_infos:
+            if "AssociationStatus" in info:   del info["AssociationStatus"]
+            if "AssociationOverview" in info: del info["AssociationOverview"]
+        self.o_state.set_state_json("ssm.instance_infos", self.instance_infos, compress=True, TTL=ttl)
+        pdb.set_trace()
+
+    def is_instance_online(self, instance_id):
+        return next(filter(lambda i: i["PingStatus"] == "Online", self.instance_infos), None) 
 
     def _get_maintenance_window_for_fleet(self, fleet=None):
         default_names             = self.maintenance_windows["__default__"]["Names"]

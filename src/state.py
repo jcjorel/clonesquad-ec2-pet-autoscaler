@@ -97,3 +97,12 @@ class StateManager:
         else:
             return self.table.get_kv(key)
 
+    def get_state_json(self, key, default=None, direct=False):
+        try:
+            v = misc.decode_json(self.get_state(key, direct=direct))
+            return v if v is not None else default
+        except:
+            return default
+
+    def set_state_json(self, key, value, compress=True, TTL=0):
+        self.set_state(key, misc.encode_json(value, compress=compress), TTL=TTL)
