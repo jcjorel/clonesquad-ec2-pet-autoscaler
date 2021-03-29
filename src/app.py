@@ -67,6 +67,7 @@ def fix_sam_bugs():
         ctx["ScaleUp_SNSTopicArn"] =  "arn:aws:sns:%s:%s:CloneSquad-CloudWatchAlarm-ScaleUp-%s" % (ctx["AWS_DEFAULT_REGION"], account_id, ctx["GroupName"])
         ctx["InteractLambdaArn"]  = "arn:aws:lambda:%s:%s:function:CloneSquad-Interact-%s" % (ctx["AWS_DEFAULT_REGION"], account_id, ctx["GroupName"])
         ctx["AWS_LAMBDA_LOG_GROUP_NAME"] = "/aws/lambda/CloneSquad-Main-%s" % ctx["GroupName"]
+        ctx["SSMLogGroup"] = "/aws/lambda/CloneSquad-SSM-%s" % ctx["GroupName"]
 
 
 # Special treatment while started from SMA invoke loval
