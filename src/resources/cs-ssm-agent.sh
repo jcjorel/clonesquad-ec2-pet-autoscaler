@@ -25,13 +25,15 @@ function run_user_scripts()
 
 cs_echo "HELLO" "1.0"
 
-env | (while read LINE ; do cs_echo "ENV" "$LINE")
+env | (while read LINE ; do cs_echo "ENV" "$LINE" ; done)
 
 CMD=$1
 shift
 case $CMD in
 	INSTANCE_STATE_TRANSITION)
+		cs_echo "$CMD" "START"
 		run_user_scripts $1
+		cs_echo "$CMD" "END"
 	;;
 	*)
 		cs_echo "ERROR" "UNKOWN_COMMAND"
