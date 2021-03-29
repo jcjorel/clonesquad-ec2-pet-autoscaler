@@ -7,6 +7,7 @@ import boto3
 import json
 import pdb
 import re
+import io
 import sys
 import yaml
 from datetime import datetime
@@ -151,12 +152,56 @@ class SSM:
             if "IPAddress" in info:           del info["IPAddress"]
             if "ComputerName" in info:        del info["ComputerName"]
         self.o_state.set_state_json("ssm.instance_infos", self.instance_infos, compress=True, TTL=ttl)
-        pdb.set_trace()
+        self.run_command(["i-061d5ef4245f5fcd8"], "RUN")
 
     def is_instance_online(self, i):
+        if isinstance(i, str):
+            i = self.o_ec2.get_instance_by_id(i)
         instance_id = i["InstanceId"]
         launch_time = i["LaunchTime"]
         return next(filter(lambda i: i["InstanceId"] == instance_id and i["LastPingDateTime"] > launch_time and i["PingStatus"] == "Online", self.instance_infos), None) 
+
+    def run_command(self, instance_ids, command, comment="", timeout=30):
+        client = self.context["ssm.client"]
+        cmds   = {
+            "Linux": {
+                "document": "AWS-RunShellScript",
+                "shell": [s.rstrip() for s in io.StringIO(str(misc.get_url("internal:cs-ssm-agent.sh"), "utf-8").replace('##CMD##',command)).readlines()],
+                "ids": []
+            }
+        }
+        for i in instance_ids:
+            info = self.is_instance_online(i)
+            if info is None:
+                continue
+            pltf = cmds.get(info["PlatformType"])
+            if pltf is None:
+                log.warning("Can't run a command on an unsupported platform : %s" % info["PlatformType"])
+                continue # Unsupported platform
+            pltf["ids"].append(i)
+
+        for pltf_name in cmds:
+            pltf = cmds[pltf_name]
+            if len(pltf["ids"]) == 0:
+                continue
+            document = pltf["document"]
+            shell    = pltf["shell"]
+            pdb.set_trace()
+            response = client.send_command(
+                InstanceIds=pltf["ids"],
+                DocumentName=document,
+                TimeoutSeconds=timeout,
+                Comment=comment,
+                Parameters={
+                    'commands': shell
+                },
+                MaxConcurrency='100%',
+                MaxErrors='100%',
+                CloudWatchOutputConfig={
+                    'CloudWatchLogGroupName': self.context["SSMLogGroup"],
+                    'CloudWatchOutputEnabled': True
+                }
+            )
 
     def _get_maintenance_window_for_fleet(self, fleet=None):
         default_names             = self.maintenance_windows["__default__"]["Names"]
