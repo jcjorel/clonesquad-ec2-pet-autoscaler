@@ -230,6 +230,9 @@ def main_handler_entrypoint(event, context):
 
     ctx["o_notify"].notify_user_arn_resources()
 
+    # Send all pending SSM commands
+    ctx["o_ssm"].send_commands()
+
     # Call me back if needed
     sqs.call_me_back_send()
 

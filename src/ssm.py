@@ -153,10 +153,9 @@ class SSM:
             if "IPAddress" in info:           del info["IPAddress"]
             if "ComputerName" in info:        del info["ComputerName"]
         self.o_state.set_state_json("ssm.instance_infos", self.instance_infos, compress=True, TTL=ttl)
-        pdb.set_trace()
+        
+        # Update asynchronous results from previously launched commands
         self.update_pending_command_statuses()
-        print(self.run_command(["i-061d5ef4245f5fcd8","i-06c15c2ce4b800a50"], "INSTANCE_STATE_TRANSITION"))
-        self.send_commands()
 
     def is_instance_online(self, i):
         if isinstance(i, str):
