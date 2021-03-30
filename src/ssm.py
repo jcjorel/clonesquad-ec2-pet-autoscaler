@@ -173,9 +173,10 @@ class SSM:
         cmds   = self.run_cmd_states["Commands"]
         for cmd in cmds:
             if "Complete" not in cmd:
-                cmd_id = cmd["Id"]
-                response = client.list_command_invocations(CommandId=cmd_id, Details=True)
-                for invoc in response["CommandInvocations"]:
+                cmd_id            = cmd["Id"]
+                paginator         = client.get_paginator('list_command_invocations')
+                response_iterator = paginator.paginate(CommandId=cmd_id, Details=True)
+                for invoc in response_iterator["CommandInvocations"]:
                     instance_id = invoc["InstanceId"]
                     status      = invoc["Status"]
                     if (status not in ["Success", "Cancelled", "Failed", "TimedOut", "Undeliverable", 
