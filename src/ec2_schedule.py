@@ -1241,6 +1241,7 @@ By default, the dashboard is enabled.
                                                                # can't be part of a full scaleout sequence (so are useless to be rendered available)
         ids_to_stop                    = []
         too_much_cpu_crediting         = False
+        ssm_ready_for_shutdown_delay   = Cfg.get_duration_secs("ec2.schedule.draining.ssm_ready_for_shutdown_delay")
         for i in instances:
            instance_id = i["InstanceId"]
            # Refresh the TTL if the 'draining' operation takes a long time
@@ -1308,17 +1309,14 @@ By default, the dashboard is enabled.
            if True:
                # Check SSM based instance-ready-for-shutdown status
                ssm_hcheck = self.context["o_ssm"].run_command([instance_id], "INSTANCE_READY_FOR_SHUTDOWN", 
-                       comment="CS-InstanceReadyForShutdown")
+                       comment="CS-InstanceReadyForShutdown", return_former_results=True)
+               status = ""
                if instance_id in ssm_hcheck:
                    hcheck = ssm_hcheck[instance_id]
                    if len(hcheck["Warning"]):
                        log.warning(f"Got warning(s) while retrieving SSM ready-for-shutdown status for {instance_id} : %s" % hcheck["Details"])
                    status = hcheck["Status"]
-                   if status not in ["SUCCESS"]:
-                       log.log(log.NOTICE, f"Waiting for ready-for-shutdown status for {instance_id}...")
-                       continue
-               ssm_ready_for_shutdown_delay = Cfg.get_duration_secs("ec2.schedule.draining.ssm_ready_for_shutdown_delay")
-               if elapsed_time < timedelta(seconds=ssm_ready_for_shutdown_delay):
+               if status not in ["SUCCESS"] and elapsed_time < timedelta(seconds=ssm_ready_for_shutdown_delay):
                    log.log(log.NOTICE, f"Instance '{instance_id}' is waiting for ready-for-shutdown SSM status (elapsed_time=%d, "
                         "ec2.schedule.draining.ssm_ready_for_shutdown_delay={ssm_ready_for_shutdown_delay}): "
                         "Do not assess stop now..." % elapsed_time.total_seconds())
