@@ -277,7 +277,7 @@ the maximum time spent by CloneSquad to receive this signal before to forcibly s
                     """
                  },
                  "ec2.schedule.start.warmup_delay,Stable": {
-                    "DefaultValue": "minutes=2",
+                    "DefaultValue": "minutes=3",
                     "Format": "Duration",
                     "Description": """Minimum delay for node readiness.
 
@@ -618,6 +618,8 @@ By default, the dashboard is enabled.
                         "PreviousState" : previous_state,
                         "NewState": current_state
                     })
+                self.context["o_ssm"].run_command([instance_id], 
+                    "INSTANCE_STATE_TRANSITION", comment="CS-InstanceStateTransition", args=f"{previous_state} {current_state}")
             self.set_state("ec2.schedule.instance.last_known_state.%s" % instance_id, current_state)
         if len(transitions):
             # Generate an Event
@@ -691,14 +693,23 @@ By default, the dashboard is enabled.
             max_i -= 1
 
         # If instances are SSM ready, we retrieve the health status by calling a script on the instance itself
-        ssm_hcheck = self.context["o_ssm"].run_command([i["InstanceId"] for i in self.all_instances], 
+        young_instance_ids  = self.get_young_instance_ids()
+        pending_running_ids = [i["InstanceId"] for i in self.pending_running_instances 
+                if not i["InstanceId"] not in young_instance_ids and not self.ec2.is_instance_state(i["InstanceId"], ["initializing"])]
+        ssm_hcheck = self.context["o_ssm"].run_command([i["InstanceId"] for i in self.pending_running_instances], 
                 "INSTANCE_HEALTHCHECK", comment="CS-InstanceHealthCheck", return_former_results=True)
-        for instance_id in ssm_hcheck:
-            hcheck = ssm_hcheck[instance_id]
+        for instance_id in pending_running_ids:
+            hcheck = ssm_hcheck.get(instance_id)
+            if hcheck is None:
+                log.log(log.NOTICE, f"Instance {instance_id} is not returning a 'READY' SSM HealthCheck... "
+                        "Assuming unhealthy...")
+                if instance_id not in instances_with_issue_ids:
+                    instances_with_issue_ids.append(instance_id)
+                continue
             if len(hcheck["Warning"]):
                 log.warning(f"Got warning(s) while retrieving SSM healthcheck for {instance_id} : %s" % hcheck["Details"])
             status = hcheck["Status"]
-            if status in ["ERROR", "FAILED"] and instance_id not in instances_with_issue_ids:
+            if status not in ["SUCCESS"] and instance_id not in instances_with_issue_ids:
                 log.info(f"Got {status} while retrieving SSM healthcheck for {instance_id} : %s" % hcheck["Details"])
                 instances_with_issue_ids.append(instance_id)
 

@@ -12,18 +12,24 @@ function cs_echo()
 
 function run_user_scripts()
 {
-	subdir=$1
-	(
-		cd $CS_SSM_AGENT_SCRIPT_DIR
-		for file in $subdir/*
-		do
-			if [ -f $file ] ; then
-				cs_echo "USER-SCRIPT" "START"
-				(set +e ; $file)
-				cs_echo "USER-SCRIPT" "END"
-			fi
-		done
-	)
+	subdir=$CS_SSM_AGENT_SCRIPT_DIR/$1
+	shift
+	if [ -d $subdir ] ; then
+		(
+			cd $subdir
+			for file in $subdir/*
+			do
+				if [ -x $file ] ; then
+					cs_echo "USER-SCRIPT" "START:$*"
+					(set +e ; $file $*)
+					cs_echo "USER-SCRIPT" "END"
+				elif [ -f $file ] ; then
+					cs_echo "USER-SCRIPT" "WARNING:SCRIPT_PERMISSION:$file"
+					cs_echo "DETAILS" "File $file is not executable!"
+				fi
+			done
+		)
+	fi
 	cs_echo "STATUS" "SUCCESS"
 }
 
@@ -55,15 +61,16 @@ function main()
 
 	#env | (while read LINE ; do cs_echo "ENV" "$LINE" ; done)
 	if ! [ -d $CS_SSM_AGENT_SCRIPT_DIR ] ; then
-		cs_echo "USER-SCRIPT" "WARNING:MISSING_AGENT_DIR:$CS_SSM_AGENT_SCRIPT_DIR"
+		cs_echo "MAIN" "WARNING:MISSING_AGENT_DIR:$CS_SSM_AGENT_SCRIPT_DIR"
 		cs_echo "DETAILS" "Directory $CS_SSM_AGENT_SCRIPT_DIR doesn't exist on instance $AWS_SSM_INSTANCE_ID!"
 	fi
 
 	CMD=$1
-	cs_echo "$CMD" "START"
+	shift
+	cs_echo "$CMD" "START:$*"
 	case $CMD in
 	INSTANCE_STATE_TRANSITION)
-		run_user_scripts $*
+		run_user_scripts instance-state-transition $*
 	;;
 	INSTANCE_HEALTHCHECK)
 		probe_test instance-health-check \

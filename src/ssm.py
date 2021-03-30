@@ -41,7 +41,7 @@ class SSM:
         Cfg.register({
             "ssm.state.default_ttl": "hours=1",
             "ssm.state.command.default_ttl": "minutes=10",
-            "ssm.state.command.result.default_ttl": "minutes=30",
+            "ssm.state.command.result.default_ttl": "minutes=5",
             "ssm.maintenance_window.start_ahead": "minutes=15",
             "ssm.maintenance_window.defaults": "CS-{GroupName}",
             "ssm.maintenance_window.mainfleet.defaults": "CS-{GroupName}-__main__",
@@ -177,7 +177,7 @@ class SSM:
         former_results = self.run_cmd_states["FormerResults"]
         cmds           = self.run_cmd_states["Commands"]
         for cmd in cmds:
-            command    = cmd["Cmd"]
+            command    = cmd["Command"]
             if "Complete" not in cmd:
                 cmd_id            = cmd["Id"]
                 paginator         = client.get_paginator('list_command_invocations')
@@ -227,21 +227,23 @@ class SSM:
         former_results  = self.run_cmd_states["FormerResults"]
         non_pending_ids = []
         for i in instance_ids:
-            pending_cmd = next(filter(lambda c: c["Cmd"] == command and i in c["InstanceIds"], self.run_cmd_states["Commands"]), None) 
+            pending_cmd = next(filter(lambda c: c["Command"] == command and c["CommandArgs"] == args 
+                and i in c["InstanceIds"], self.run_cmd_states["Commands"]), None) 
+            former_result_status = former_results.get(i,{}).get(command,{}).get("Status")
             if pending_cmd is None:
                 non_pending_ids.append(i)
-                if return_former_results and former_results.get(i,{}).get(command):
+                if return_former_results and isinstance(former_result_status, str):
                     r[i] = former_results[i][command]
                 continue
             if i not in pending_cmd["Results"]:
-                if return_former_results and former_results.get(i,{}).get(command):
+                if return_former_results and isinstance(former_result_status, str):
                     r[i] = former_results[i][command]
                 continue
             r[i] = pending_cmd["Results"][i]
             r[i]["Replied"] = True
         # Coalesce run reqs with similar command
         for i in non_pending_ids:
-            cmd_to_send = next(filter(lambda c: c["Command"] == command, self.commands_to_send), None)
+            cmd_to_send = next(filter(lambda c: c["Command"] == command and c["CommandArgs"] == args, self.commands_to_send), None)
             if cmd_to_send:
                 if i in cmd_to_send["InstanceIds"]:
                     continue
@@ -333,7 +335,8 @@ class SSM:
                         self.run_cmd_states["Commands"].append({
                             "Id": response["Command"]["CommandId"],
                             "InstanceIds": i_ids[:50],
-                            "Cmd": command,
+                            "Command": command,
+                            "CommandArgs": args,
                             "Results": {},
                             "Expiration": misc.seconds_from_epoch_utc() + Cfg.get_duration_secs("ssm.state.command.default_ttl")
                         })
