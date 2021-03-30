@@ -692,7 +692,7 @@ By default, the dashboard is enabled.
 
         # If instances are SSM ready, we retrieve the health status by calling a script on the instance itself
         ssm_hcheck = self.context["o_ssm"].run_command([i["InstanceId"] for i in self.all_instances], 
-                "INSTANCE_HEALTHCHECK", comment="CS-InstanceHealthCheck")
+                "INSTANCE_HEALTHCHECK", comment="CS-InstanceHealthCheck", return_former_results=True)
         for instance_id in ssm_hcheck:
             hcheck = ssm_hcheck[instance_id]
             if len(hcheck["Warning"]):

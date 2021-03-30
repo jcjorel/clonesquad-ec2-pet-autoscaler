@@ -41,6 +41,7 @@ class SSM:
         Cfg.register({
             "ssm.state.default_ttl": "hours=1",
             "ssm.state.command.default_ttl": "minutes=10",
+            "ssm.state.command.result.default_ttl": "minutes=30",
             "ssm.maintenance_window.start_ahead": "minutes=15",
             "ssm.maintenance_window.defaults": "CS-{GroupName}",
             "ssm.maintenance_window.mainfleet.defaults": "CS-{GroupName}-__main__",
@@ -169,11 +170,14 @@ class SSM:
     def update_pending_command_statuses(self):
         client = self.context["ssm.client"]
         self.run_cmd_states = self.o_state.get_state_json("ssm.run_commands", default={
-            "Commands": []
+            "Commands": [],
+            "FormerResults": {}
             })
 
-        cmds   = self.run_cmd_states["Commands"]
+        former_results = self.run_cmd_states["FormerResults"]
+        cmds           = self.run_cmd_states["Commands"]
         for cmd in cmds:
+            command    = cmd["Cmd"]
             if "Complete" not in cmd:
                 cmd_id            = cmd["Id"]
                 paginator         = client.get_paginator('list_command_invocations')
@@ -204,24 +208,34 @@ class SSM:
                             "Status": status_msg,
                             "Details": details_msg,
                             "Warning": warning_msg,
-                            "Truncated": bie_msg is None
+                            "Truncated": bie_msg is None,
+                            "Expiration": misc.seconds_from_epoch_utc() + Cfg.get_duration_secs("ssm.state.command.result.default_ttl")
                         }
+                        # Keep track if the former result list
+                        if instance_id not in former_results: former_results[instance_id] = {}
+                        former_results[instance_id][command] = cmd["Results"][instance_id]
+
                     if set(cmd["Results"].keys()) & set(cmd["InstanceIds"]) == set(cmd["InstanceIds"]):
                         # All invocation results received
                         cmd["Complete"] = True
         self.o_state.set_state_json("ssm.run_commands", self.run_cmd_states, compress=True, TTL=Cfg.get_duration_secs("ssm.state.default_ttl"))
         self.commands_to_send = []
 
-    def run_command(self, instance_ids, command, args="", comment="", timeout=30):
+    def run_command(self, instance_ids, command, args="", comment="", timeout=30, return_former_results=False):
         r = {}
         # Step 1) Check if a command is already pending for this combination of instance ids and command
+        former_results  = self.run_cmd_states["FormerResults"]
         non_pending_ids = []
         for i in instance_ids:
             pending_cmd = next(filter(lambda c: c["Cmd"] == command and i in c["InstanceIds"], self.run_cmd_states["Commands"]), None) 
             if pending_cmd is None:
                 non_pending_ids.append(i)
+                if return_former_results and former_results.get(i,{}).get(command):
+                    r[i] = former_results[i][command]
                 continue
             if i not in pending_cmd["Results"]:
+                if return_former_results and former_results.get(i,{}).get(command):
+                    r[i] = former_results[i][command]
                 continue
             r[i] = pending_cmd["Results"][i]
             r[i]["Replied"] = True
@@ -261,11 +275,20 @@ class SSM:
                     if "Replied" in cmd["Results"][r]:
                         del cmd["Results"][r]
                     if len(cmd["Results"]) == 0: # Latest instance id read for this cmd. Discard the record
-                        self.run_cmd_states["Commands"].remove(cmd) 
+                        outdated_cmds.append(cmd)
+                        continue
             if cmd["Expiration"] < misc.seconds_from_epoch_utc():
                 outdated_cmds.append(cmd)
         # Remove stale command replies
         [self.run_cmd_states["Commands"].remove(c) for c in outdated_cmds]
+        # Purge outdated former results
+        former_results  = self.run_cmd_states["FormerResults"]
+        for i in list(former_results.keys()):
+            for cmd in list(former_results[i].keys()):
+                if former_results[i][cmd]["Expiration"] < misc.seconds_from_epoch_utc():
+                    del former_results[i][cmd]
+            if len(former_results[i].keys()) == 0:
+                del former_results[i]
 
         # Send commands
         for cmd in self.commands_to_send:
