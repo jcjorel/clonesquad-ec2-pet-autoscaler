@@ -58,6 +58,7 @@ class SSM:
             }
             ])
 
+    @xray_recorder.capture()
     def get_prerequisites(self):
         """ Gather instance status by calling SSM APIs.
         """
@@ -164,6 +165,7 @@ class SSM:
         launch_time = i["LaunchTime"]
         return next(filter(lambda i: i["InstanceId"] == instance_id and i["LastPingDateTime"] > launch_time and i["PingStatus"] == "Online", self.instance_infos), None) 
 
+    @xray_recorder.capture()
     def update_pending_command_statuses(self):
         client = self.context["ssm.client"]
         self.run_cmd_states = self.o_state.get_state_json("ssm.run_commands", default={
@@ -176,36 +178,37 @@ class SSM:
                 cmd_id            = cmd["Id"]
                 paginator         = client.get_paginator('list_command_invocations')
                 response_iterator = paginator.paginate(CommandId=cmd_id, Details=True)
-                for invoc in response_iterator["CommandInvocations"]:
-                    instance_id = invoc["InstanceId"]
-                    status      = invoc["Status"]
-                    if (status not in ["Success", "Cancelled", "Failed", "TimedOut", "Undeliverable", 
-                            "Terminated", "Delivery Timed Out", "Execution Timed Out"]):
-                        continue
-                    stdout      = [s.rstrip() for s in io.StringIO(invoc["CommandPlugins"][0]["Output"]).readlines() if s.startswith("CLONESQUAD-SSM-AGENT-")]
-                    bie_msg     = next(filter(lambda s: s.startswith("CLONESQUAD-SSM-AGENT-BIE:"), stdout), None)
-                    if not bie_msg:
-                        log.warning(f"Truncated reply from SSM Command Invocation ({cmd_id}/{instance_id}). "
-                            "Started shell command too verbose? (please limit to 24kBytes max!)")
-                    status_msg  = next(filter(lambda s: s.startswith("CLONESQUAD-SSM-AGENT-STATUS:"), stdout), None)
-                    if status_msg is None:
-                        status_msg = "ERROR"
-                    else:
-                        status_msg = status_msg[len("CLONESQUAD-SSM-AGENT-STATUS:"):]
-                    details_msg = list(filter(lambda s: s.startswith("CLONESQUAD-SSM-AGENT-DETAILS:"), stdout))
-                    warning_msg = list(filter(lambda s: ":WARNING:" in s, stdout))
+                for response in response_iterator:
+                    for invoc in response["CommandInvocations"]:
+                        instance_id = invoc["InstanceId"]
+                        status      = invoc["Status"]
+                        if (status not in ["Success", "Cancelled", "Failed", "TimedOut", "Undeliverable", 
+                                "Terminated", "Delivery Timed Out", "Execution Timed Out"]):
+                            continue
+                        stdout      = [s.rstrip() for s in io.StringIO(invoc["CommandPlugins"][0]["Output"]).readlines() if s.startswith("CLONESQUAD-SSM-AGENT-")]
+                        bie_msg     = next(filter(lambda s: s.startswith("CLONESQUAD-SSM-AGENT-BIE:"), stdout), None)
+                        if not bie_msg:
+                            log.warning(f"Truncated reply from SSM Command Invocation ({cmd_id}/{instance_id}). "
+                                "Started shell command too verbose? (please limit to 24kBytes max!)")
+                        status_msg  = next(filter(lambda s: s.startswith("CLONESQUAD-SSM-AGENT-STATUS:"), stdout), None)
+                        if status_msg is None:
+                            status_msg = "ERROR"
+                        else:
+                            status_msg = status_msg[len("CLONESQUAD-SSM-AGENT-STATUS:"):]
+                        details_msg = list(filter(lambda s: s.startswith("CLONESQUAD-SSM-AGENT-DETAILS:"), stdout))
+                        warning_msg = list(filter(lambda s: ":WARNING:" in s, stdout))
 
-                    cmd["Results"][instance_id] = {
-                        "SSMInvocationStatus": status,
-                        "Output": stdout,
-                        "Status": status_msg,
-                        "Details": details_msg,
-                        "Warning": warning_msg,
-                        "Truncated": bie_msg is None
-                    }
-                if set(cmd["Results"].keys()) & set(cmd["InstanceIds"]) == set(cmd["InstanceIds"]):
-                    # All invocation results received
-                    cmd["Complete"] = True
+                        cmd["Results"][instance_id] = {
+                            "SSMInvocationStatus": status,
+                            "Output": stdout,
+                            "Status": status_msg,
+                            "Details": details_msg,
+                            "Warning": warning_msg,
+                            "Truncated": bie_msg is None
+                        }
+                    if set(cmd["Results"].keys()) & set(cmd["InstanceIds"]) == set(cmd["InstanceIds"]):
+                        # All invocation results received
+                        cmd["Complete"] = True
         self.o_state.set_state_json("ssm.run_commands", self.run_cmd_states, compress=True, TTL=Cfg.get_duration_secs("ssm.state.default_ttl"))
         self.commands_to_send = []
 
@@ -217,6 +220,8 @@ class SSM:
             pending_cmd = next(filter(lambda c: c["Cmd"] == command and i in c["InstanceIds"], self.run_cmd_states["Commands"]), None) 
             if pending_cmd is None:
                 non_pending_ids.append(i)
+                continue
+            if i not in pending_cmd["Results"]:
                 continue
             r[i] = pending_cmd["Results"][i]
             r[i]["Replied"] = True
@@ -237,6 +242,7 @@ class SSM:
                     })
         return r
 
+    @xray_recorder.capture()
     def send_commands(self):        
         client = self.context["ssm.client"]
         refs   = {
@@ -248,16 +254,19 @@ class SSM:
             }
         }
         # Purge already replied results
-        for cmd in self.run_cmd_states["Commands"].copy():
-            if cmd["Complete"]:
+        outdated_cmds = []
+        for cmd in self.run_cmd_states["Commands"]:
+            if cmd.get("Complete"):
                 for r in list(cmd["Results"].keys()):
                     if "Replied" in cmd["Results"][r]:
                         del cmd["Results"][r]
                     if len(cmd["Results"]) == 0: # Latest instance id read for this cmd. Discard the record
                         self.run_cmd_states["Commands"].remove(cmd) 
             if cmd["Expiration"] < misc.seconds_from_epoch_utc():
-                # Remove stale command reply
-                self.run_cmd_states["Commands"].remove(cmd) 
+                outdated_cmds.append(cmd)
+        # Remove stale command replies
+        [self.run_cmd_states["Commands"].remove(c) for c in outdated_cmds]
+
         # Send commands
         for cmd in self.commands_to_send:
             for i in cmd["InstanceIds"]:
@@ -268,7 +277,8 @@ class SSM:
                 if pltf is None:
                     log.warning("Can't run a command on an unsupported platform : %s" % info["PlatformType"])
                     continue # Unsupported platform
-                pltf["ids"].append(i)
+                if i not in pltf["ids"]:
+                    pltf["ids"].append(i)
 
             for pltf_name in refs:
                 pltf     = refs[pltf_name]
@@ -280,28 +290,33 @@ class SSM:
                 shell    = pltf["shell"]
                 i_ids    = pltf["ids"]
                 while len(i_ids):
-                    response = client.send_command(
-                        InstanceIds=i_ids[:50],
-                        DocumentName=document,
-                        TimeoutSeconds=cmd["Timeout"],
-                        Comment=cmd["Comment"],
-                        Parameters={
-                            'commands': [l.replace("##CMD##", command).replace("##ARGS##", args) for l in shell]
-                        },
-                        MaxConcurrency='100%',
-                        MaxErrors='100%',
-                        CloudWatchOutputConfig={
-                            'CloudWatchLogGroupName': self.context["SSMLogGroup"],
-                            'CloudWatchOutputEnabled': True
-                        }
-                    )
-                    self.run_cmd_states["Commands"].append({
-                        "Id": response["Command"]["CommandId"],
-                        "InstanceIds": i_ids[:50],
-                        "Cmd": command,
-                        "Results": {},
-                        "Expiration": misc.seconds_from_epoch_utc() + Cfg.get_duration_secs("ssm.state.command.default_ttl")
-                    })
+                    try:
+                        response = client.send_command(
+                            InstanceIds=i_ids[:50],
+                            DocumentName=document,
+                            TimeoutSeconds=cmd["Timeout"],
+                            Comment=cmd["Comment"],
+                            Parameters={
+                                'commands': [l.replace("##CMD##", command).replace("##ARGS##", args) for l in shell],
+                                'executionTimeout': [str(cmd["Timeout"])]
+                            },
+                            MaxConcurrency='100%',
+                            MaxErrors='100%',
+                            CloudWatchOutputConfig={
+                                'CloudWatchLogGroupName': self.context["SSMLogGroup"],
+                                'CloudWatchOutputEnabled': True
+                            }
+                        )
+                        self.run_cmd_states["Commands"].append({
+                            "Id": response["Command"]["CommandId"],
+                            "InstanceIds": i_ids[:50],
+                            "Cmd": command,
+                            "Results": {},
+                            "Expiration": misc.seconds_from_epoch_utc() + Cfg.get_duration_secs("ssm.state.command.default_ttl")
+                        })
+                    except Exception as e:
+                        # Under rare circumstance, we can receive an Exception while trying to send
+                        log.log(log.NOTICE, f"Failed to do SSM SendCommand : {e}, %s" % i_ids[:50])
                     i_ids = i_ids[50:]
         self.o_state.set_state_json("ssm.run_commands", self.run_cmd_states, compress=True, TTL=Cfg.get_duration_secs("ssm.state.default_ttl"))
 

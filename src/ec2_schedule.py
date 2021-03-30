@@ -49,6 +49,7 @@ from notify import record_call as R
 import sqs
 import kvtable
 import misc
+import ssm
 import config as Cfg
 import debug as Dbg
 from subfleet import get_subfleet_key
@@ -266,6 +267,15 @@ is enabled, from an instance type distribution PoV.
                  "ec2.schedule.bounce_instance_cooldown" : 'minutes=10',
                  "ec2.schedule.bounce.instances_with_issue_grace_period": "minutes=5",
                  "ec2.schedule.draining.instance_cooldown": "minutes=2",
+                 "ec2.schedule.draining.ssm_ready_for_shutdown_delay,Stable": {
+                         "DefaultValue": "hours=2",
+                         "Format": "Duration",
+                         "Description": """ Maximum time to spend waiting for SSM based ready-for-shutdown status.
+
+When SSM support is enabled, instances must notify CloenSquad when they are ready for shutdown. This setting defines
+the maximum time spent by CloneSquad to receive this signal before to forcibly shutdown the instance.
+                    """
+                 },
                  "ec2.schedule.start.warmup_delay,Stable": {
                     "DefaultValue": "minutes=2",
                     "Format": "Duration",
@@ -679,6 +689,18 @@ By default, the dashboard is enabled.
                 continue
             instances_with_issue_ids.append(i)
             max_i -= 1
+
+        # If instances are SSM ready, we retrieve the health status by calling a script on the instance itself
+        ssm_hcheck = self.context["o_ssm"].run_command([i["InstanceId"] for i in self.all_instances], 
+                "INSTANCE_HEALTHCHECK", comment="CS-InstanceHealthCheck")
+        for instance_id in ssm_hcheck:
+            hcheck = ssm_hcheck[instance_id]
+            if len(hcheck["Warning"]):
+                log.warning(f"Got warning(s) while retrieving SSM healthcheck for {instance_id} : %s" % hcheck["Details"])
+            status = hcheck["Status"]
+            if status in ["ERROR", "FAILED"] and instance_id not in instances_with_issue_ids:
+                log.info(f"Got {status} while retrieving SSM healthcheck for {instance_id} : %s" % hcheck["Details"])
+                instances_with_issue_ids.append(instance_id)
 
         return instances_with_issue_ids
 
@@ -1264,13 +1286,33 @@ By default, the dashboard is enabled.
                continue
 
            draining_date = meta["last_draining_date"]
-           if draining_date is not None:
-               elapsed_time  = now - draining_date
-               cooldown      = Cfg.get_duration_secs("ec2.schedule.draining.instance_cooldown")
-               if elapsed_time < timedelta(seconds=cooldown):
-                   log.log(log.NOTICE, "Instance '%s' is still in draining cooldown period (elapsed_time=%d, ec2.schedule.draining.instance_cooldown=%d): "
-                        "Do not assess stop now..." % (instance_id, elapsed_time.total_seconds(), cooldown))
+           #if draining_date is not None:
+           elapsed_time  = now - draining_date
+           cooldown      = Cfg.get_duration_secs("ec2.schedule.draining.instance_cooldown")
+           if elapsed_time < timedelta(seconds=cooldown):
+               log.log(log.NOTICE, "Instance '%s' is still in draining cooldown period (elapsed_time=%d, ec2.schedule.draining.instance_cooldown=%d): "
+                    "Do not assess stop now..." % (instance_id, elapsed_time.total_seconds(), cooldown))
+               continue
+
+           if True:
+               # Check SSM based instance-ready-for-shutdown status
+               ssm_hcheck = self.context["o_ssm"].run_command([instance_id], "INSTANCE_READY_FOR_SHUTDOWN", 
+                       comment="CS-InstanceReadyForShutdown")
+               if instance_id in ssm_hcheck:
+                   hcheck = ssm_hcheck[instance_id]
+                   if len(hcheck["Warning"]):
+                       log.warning(f"Got warning(s) while retrieving SSM ready-for-shutdown status for {instance_id} : %s" % hcheck["Details"])
+                   status = hcheck["Status"]
+                   if status not in ["SUCCESS"]:
+                       log.log(log.NOTICE, f"Waiting for ready-for-shutdown status for {instance_id}...")
+                       continue
+               ssm_ready_for_shutdown_delay = Cfg.get_duration_secs("ec2.schedule.draining.ssm_ready_for_shutdown_delay")
+               if elapsed_time < timedelta(seconds=ssm_ready_for_shutdown_delay):
+                   log.log(log.NOTICE, f"Instance '{instance_id}' is waiting for ready-for-shutdown SSM status (elapsed_time=%d, "
+                        "ec2.schedule.draining.ssm_ready_for_shutdown_delay={ssm_ready_for_shutdown_delay}): "
+                        "Do not assess stop now..." % elapsed_time.total_seconds())
                    continue
+
            ids_to_stop.append(instance_id)
 
         # Configure NbOfCPUCreditingInstances metric
