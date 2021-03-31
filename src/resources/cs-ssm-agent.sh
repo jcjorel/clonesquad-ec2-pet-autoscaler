@@ -73,7 +73,7 @@ function main()
 		run_user_scripts instance-state-transition $*
 	;;
 	INSTANCE_HEALTHCHECK)
-		probe_test instance-health-check \
+		probe_test instance-healthcheck \
 			"instance $AWS_SSM_INSTANCE_ID is HEALTHY!" "instance $AWS_SSM_INSTANCE_ID is UNHEALTHY!"
 	;;
 	INSTANCE_READY_FOR_OPERATION)

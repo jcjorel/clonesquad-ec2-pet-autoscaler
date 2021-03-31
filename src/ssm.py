@@ -68,7 +68,7 @@ class SSM:
         """ Gather instance status by calling SSM APIs.
         """
         if not Cfg.get_int("ssm.enable"):
-            log.log(log.NOTICE, "SSM is currently disabled. Set ssm.enable to 1 to enabled it.")
+            log.log(log.NOTICE, "SSM support is currently disabled. Set ssm.enable to 1 to enabled it.")
             return
         now       = self.context["now"]
         ttl       = Cfg.get_duration_secs("ssm.state.default_ttl")
