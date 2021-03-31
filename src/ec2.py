@@ -390,6 +390,24 @@ without any TargetGroup but another external health instance source exists).
                             (instance_id, self.ec2_status_override_url, override_status))
                 else:
                     return override_status in state
+
+        o_ssm = self.context["o_ssm"]
+        if "initializing" in state and o_ssm.is_feature_enabled("ec2.instance_ready_for_operation"):
+            last_ready_date = self.get_state_date(f"ec2.instance.ssm.ready_for_operation_date.{instance_id}",
+                    TTL=Cfg.get_duration_secs("ec2.state.status_ttl"))
+            if last_ready_date is not None and self.get_instance_by_id(instance_id)["LaunchTime"] < last_ready_date:
+                return i["InstanceStatus"]["Status"] in state
+            readyness = o_ssm.run_command([instance_id], "INSTANCE_READY_FOR_OPERATION", 
+                    comment="CS-InstanceReadyForOperation (%s)" % self.context["GroupName"], return_former_results=True)
+            if readyness.get(instance_id) and len(readyness[instance_id]["Warning"]):
+                log.warning(f"Got warning(s) while retrieving InstanceReadyForOperation SSM status for {instance_id} : %s" % 
+                        readyness[instance_id]["Details"])
+            status    = readyness.get(instance_id, {}).get("Status")
+            if status != "SUCCESS":
+                log.log(log.NOTICE, f"Waiting for InstanceReadyForOperation SSM status for {instance_id}...")
+                return True
+            self.set_state(f"ec2.instance.ssm.ready_for_operation_date.{instance_id}", self.context["now"],
+                    TTL=Cfg.get_duration_secs("ec2.state.status_ttl"))
         
         return i["InstanceStatus"]["Status"] in state 
 
@@ -1019,34 +1037,23 @@ without any TargetGroup but another external health instance source exists).
             return filtered_r
         return r
 
-    def get_state(self, key, default=None, direct=False):
-        if self.state_table is None or direct: 
-            return kvtable.KVTable.get_kv_direct(key, self.context["StateTable"], context=self.context, default=default)
-        return self.state_table.get_kv(key, default=default, direct=direct)
+    def get_state(self, key, default=None, direct=False, TTL=None):
+        return self.o_state.get_state(key, default=default, direct=direct, TTL=TTL)
 
-    def get_state_int(self, key, default=0, direct=False):
-        try:
-            return int(self.get_state(key, direct=direct))
-        except:
-            return default
+    def get_state_int(self, key, default=0, direct=False, TTL=None):
+        return self.o_state.get_state_int(key, default=default, direct=direct, TTL=TTL)
 
-    def get_state_json(self, key, default=None, direct=False):
-        return self.o_state.get_state_json(key, default=default, direct=direct)
+    def get_state_json(self, key, default=None, direct=False, TTL=None):
+        return self.o_state.get_state_json(key, default=default, direct=direct, TTL=TTL)
 
     def set_state_json(self, key, value, compress=True, TTL=0):
         self.o_state.set_state_json(key, value, compress=compress, TTL=TTL)
 
-    def get_state_date(self, key, default=None, direct=False):
-        d = self.get_state(key, default=default, direct=direct)
-        if d is None or d == "": return default
-        try:
-            date = datetime.fromisoformat(d)
-        except:
-            return default
-        return date
+    def get_state_date(self, key, default=None, direct=False, TTL=None):
+        return self.o_state.get_state_date(key, default=default, direct=direct, TTL=TTL)
 
-    def set_state(self, key, value, TTL=None):
-        self.state_table.set_kv(key, value, TTL=TTL)
+    def set_state(self, key, value, direct=False, TTL=None):
+        self.o_state.set_state(key, value, direct=direct, TTL=TTL)
 
     ### 
     # State management with temporal integration

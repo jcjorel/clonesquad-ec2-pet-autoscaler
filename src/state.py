@@ -8,6 +8,8 @@ import kvtable
 import misc
 import re
 import itertools
+from datetime import datetime
+from datetime import timedelta
 
 from aws_xray_sdk.core import xray_recorder
 from aws_xray_sdk.core import patch_all
@@ -78,28 +80,47 @@ class StateManager:
     def register_aggregates(self, aggregates):
         self.table_aggregates.append(aggregates)
 
-    def get_metastring_list(self, key, default=None):
-        value = self.table.get_kv(key)
+    def get_metastring_list(self, key, default=None, TTL=None):
+        value = self.get_state(key, default=default, TTL=TTL)
         return misc.parse_line_as_list_of_dict(value, default=default)
 
-    def get_metastring(self, key, default=None):
-        value = get_metastring_list(key)
+    def get_metastring(self, key, default=None, TTL=None):
+        value = get_metastring_list(key, default=default, TTL=TTL)
         if value is None or len(value) == 0:
             return default
         return value[0]
 
-    def set_state(self, key, value, TTL=0):
-        self.table.set_kv(key, value, TTL=TTL)
-
-    def get_state(self, key, direct=False):
-        if direct:
-            return kvtable.KVTable.get_kv_direct(key, self.context["StateTable"])
+    def set_state(self, key, value, direct=False, TTL=0):
+        if direct or self.table is None:
+            kvtable.KVTable.set_kv_direct(key, value, self.context["StateTable"], TTL=TTL)
         else:
-            return self.table.get_kv(key)
+            self.table.set_kv(key, value, TTL=TTL)
 
-    def get_state_json(self, key, default=None, direct=False):
+    def get_state(self, key, default=None, direct=False, TTL=None):
+        if direct or self.table is None:
+            return kvtable.KVTable.get_kv_direct(key, self.context["StateTable"], default=default, TTL=TTL)
+        else:
+            return self.table.get_kv(key, default=default, TTL=TTL)
+
+    def get_state_date(self, key, default=None, direct=False, TTL=None):
+        d = self.get_state(key, default=default, direct=direct, TTL=TTL)
+        if d is None or d == "": return default
         try:
-            v = misc.decode_json(self.get_state(key, direct=direct))
+            date = datetime.fromisoformat(d)
+        except:
+            return default
+        return date
+
+    def get_state_int(self, key, default=0, direct=False, TTL=None):
+        try:
+            return int(self.get_state(key, direct=direct, TTL=None))
+        except:
+            return default
+
+
+    def get_state_json(self, key, default=None, direct=False, TTL=None):
+        try:
+            v = misc.decode_json(self.get_state(key, direct=direct, TTL=TTL))
             return v if v is not None else default
         except:
             return default

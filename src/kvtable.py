@@ -310,7 +310,7 @@ class KVTable():
                 return None
         return None
 
-    def get_kv_direct(key, table_name, default=None, context=None):
+    def get_kv_direct(key, table_name, default=None, context=None, TTL=None):
         if context is None:
             client = boto3.client("dynamodb")
         else:
@@ -330,8 +330,12 @@ class KVTable():
             )
         if "Item" not in response:
             return default
-        item = response["Item"]
-        return item["Value"][list(item["Value"].keys())[0]]
+        item  = response["Item"]
+        value = item["Value"][list(item["Value"].keys())[0]]
+        if TTL != 0 and TTL is not None:
+            # Refresh TTL
+            set_kv_direct(key, value, table_name, partition=partition, TTL=TTL, context=context)
+        return value
 
     def set_kv_direct(key, value, table_name, partition=None, TTL=None, context=None):
         if context is None:
@@ -355,7 +359,7 @@ class KVTable():
                     'S': str(value)
                 }
             }
-            if TTL != 0:
+            if TTL != 0 and TTL is not None:
                 log.log(log.NOTICE, f"Writing DynamoDB key '{key}' with TTL={TTL}")
                 expiration_time = misc.seconds_from_epoch_utc(now=now) + TTL
                 query.update({
@@ -369,14 +373,16 @@ class KVTable():
                 Item=query
                 )
 
-    def get_kv(self, key, partition=None, default=None, direct=False):
+    def get_kv(self, key, partition=None, default=None, direct=False, TTL=None):
         if direct:
-            return self.get_kv_direct(key, self.table_name, default=default)
+            return self.get_kv_direct(key, self.table_name, default=default, TTL=TTL)
 
         client = self.context["dynamodb.client"]
         item = self.get_item(key, partition=partition)
         if item is None:
             return default
+        if TTL != 0 and TTL is not None:
+            self.set_kv(key, item["Value"], partition=partition, TTL=TTL)
         return item["Value"]
 
     def set_kv(self, key, value, partition=None, TTL=None):

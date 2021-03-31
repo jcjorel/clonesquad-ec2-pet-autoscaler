@@ -112,9 +112,9 @@ def seconds2utc(seconds):
 def str2utc(s, default=None):
     if isinstance(s, datetime):
         return s
-    if s.endswith("Z"):
-        s = s[:-1] + "+00:00"
     try:
+        if s.endswith("Z"):
+            s = s[:-1] + "+00:00"
         return datetime.fromisoformat(s)
     except:
         return default

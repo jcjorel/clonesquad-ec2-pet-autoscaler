@@ -39,6 +39,10 @@ class SSM:
         GroupName                    = self.context["GroupName"]
 
         Cfg.register({
+            "ssm.enable": "0",
+            "ssm.feature.ec2.instance_ready_for_shutdown": "0",
+            "ssm.feature.ec2.instance_ready_for_operation": "0",
+            "ssm.feature.ec2.instance_healthcheck": "0",
             "ssm.state.default_ttl": "hours=1",
             "ssm.state.command.default_ttl": "minutes=10",
             "ssm.state.command.result.default_ttl": "minutes=5",
@@ -63,6 +67,9 @@ class SSM:
     def get_prerequisites(self):
         """ Gather instance status by calling SSM APIs.
         """
+        if not Cfg.get_int("ssm.enable"):
+            log.log(log.NOTICE, "SSM is currently disabled. Set ssm.enable to 1 to enabled it.")
+            return
         now       = self.context["now"]
         ttl       = Cfg.get_duration_secs("ssm.state.default_ttl")
         GroupName = self.context["GroupName"]
@@ -159,6 +166,12 @@ class SSM:
         # Update asynchronous results from previously launched commands
         self.update_pending_command_statuses()
 
+
+    def is_feature_enabled(self, feature):
+        if not Cfg.get_int("ssm.enable"):
+            return False
+        return Cfg.get_int(f"ssm.feature.{feature}")
+
     def is_instance_online(self, i):
         if isinstance(i, str):
             i = self.o_ec2.get_instance_by_id(i)
@@ -177,11 +190,12 @@ class SSM:
         former_results = self.run_cmd_states["FormerResults"]
         cmds           = self.run_cmd_states["Commands"]
         for cmd in cmds:
-            command    = cmd["Command"]
+            command = cmd["Command"]
+            args    = cmd["CommandArgs"]
             if "Complete" not in cmd:
                 cmd_id            = cmd["Id"]
                 paginator         = client.get_paginator('list_command_invocations')
-                response_iterator = paginator.paginate(CommandId=cmd_id, Details=True)
+                response_iterator = paginator.paginate(CommandId=cmd_id, Details=True, MaxResults=50)
                 for response in response_iterator:
                     for invoc in response["CommandInvocations"]:
                         instance_id = invoc["InstanceId"]
@@ -189,7 +203,8 @@ class SSM:
                         if (status not in ["Success", "Cancelled", "Failed", "TimedOut", "Undeliverable", 
                                 "Terminated", "Delivery Timed Out", "Execution Timed Out"]):
                             continue
-                        stdout      = [s.rstrip() for s in io.StringIO(invoc["CommandPlugins"][0]["Output"]).readlines() if s.startswith("CLONESQUAD-SSM-AGENT-")]
+                        stdout      = [s.rstrip() for s in io.StringIO(invoc["CommandPlugins"][0]["Output"]).readlines() 
+                                if s.startswith("CLONESQUAD-SSM-AGENT-")]
                         bie_msg     = next(filter(lambda s: s.startswith("CLONESQUAD-SSM-AGENT-BIE:"), stdout), None)
                         if not bie_msg:
                             log.warning(f"Truncated reply from SSM Command Invocation ({cmd_id}/{instance_id}). "
@@ -202,7 +217,7 @@ class SSM:
                         details_msg = list(filter(lambda s: s.startswith("CLONESQUAD-SSM-AGENT-DETAILS:"), stdout))
                         warning_msg = list(filter(lambda s: ":WARNING:" in s, stdout))
 
-                        cmd["Results"][instance_id] = {
+                        result = {
                             "SSMInvocationStatus": status,
                             "Output": stdout,
                             "Status": status_msg,
@@ -213,9 +228,11 @@ class SSM:
                         }
                         # Keep track if the former result list
                         if instance_id not in former_results: former_results[instance_id] = {}
-                        former_results[instance_id][command] = cmd["Results"][instance_id]
+                        former_results[instance_id][f"{command};{args}"] = result
+                        if instance_id not in cmd["ReceivedInstanceIds"]:
+                            cmd["ReceivedInstanceIds"].append(instance_id)
 
-                    if set(cmd["Results"].keys()) & set(cmd["InstanceIds"]) == set(cmd["InstanceIds"]):
+                    if set(cmd["ReceivedInstanceIds"]) & set(cmd["InstanceIds"]) == set(cmd["InstanceIds"]):
                         # All invocation results received
                         cmd["Complete"] = True
         self.o_state.set_state_json("ssm.run_commands", self.run_cmd_states, compress=True, TTL=Cfg.get_duration_secs("ssm.state.default_ttl"))
@@ -232,15 +249,10 @@ class SSM:
             former_result_status = former_results.get(i,{}).get(command,{}).get("Status")
             if pending_cmd is None:
                 non_pending_ids.append(i)
-                if return_former_results and isinstance(former_result_status, str):
-                    r[i] = former_results[i][command]
-                continue
-            if i not in pending_cmd["Results"]:
-                if return_former_results and isinstance(former_result_status, str):
-                    r[i] = former_results[i][command]
-                continue
-            r[i] = pending_cmd["Results"][i]
-            r[i]["Replied"] = True
+                if not return_former_results or not isinstance(former_result_status, str):
+                    continue
+            if f"{command};{args}" in former_results[i]:
+                r[i] = former_results[i][f"{command};{args}"]
         # Coalesce run reqs with similar command
         for i in non_pending_ids:
             cmd_to_send = next(filter(lambda c: c["Command"] == command and c["CommandArgs"] == args, self.commands_to_send), None)
@@ -260,6 +272,9 @@ class SSM:
 
     @xray_recorder.capture()
     def send_commands(self):        
+        if not Cfg.get_int("ssm.enable"):
+            return
+
         client = self.context["ssm.client"]
         refs   = {
             "Linux": {
@@ -270,19 +285,12 @@ class SSM:
             }
         }
         # Purge already replied results
-        outdated_cmds = []
+        valid_cmds = []
         for cmd in self.run_cmd_states["Commands"]:
-            if cmd.get("Complete"):
-                for r in list(cmd["Results"].keys()):
-                    if "Replied" in cmd["Results"][r]:
-                        del cmd["Results"][r]
-                    if len(cmd["Results"]) == 0: # Latest instance id read for this cmd. Discard the record
-                        outdated_cmds.append(cmd)
-                        continue
-            if cmd["Expiration"] < misc.seconds_from_epoch_utc():
-                outdated_cmds.append(cmd)
-        # Remove stale command replies
-        [self.run_cmd_states["Commands"].remove(c) for c in outdated_cmds]
+            if cmd.get("Complete") or cmd["Expiration"] < misc.seconds_from_epoch_utc():
+                continue
+            valid_cmds.append(cmd)
+        self.run_cmd_states["Commands"] = valid_cmds
         # Purge outdated former results
         former_results  = self.run_cmd_states["FormerResults"]
         for i in list(former_results.keys()):
@@ -315,6 +323,7 @@ class SSM:
                 shell    = pltf["shell"]
                 i_ids    = pltf["ids"]
                 while len(i_ids):
+                    log.log(log.NOTICE, f"SSM SendCommand: {command}({args}) to %s." % i_ids[:50])
                     try:
                         response = client.send_command(
                             InstanceIds=i_ids[:50],
@@ -335,6 +344,7 @@ class SSM:
                         self.run_cmd_states["Commands"].append({
                             "Id": response["Command"]["CommandId"],
                             "InstanceIds": i_ids[:50],
+                            "ReceivedInstanceIds": [],
                             "Command": command,
                             "CommandArgs": args,
                             "Results": {},

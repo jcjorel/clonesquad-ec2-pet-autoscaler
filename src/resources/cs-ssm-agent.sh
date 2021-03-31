@@ -76,6 +76,10 @@ function main()
 		probe_test instance-health-check \
 			"instance $AWS_SSM_INSTANCE_ID is HEALTHY!" "instance $AWS_SSM_INSTANCE_ID is UNHEALTHY!"
 	;;
+	INSTANCE_READY_FOR_OPERATION)
+		probe_test instance-ready-for-operation \
+			"instance $AWS_SSM_INSTANCE_ID is READY!" "instance $AWS_SSM_INSTANCE_ID is NOT yet ready!"
+	;;
 	INSTANCE_READY_FOR_SHUTDOWN)
 		probe_test instance-ready-for-shutdown \
 			"instance $AWS_SSM_INSTANCE_ID is ready for shutdown!" "instance $AWS_SSM_INSTANCE_ID is NOT ready for shutdown!"
