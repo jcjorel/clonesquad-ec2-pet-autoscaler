@@ -71,6 +71,7 @@ class EC2_Schedule:
         self.ec2                      = ec2
         self.targetgroup              = targetgroup
         self.cloudwatch               = cloudwatch
+        self.ssm                      = self.context["o_ssm"]
         self.scaling_state_changed    = False
         self.alarm_points             = 0.0
         self.instance_scale_score     = 0.0
@@ -446,6 +447,9 @@ By default, the dashboard is enabled.
                 { "MetricName": "Subfleet.EC2.DrainingInstances",
                   "Unit": "Count",
                   "StorageResolution": self.metric_time_resolution },
+                { "MetricName": "SSM.MaintenanceWindow",
+                  "Unit": "Count",
+                  "StorageResolution": self.metric_time_resolution },
             ])
 
         # All state keys deeper than 'ec2.scheduler.instance.*' are collapsed in an aggregate stored compressed in DynamoDB
@@ -591,6 +595,10 @@ By default, the dashboard is enabled.
                           "Dimensions": dimensions,
                           "Unit": "Count",
                           "StorageResolution": self.metric_time_resolution },
+                        { "MetricName": "Subfleet.SSM.MaintenanceWindow",
+                          "Dimensions": dimensions,
+                          "Unit": "Count",
+                          "StorageResolution": self.metric_time_resolution },
                     ])
 
 
@@ -651,6 +659,8 @@ By default, the dashboard is enabled.
         :return An integer (number of instances
         """
         instances = self.all_main_fleet_instances 
+        if self.ssm.is_maintenance_time(fleet=None):
+            return len(instances)
         return Cfg.get_abs_or_percent("ec2.schedule.desired_instance_count", -1, len(instances))
 
     def get_instances_with_issues(self):
@@ -690,13 +700,12 @@ By default, the dashboard is enabled.
             instances_with_issue_ids.append(i)
             max_i -= 1
 
-        o_ssm = self.context["o_ssm"]
-        if o_ssm.is_feature_enabled("ec2.instance_healthcheck"):
+        if self.ssm.is_feature_enabled("ec2.instance_healthcheck"):
             # If instances are SSM ready, we retrieve the health status by calling a script on the instance itself
             young_instance_ids  = self.get_young_instance_ids()
             pending_running_ids = [i["InstanceId"] for i in self.pending_running_instances 
                     if not i["InstanceId"] not in young_instance_ids and not self.ec2.is_instance_state(i["InstanceId"], ["initializing"])]
-            ssm_hcheck = o_ssm.run_command([i["InstanceId"] for i in self.pending_running_instances], 
+            ssm_hcheck = self.ssm.run_command([i["InstanceId"] for i in self.pending_running_instances], 
                     "INSTANCE_HEALTHCHECK", comment="CS-InstanceHealthCheck (%s)" % self.context["GroupName"], return_former_results=True)
             for instance_id in pending_running_ids:
                 hcheck = ssm_hcheck.get(instance_id)
@@ -894,6 +903,13 @@ By default, the dashboard is enabled.
         cw.set_metric("NbOfInstanceInInitialState", len(self.get_initial_instances()) if fl_size > 0 else None)
         cw.set_metric("NbOfInstanceInUnuseableState", len(instances_with_issues) if fl_size > 0 else None)
         cw.set_metric("NbOfCPUCreditExhaustedInstances", len(exhausted_cpu_credits) if fl_size > 0 else None)
+        if self.ssm.is_feature_enabled("ec2.maintenance_window"):
+            matching_window = []
+            cw.set_metric("SSM.MaintenanceWindow", 1 if self.ssm.is_maintenance_time(fleet=None, matching_window=matching_window) else 0)
+            if len(matching_window):
+                log.info(f"Active main fleet maintenance window: {matching_window}")
+        else:
+            cw.set_metric("SSM.MaintenanceWindow", None)
         subfleet_count = len(subfleet_instances)
         # Send metrics only if there are fleet instances
         cw.set_metric("Subfleet.EC2.Size", len(subfleet_instances) if subfleet_count else None)
@@ -1308,10 +1324,9 @@ By default, the dashboard is enabled.
                         "Do not assess stop now..." % (instance_id, elapsed_time.total_seconds(), cooldown))
                    continue
 
-               o_ssm = self.context["o_ssm"]
-               if o_ssm.is_feature_enabled("ec2.instance_ready_for_shutdown") and elapsed_time < timedelta(seconds=ssm_ready_for_shutdown_delay):
+               if self.ssm.is_feature_enabled("ec2.instance_ready_for_shutdown") and elapsed_time < timedelta(seconds=ssm_ready_for_shutdown_delay):
                    # Check SSM based instance-ready-for-shutdown status
-                   ssm_hcheck = o_ssm.run_command([instance_id], "INSTANCE_READY_FOR_SHUTDOWN", 
+                   ssm_hcheck = self.ssm.run_command([instance_id], "INSTANCE_READY_FOR_SHUTDOWN", 
                            comment="CS-InstanceReadyForShutdown (%s)" % self.context["GroupName"], return_former_results=True)
                    status = ""
                    if instance_id in ssm_hcheck:
@@ -1412,6 +1427,8 @@ By default, the dashboard is enabled.
                                         0, len(fleet_instances)))
         desired_instance_count = max(0, get_subfleet_key_abs_or_percent("ec2.schedule.desired_instance_count", subfleet,
                                         len(fleet_instances), len(fleet_instances)))
+        if self.ssm.is_maintenance_time(fleet=subfleet):
+            return len(fleet_instances)
 
         instance_count    = max(min_instance_count, desired_instance_count)
         running_instances = self.ec2.get_instances(instances=fleet_instances, 
@@ -1477,6 +1494,8 @@ By default, the dashboard is enabled.
                 log.warning("Instance '%s' contains invalid characters (%s)!! Ignore this instance..." % (instance_id, forbidden_chars))
                 continue
             expected_state = get_subfleet_key("state", subfleet_name, none_on_failure=True)
+            if self.ssm.is_maintenance_time(fleet=subfleet_name) and self.ssm.is_feature_enabled("ec2.maintenance_window.subfleet.force_running"):
+                expected_state = "running"
             if expected_state is None:
                 log.log(log.NOTICE, "Encountered a subfleet instance (%s) without state directive. Please set 'subfleet.%s.state' configuration key..." % 
                         (instance_id, subfleet_name))
@@ -1555,6 +1574,13 @@ By default, the dashboard is enabled.
                         min_instance_count if send_metric else None, dimensions=dimensions)
                 cw.set_metric("Subfleet.EC2.DesiredInstanceCount", 
                         desired_instance_count if send_metric else None, dimensions=dimensions)
+                matching_window = []
+                cw.set_metric("Subfleet.SSM.MaintenanceWindow", 
+                        self.ssm.is_maintenance_time(fleet=subfleet, matching_window=matching_window) 
+                            if self.ssm.is_feature_enabled("ec2.maintenance_window") else None, 
+                        dimensions=dimensions)
+                if len(matching_window):
+                    log.info(f"Active '{subfleet}' subfleet maintenance window: {matching_window}")
             else:
                 cw.set_metric("Subfleet.EC2.Size", None, dimensions=dimensions)
                 cw.set_metric("Subfleet.EC2.ExcludedInstances", None, dimensions=dimensions)
@@ -1562,6 +1588,7 @@ By default, the dashboard is enabled.
                 cw.set_metric("Subfleet.EC2.DrainingInstances", None, dimensions=dimensions)
                 cw.set_metric("Subfleet.EC2.MinInstanceCount", None, dimensions=dimensions)
                 cw.set_metric("Subfleet.EC2.DesiredInstanceCount", None, dimensions=dimensions)
+                cw.set_metric("Subfleet.SSM.MaintenanceWindow", None, dimensions=dimensions)
 
     def generate_subfleet_dashboard(self):
         """ Create / Destroy CloudWatch dashboards.

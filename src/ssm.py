@@ -40,9 +40,34 @@ class SSM:
 
         Cfg.register({
             "ssm.enable": "0",
-            "ssm.feature.ec2.instance_ready_for_shutdown": "0",
+            "ssm.feature.ec2.instance_ready_for_shutdown,Stable": {
+                "DefaultValue": "0",
+                "Format": "Bool",
+                "Description": """Ensure instance shutdown readiness with /etc/cs-ssm/instance-ready-for-shutdown script on SSM managed instances."
+
+This enables support for direct sensing of instance shutdown readiness based on the return code of a script located in each EC2 instances. When set to 1, CloenSquad sends a SSM RunCommand to a managed instance candidate prior to shutdown: 
+* If /etc/cs-ssm/instance-ready-for-shutdown is presents, it is executed with the SSM agent daemon user rights: If the scripts returns a NON-zero code, Clonesquad will postpone the instance shutdown and will call this script again after 2 * [ `app.run_period`](#apprun_period) seconds...
+* If /etc/cs-ssm/instance-ready-for-shutdown is NOT present, immediate shutdown readyness is assumed.
+            """
+            },
             "ssm.feature.ec2.instance_ready_for_operation": "0",
             "ssm.feature.ec2.instance_healthcheck": "0",
+            "ssm.feature.ec2.maintenance_window,Stable": {
+                "DefaultValue": "1",
+                "Format": "Bool",
+                "Description": """Defines if SSM maintenance window support is activated.
+
+> This setting is taken into account only if [`ssm.feature.ec2.instance_ready_for_shutdown`](#ssmfeatureec2instance_ready_for_shutdown) is set to 1.
+            """
+            },
+            "ssm.feature.ec2.maintenance_window.subfleet.force_running,Stable": {
+                "DefaultValue": "0",
+                "Format": "Bool",
+                "Description": """Defines if a subfleet is forcibly set to 'running' when a maintenance window is actice.
+        
+            By default, the subfleet is not waken up by a maintenance window if the current subfleet state is in 'stopped' or 'undefined' state.
+            """,
+            },
             "ssm.state.default_ttl": "hours=1",
             "ssm.state.command.default_ttl": "minutes=10",
             "ssm.state.command.result.default_ttl": "minutes=5",
@@ -360,23 +385,33 @@ class SSM:
 
 
     def _get_maintenance_window_for_fleet(self, fleet=None):
-        default_names             = self.maintenance_windows["__default__"]["Names"]
-        main_default_names        = self.maintenance_windows["__main__"]["Names"]
-        subfleet_default_names    = self.maintenance_windows["__main__"]["Names"]
+        default_names             = self.maintenance_windows["Names"]["__default__"]["Names"]
+        main_default_names        = self.maintenance_windows["Names"]["__main__"]["Names"]
+        subfleet_default_names    = self.maintenance_windows["Names"]["__all__"]["Names"]
         mws                       = self.maintenance_windows["Windows"]
-        names                     = []
+        names                     = default_names
         if not fleet:
-            names = main_default_names if len(main_default_names) else default_names
+            if len([w for w in mws if w["Name"] in main_default_names]):
+                names = main_default_names
         else:
-            subfleet_names = self.maintenance_windows[f"SubfleetName.{SubfleetName}"]["Names"]
-            names = subfleet_names if len(subfleet_names) else subfleet_default_names if len(subfleet_default_names) else default_names
+            if len([w for w in mws if w["Name"] in subfleet_default_names]):
+                names = subfleet_default_names
+            subfleet_names = self.maintenance_windows["Names"][f"SubfleetName.{fleet}"]["Names"]
+            if len([w for w in mws if w["Name"] in subfleet_names]):
+                names = subfleet_names
         return [w for w in mws if w["Name"] in names]
 
 
-    def is_maintenance_time(self, fleet=None):
+    def is_maintenance_time(self, fleet=None, matching_window=None):
+        if not self.is_feature_enabled("ec2.maintenance_window"):
+            return False
         now         = self.context["now"]
-        start_ahead = Cfg.get_duration_secs("ssm.maintenance_window.start_ahead")
+        start_ahead = timedelta(seconds=Cfg.get_duration_secs("ssm.maintenance_window.start_ahead"))
         windows     = self._get_maintenance_window_for_fleet(fleet=fleet)
         for w in windows:
-            pass
+            end_time = w["NextExecutionTime"] + timedelta(hours=int(w["Duration"]))
+            if now >= (w["NextExecutionTime"] - start_ahead) and now < end_time:
+                if matching_window: matching_window.append(w)
+                return True
+        return False
 

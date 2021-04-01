@@ -18,7 +18,8 @@
                     [ ".", "NbOfInstancesInError", ".", "." ],
                     [ ".", "RunningLighthouseInstances", ".", "." ],
                     [ ".", "MinInstanceCount", ".", "." ],
-                    [ ".", "DesiredInstanceCount", ".", "." ]
+                    [ ".", "DesiredInstanceCount", ".", "." ],
+                    [ ".", "SSM.MaintenanceWindow", ".", "." ]
                 ],
                 "view": "timeSeries",
                 "stacked": false,
