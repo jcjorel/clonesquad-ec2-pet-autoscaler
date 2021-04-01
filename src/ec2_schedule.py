@@ -267,7 +267,14 @@ is enabled, from an instance type distribution PoV.
                  "ec2.schedule.bounce_instance_jitter" : 'minutes=10',
                  "ec2.schedule.bounce_instance_cooldown" : 'minutes=10',
                  "ec2.schedule.bounce.instances_with_issue_grace_period": "minutes=5",
-                 "ec2.schedule.draining.instance_cooldown": "minutes=2",
+                 "ec2.schedule.draining.instance_cooldown,Stable": {
+                         "DefaultValue": "minutes=2",
+                         "Format": "Duration",
+                         "Description": """Minimum time to spend in the 'draining' state.
+
+If SSM support is enabled with [`ssm.feature.ec2.instance_ready_for_shutdown`](#ssmfeatureec2instance_ready_for_shutdown), a script located in the drained instance is executed to ensure that instance is ready for shutdown even after the duration specified is exhausted. IF this scripts return non-zero code, the shutdown is posponed for a [`ec2.schedule.draining.ssm_ready_for_shutdown_delay`](#ec2scheduledrainingssm_ready_for_shutdown_delay) duration.
+                """
+                },
                  "ec2.schedule.draining.ssm_ready_for_shutdown_delay,Stable": {
                          "DefaultValue": "hours=1",
                          "Format": "Duration",

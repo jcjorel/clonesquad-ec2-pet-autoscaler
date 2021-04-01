@@ -45,19 +45,33 @@ class SSM:
                 "Format": "Bool",
                 "Description": """Ensure instance shutdown readiness with /etc/cs-ssm/instance-ready-for-shutdown script on SSM managed instances."
 
-This enables support for direct sensing of instance shutdown readiness based on the return code of a script located in each EC2 instances. When set to 1, CloenSquad sends a SSM RunCommand to a managed instance candidate prior to shutdown: 
-* If /etc/cs-ssm/instance-ready-for-shutdown is presents, it is executed with the SSM agent daemon user rights: If the scripts returns a NON-zero code, Clonesquad will postpone the instance shutdown and will call this script again after 2 * [ `app.run_period`](#apprun_period) seconds...
+This enables support for direct sensing of instance shutdown readiness based on the return code of a script located in each EC2 instances. When set to 1, CloneSquad sends a SSM RunCommand to a managed instance candidate prior to shutdown: 
+* If /etc/cs-ssm/instance-ready-for-shutdown is present, it is executed with the SSM agent daemon user rights: If the script returns a NON-zero code, Clonesquad will postpone the instance shutdown and will call this script again after 2 * [ `app.run_period`](#apprun_period) seconds...
 * If /etc/cs-ssm/instance-ready-for-shutdown is NOT present, immediate shutdown readyness is assumed.
+
+> This setting is taken into account only if [`ssm.enable`](#ssmenable) is set to 1.
             """
             },
-            "ssm.feature.ec2.instance_ready_for_operation": "0",
+            "ssm.feature.ec2.instance_ready_for_operation,Stable": {
+                "DefaultValue": "0",
+                "Format": "Bool",
+                "Description": """Ensure an instance go out from 'initializing' state based on an instance script returns code.
+
+This enables support for direct sensing of instance **serving** readiness based on the return code of a script located in each EC2 instances. CloneSquad never stops an instance in the 'initializing' state. This state is normally automatically left after [`ec2.schedule.start.warmup_delay`](#ec2schedulestartwarmup_delay) seconds: When this setting is set, an SSM command is sent to each instance and call a script to get a direct ack that an instance can left the 'initializing' state.
+
+* If /etc/cs-ssm/instance-ready-for-operation is present, it is executed with the SSM agent daemon user rights: If the script returns a NON-zero code, Clonesquad will postpone the instance go-out from 'initializing' state and will call this script again after 2 * [ `app.run_period`](#apprun_period) seconds...
+* If /etc/cs-ssm/instance-ready-for-operation is NOT present, the instance leaves the 'initializing' state immediatly after 'warmup delay'..
+
+> This setting is taken into account only if [`ssm.enable`](#ssmenable) is set to 1.
+            """
+            },
             "ssm.feature.ec2.instance_healthcheck": "0",
             "ssm.feature.ec2.maintenance_window,Stable": {
                 "DefaultValue": "1",
                 "Format": "Bool",
                 "Description": """Defines if SSM maintenance window support is activated.
 
-> This setting is taken into account only if [`ssm.feature.ec2.instance_ready_for_shutdown`](#ssmfeatureec2instance_ready_for_shutdown) is set to 1.
+> This setting is taken into account only if [`ssm.enable`](#ssmenable) is set to 1.
             """
             },
             "ssm.feature.ec2.maintenance_window.subfleet.force_running,Stable": {
