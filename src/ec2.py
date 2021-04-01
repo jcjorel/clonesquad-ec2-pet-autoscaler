@@ -396,6 +396,7 @@ without any TargetGroup but another external health instance source exists).
             last_ready_date = self.get_state_date(f"ec2.instance.ssm.ready_for_operation_date.{instance_id}",
                     TTL=Cfg.get_duration_secs("ec2.state.status_ttl"))
             if last_ready_date is not None and self.get_instance_by_id(instance_id)["LaunchTime"] < last_ready_date:
+                state.remove("initializing")
                 return i["InstanceStatus"]["Status"] in state
             readyness = o_ssm.run_command([instance_id], "INSTANCE_READY_FOR_OPERATION", 
                     comment="CS-InstanceReadyForOperation (%s)" % self.context["GroupName"], return_former_results=True)
@@ -999,9 +1000,13 @@ without any TargetGroup but another external health instance source exists).
         TODO: Rewrite with method as it is highly CPU intensive and so inefficient in a Lambda context.
         """
         if meta is not None:
-            for i in ["action", "draining", "error", "bounced"]:
-                meta["last_%s_date" % i] = misc.str2utc(self.get_state("ec2.instance.scaling.last_%s_date.%s" %
-                        (i, instance_id), default=self.context["now"]))
+            newest_action_date = None
+            for action in ["draining", "error", "bounced"]:
+                date = misc.str2utc(self.get_state(f"ec2.instance.scaling.last_{action}_date.{instance_id}"))
+                meta[f"last_{action}_date"] = date
+                if date and (newest_action_date is None or newest_action_date < date):
+                    newest_action_date = date
+            meta["last_action_date"] = newest_action_date
 
         state = self.scaling_states.get(instance_id, {"raw": default, "state_no_excluded": default, "state": default})
         if raw:
@@ -1014,14 +1019,19 @@ without any TargetGroup but another external health instance source exists).
         if ttl is None: ttl = Cfg.get_duration_secs("ec2.state.default_ttl") 
         if default_date is None: default_date = self.context["now"]
 
-        meta           = {} if meta is None else meta
-        previous_value = self.get_scaling_state(instance_id, meta=meta, do_not_return_excluded=True)
-        date           = meta["last_action_date"] if previous_value == value else default_date
-        self.set_state("ec2.instance.scaling.last_action_date.%s" % instance_id, date, ttl)
-        self.set_state("ec2.instance.scaling.last_%s_date.%s" % (value, instance_id), date, ttl)
-        previous_value = self.get_scaling_state(instance_id, meta=meta)
-        key            = "ec2.instance.scaling.state.%s" % instance_id
-        return self.set_state(key, value, ttl)
+        if value != "":
+            meta           = {} if meta is None else meta
+            previous_value = self.get_scaling_state(instance_id, meta=meta, do_not_return_excluded=True)
+            date           = meta["last_action_date"] if previous_value == value else default_date
+            meta[f"last_{value}_date"] = date
+            meta[f"last_action_date"] = date
+            self.set_state(f"ec2.instance.scaling.last_{value}_date.{instance_id}", date, TTL=ttl)
+        else:
+            # Remove all state keys
+            for action in ["action", "draining", "error", "bounced"]:
+                self.set_state(f"ec2.instance.scaling.last_action_date.{instance_id}", "", TTL=ttl)
+                self.set_state(f"ec2.instance.scaling.last_{action}_date.{instance_id}", "", TTL=ttl)
+        self.set_state(f"ec2.instance.scaling.state.{instance_id}", value, TTL=ttl)
 
     def list_states(self, prefix="ec2.instance.scaling_state.", not_matching_instances=None):
         r = self.state_table.get_keys(prefix) 

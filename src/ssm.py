@@ -208,12 +208,13 @@ class SSM:
                         bie_msg     = next(filter(lambda s: s.startswith("CLONESQUAD-SSM-AGENT-BIE:"), stdout), None)
                         if not bie_msg:
                             log.warning(f"Truncated reply from SSM Command Invocation ({cmd_id}/{instance_id}). "
-                                "Started shell command too verbose? (please limit to 24kBytes max!)")
-                        status_msg  = next(filter(lambda s: s.startswith("CLONESQUAD-SSM-AGENT-STATUS:"), stdout), None)
+                                "*Cause: SSM exec error? started shell command too verbose? (please limit to 24kBytes max!)")
+                        agent_status = "CLONESQUAD-SSM-AGENT-STATUS:"
+                        status_msg  = next(filter(lambda s: s.startswith(agent_status), stdout), None)
                         if status_msg is None:
                             status_msg = "ERROR"
                         else:
-                            status_msg = status_msg[len("CLONESQUAD-SSM-AGENT-STATUS:"):]
+                            status_msg = status_msg[len(agent_status):]
                         details_msg = list(filter(lambda s: s.startswith("CLONESQUAD-SSM-AGENT-DETAILS:"), stdout))
                         warning_msg = list(filter(lambda s: ":WARNING:" in s, stdout))
 
@@ -247,11 +248,11 @@ class SSM:
             pending_cmd = next(filter(lambda c: c["Command"] == command and c["CommandArgs"] == args 
                 and i in c["InstanceIds"], self.run_cmd_states["Commands"]), None) 
             former_result_status = former_results.get(i,{}).get(command,{}).get("Status")
-            if pending_cmd is None:
+            if pending_cmd is None and i not in former_results:
                 non_pending_ids.append(i)
                 if not return_former_results or not isinstance(former_result_status, str):
                     continue
-            if f"{command};{args}" in former_results[i]:
+            if former_results.get(i,{}).get(f"{command};{args}"):
                 r[i] = former_results[i][f"{command};{args}"]
         # Coalesce run reqs with similar command
         for i in non_pending_ids:
