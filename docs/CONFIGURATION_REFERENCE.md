@@ -485,6 +485,29 @@ Note: It is semantically similar to the value `undefined` in subfleet configurat
 
 
 
+### ec2.schedule.draining.instance_cooldown
+Default Value: `minutes=2`   
+Format       :  [Duration](#Duration)
+
+Minimum time to spend in the 'draining' state.
+
+If SSM support is enabled with [`ssm.feature.ec2.instance_ready_for_shutdown`](#ssmfeatureec2instance_ready_for_shutdown), a script located in the drained instance is executed to ensure that instance is ready for shutdown even after the duration specified is exhausted. IF this scripts return non-zero code, the shutdown is posponed for a [`ec2.schedule.draining.ssm_ready_for_shutdown_delay`](#ec2scheduledrainingssm_ready_for_shutdown_delay) duration.
+                
+
+
+
+### ec2.schedule.draining.ssm.instance_ready_for_shutdown_delay
+Default Value: `hours=1`   
+Format       :  [Duration](#Duration)
+
+ Maximum time to spend waiting for SSM based ready-for-shutdown status.
+
+When SSM support is enabled with [`ssm.feature.ec2.instance_ready_for_operation`](#ssmfeatureec2instance_ready_for_operation), instances may notify CloneSquad when they are ready for shutdown. This setting defines
+the maximum time spent by CloneSquad to receive this signal before to forcibly shutdown the instance.
+                    
+
+
+
 ### ec2.schedule.min_instance_count
 Default Value: `0`   
 Format       :  [PositiveInteger](#PositiveInteger)
@@ -609,7 +632,7 @@ the associated CloudWatch metrics can't react fast enough to inform the algorith
 
 
 ### ec2.schedule.start.warmup_delay
-Default Value: `minutes=2`   
+Default Value: `minutes=3`   
 Format       :  [Duration](#Duration)
 
 Minimum delay for node readiness.
@@ -690,6 +713,59 @@ Enable management of RDS databases.
 
 DEPRECATED. (Now automatic detection of RDS resources is implemented.)
                 
+
+
+
+### ssm.feature.ec2.instance_ready_for_operation
+Default Value: `0`   
+Format       :  [Bool](#Bool)
+
+Ensure an instance go out from 'initializing' state based on an instance script returns code.
+
+This enables support for direct sensing of instance **serving** readiness based on the return code of a script located in each EC2 instances. CloneSquad never stops an instance in the 'initializing' state. This state is normally automatically left after [`ec2.schedule.start.warmup_delay`](#ec2schedulestartwarmup_delay) seconds: When this setting is set, an SSM command is sent to each instance and call a script to get a direct ack that an instance can left the 'initializing' state.
+
+* If /etc/cs-ssm/instance-ready-for-operation is present, it is executed with the SSM agent daemon user rights: If the script returns a NON-zero code, Clonesquad will postpone the instance go-out from 'initializing' state and will call this script again after 2 * [ `app.run_period`](#apprun_period) seconds...
+* If /etc/cs-ssm/instance-ready-for-operation is NOT present, the instance leaves the 'initializing' state immediatly after 'warmup delay'..
+
+> This setting is taken into account only if [`ssm.enable`](#ssmenable) is set to 1.
+            
+
+
+
+### ssm.feature.ec2.instance_ready_for_shutdown
+Default Value: `0`   
+Format       :  [Bool](#Bool)
+
+Ensure instance shutdown readiness with /etc/cs-ssm/instance-ready-for-shutdown script on SSM managed instances."
+
+This enables support for direct sensing of instance shutdown readiness based on the return code of a script located in each EC2 instances. When set to 1, CloneSquad sends a SSM RunCommand to a managed instance candidate prior to shutdown: 
+* If /etc/cs-ssm/instance-ready-for-shutdown is present, it is executed with the SSM agent daemon user rights: If the script returns a NON-zero code, Clonesquad will postpone the instance shutdown and will call this script again after 2 * [ `app.run_period`](#apprun_period) seconds...
+* If /etc/cs-ssm/instance-ready-for-shutdown is NOT present, immediate shutdown readyness is assumed.
+
+> This setting is taken into account only if [`ssm.enable`](#ssmenable) is set to 1.
+            
+
+
+
+### ssm.feature.ec2.maintenance_window
+Default Value: `1`   
+Format       :  [Bool](#Bool)
+
+Defines if SSM maintenance window support is activated.
+
+> This setting is taken into account only if [`ssm.enable`](#ssmenable) is set to 1.
+            
+
+
+
+### ssm.feature.ec2.maintenance_window.subfleet.force_running
+Default Value: `0`   
+Format       :  [Bool](#Bool)
+
+Defines if a subfleet is forcibly set to 'running' when a maintenance window is actice.
+        
+            By default, the subfleet is not waken up by a maintenance window if the current subfleet state is in 'stopped' or 'undefined' state.
+            
 
 
 

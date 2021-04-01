@@ -275,12 +275,12 @@ is enabled, from an instance type distribution PoV.
 If SSM support is enabled with [`ssm.feature.ec2.instance_ready_for_shutdown`](#ssmfeatureec2instance_ready_for_shutdown), a script located in the drained instance is executed to ensure that instance is ready for shutdown even after the duration specified is exhausted. IF this scripts return non-zero code, the shutdown is posponed for a [`ec2.schedule.draining.ssm_ready_for_shutdown_delay`](#ec2scheduledrainingssm_ready_for_shutdown_delay) duration.
                 """
                 },
-                 "ec2.schedule.draining.ssm_ready_for_shutdown_delay,Stable": {
+                 "ec2.schedule.draining.ssm.instance_ready_for_shutdown_delay,Stable": {
                          "DefaultValue": "hours=1",
                          "Format": "Duration",
                          "Description": """ Maximum time to spend waiting for SSM based ready-for-shutdown status.
 
-When SSM support is enabled, instances must notify CloenSquad when they are ready for shutdown. This setting defines
+When SSM support is enabled with [`ssm.feature.ec2.instance_ready_for_operation`](#ssmfeatureec2instance_ready_for_operation), instances may notify CloneSquad when they are ready for shutdown. This setting defines
 the maximum time spent by CloneSquad to receive this signal before to forcibly shutdown the instance.
                     """
                  },
@@ -1264,7 +1264,7 @@ By default, the dashboard is enabled.
                                                                # can't be part of a full scaleout sequence (so are useless to be rendered available)
         ids_to_stop                    = []
         too_much_cpu_crediting         = False
-        ssm_ready_for_shutdown_delay   = Cfg.get_duration_secs("ec2.schedule.draining.ssm_ready_for_shutdown_delay")
+        ssm_ready_for_shutdown_delay   = Cfg.get_duration_secs("ec2.schedule.draining.ssm.instance_ready_for_shutdown_delay")
         cooldown                       = Cfg.get_duration_secs("ec2.schedule.draining.instance_cooldown")
         for i in instances:
            instance_id = i["InstanceId"]
