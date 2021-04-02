@@ -98,7 +98,7 @@ When [`ssm.feature.ec2.instance_ready_for_operation`](#ssmfeatureec2instance_rea
 > This setting is taken into account only if [`ssm.enable`](#ssmenable) is set to 1.
             """
             },
-            "ssm.feature.ec2.maintenance_window.subfleet.force_running,Stable": {
+            "ssm.maintenance_window.subfleet.{SubfleetName}.force_running,Stable": {
                 "DefaultValue": "0",
                 "Format": "Bool",
                 "Description": """Defines if a subfleet is forcibly set to 'running' when a maintenance window is actice.
@@ -182,13 +182,21 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
         all_mw_names.extend([ n for n in mw_names["__default__"]["Names"] if n not in all_mw_names])
         all_mw_names.extend([ n for n in mw_names["__main__"]["Names"] if n not in all_mw_names])
         all_mw_names.extend([ n for n in mw_names["__all__"]["Names"] if n not in all_mw_names])
+
+        Cfg.register({
+                f"ssm.maintenance_window.subfleet.__all__.force_running":
+                    Cfg.get("ssm.maintenance_window.subfleet.{SubfleetName}.force_running")
+            })
+
         for SubfleetName in self.o_ec2.get_subfleet_names():
             fmt["SubfleetName"] = SubfleetName
             mw_names[f"Subfleet.{SubfleetName}"] = {}
             Cfg.register({
                 f"ssm.maintenance_window.subfleet.{SubfleetName}.defaults": Cfg.get("ssm.maintenance_window.subfleet.{SubfleetName}.defaults"),
                 f"ssm.maintenance_window.subfleet.{SubfleetName}.ec2.schedule.min_instance_count": 
-                    Cfg.get("ssm.maintenance_window.subfleet.{SubfleetName}.ec2.schedule.min_instance_count")
+                    Cfg.get("ssm.maintenance_window.subfleet.{SubfleetName}.ec2.schedule.min_instance_count"),
+                f"ssm.maintenance_window.subfleet.{SubfleetName}.force_running":
+                    Cfg.get("ssm.maintenance_window.subfleet.{SubfleetName}.force_running"),
             })
             mw_names[f"Subfleet.{SubfleetName}"]["Names"] = Cfg.get_list(f"ssm.maintenance_window.subfleet.{SubfleetName}.defaults", fmt=fmt)
             all_mw_names.extend([ n for n in mw_names[f"Subfleet.{SubfleetName}"]["Names"] if n not in all_mw_names])
