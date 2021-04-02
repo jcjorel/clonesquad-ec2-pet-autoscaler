@@ -1435,7 +1435,7 @@ By default, the dashboard is enabled.
         desired_instance_count = max(0, get_subfleet_key_abs_or_percent("ec2.schedule.desired_instance_count", subfleet,
                                         len(fleet_instances), len(fleet_instances)))
         if self.ssm.is_maintenance_time(fleet=subfleet):
-            return len(fleet_instances)
+            desired_instance_count = len(fleet_instances)
 
         instance_count    = max(min_instance_count, desired_instance_count)
         running_instances = self.ec2.get_instances(instances=fleet_instances, 
@@ -1626,6 +1626,7 @@ By default, the dashboard is enabled.
                             [ ".", "Subfleet.EC2.NbOfCPUCreditingInstances", ".", ".", ".", "." ],
                             [ ".", "Subfleet.EC2.DrainingInstances", ".", ".", ".", "." ],
                             [ ".", "Subfleet.EC2.RunningInstances", ".", ".", ".", "." ],
+                            [ ".", "Subfleet.SSM.MaintenanceWindow", ".", ".", ".", "." ]
                         ],
                         "region": self.context["AWS_DEFAULT_REGION"],
                         "title": subfleet_name,

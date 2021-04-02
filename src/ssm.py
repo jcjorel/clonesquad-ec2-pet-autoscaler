@@ -39,7 +39,14 @@ class SSM:
         GroupName                    = self.context["GroupName"]
 
         Cfg.register({
-            "ssm.enable": "0",
+            "ssm.enable,Stable": {
+                "DefaultValue": "0",
+                "Format": "Bool",
+                "Description": """Enable globally support for AWS System Manager by CloneSquad.
+
+CloneSquad can leverage AWS SSM to take into account Maintenance Windows and use SSM RunCommand to execute status probe scripts located in managed instances.
+            """
+            },
             "ssm.feature.ec2.instance_ready_for_shutdown,Stable": {
                 "DefaultValue": "0",
                 "Format": "Bool",
@@ -85,11 +92,19 @@ This enables support for direct sensing of instance **serving** readiness based 
             "ssm.state.default_ttl": "hours=1",
             "ssm.state.command.default_ttl": "minutes=10",
             "ssm.state.command.result.default_ttl": "minutes=5",
-            "ssm.maintenance_window.start_ahead": "minutes=15",
+            "ssm.maintenance_window.start_ahead,Stable": {
+                    "DefaultValue": "minutes=15",
+                    "Format": "Duration",
+                    "Description": """Start instances this specified time ahead of the next Maintenance Window.
+
+In order to ensure that instances are up and ready when a SSM Maintenance Window starts, they are started in advance of the 'NextExecutionTime' defined in the maintenance window.
+            """
+            },
+            "ssm.maintenance_window.global_defaults": "CS-GlobalDefaultMaintenanceWindow",
             "ssm.maintenance_window.defaults": "CS-{GroupName}",
             "ssm.maintenance_window.mainfleet.defaults": "CS-{GroupName}-__main__",
-            "ssm.maintenance_window.subfleet.__all__.defaults": "CS-{GroupName}-__all__",
-            "ssm.maintenance_window.subfleet.{SubfleetName}.defaults": "CS-{GroupName}-{SubfleetName}"
+            "ssm.maintenance_window.subfleet.__all__.defaults": "CS-{GroupName}-Subfleet.__all__",
+            "ssm.maintenance_window.subfleet.{SubfleetName}.defaults": "CS-{GroupName}-Subfleet.{SubfleetName}"
             })
 
         self.o_state.register_aggregates([
@@ -112,33 +127,36 @@ This enables support for direct sensing of instance **serving** readiness based 
         now       = self.context["now"]
         ttl       = Cfg.get_duration_secs("ssm.state.default_ttl")
         GroupName = self.context["GroupName"]
-        for SubfleetName in self.o_ec2.get_subfleet_names():
-            Cfg.register({
-                f"ssm.maintenance_window.subfleet.{SubfleetName}.defaults": f"CS-{GroupName}-{SubfleetName}"
-            })
 
         misc.initialize_clients(["ssm"], self.context)
         client = self.context["ssm.client"]
 
         # Retrive all SSM maintenace windows applicable to this CloneSquad deployment
         mw_names = {
+            "__globaldefault__": {},
             "__default__": {},
             "__main__": {},
             "__all__":  {}
         }
 
         fmt                              = self.context.copy()
+        mw_names["__globaldefault__"]["Names"] = Cfg.get_list("ssm.maintenance_window.global_defaults", fmt=fmt)
         mw_names["__default__"]["Names"] = Cfg.get_list("ssm.maintenance_window.defaults", fmt=fmt)
         mw_names["__main__"]["Names"]    = Cfg.get_list("ssm.maintenance_window.mainfleet.defaults", fmt=fmt)
         mw_names["__all__"]["Names"]     = Cfg.get_list("ssm.maintenance_window.subfleet.__all__.defaults", fmt=fmt)
 
-        all_mw_names = mw_names["__default__"]["Names"]
+        all_mw_names = mw_names["__globaldefault__"]["Names"]
+        all_mw_names.extend([ n for n in mw_names["__default__"]["Names"] if n not in all_mw_names])
         all_mw_names.extend([ n for n in mw_names["__main__"]["Names"] if n not in all_mw_names])
         all_mw_names.extend([ n for n in mw_names["__all__"]["Names"] if n not in all_mw_names])
         for SubfleetName in self.o_ec2.get_subfleet_names():
-            mw_names[f"SubfleetName.{SubfleetName}"] = {}
-            mw_names[f"SubfleetName.{SubfleetName}"]["Names"] = Cfg.get_list(f"ssm.maintenance_window.subfleet.{SubfleetName}.defaults", fmt=fmt)
-            all_mw_names.extend([ n for n in mw_names[f"SubfleetName.{SubfleetName}"]["Names"] if n not in all_mw_names])
+            fmt["SubfleetName"] = SubfleetName
+            mw_names[f"Subfleet.{SubfleetName}"] = {}
+            Cfg.register({
+                f"ssm.maintenance_window.subfleet.{SubfleetName}.defaults": Cfg.get("ssm.maintenance_window.subfleet.{SubfleetName}.defaults")
+            })
+            mw_names[f"Subfleet.{SubfleetName}"]["Names"] = Cfg.get_list(f"ssm.maintenance_window.subfleet.{SubfleetName}.defaults", fmt=fmt)
+            all_mw_names.extend([ n for n in mw_names[f"Subfleet.{SubfleetName}"]["Names"] if n not in all_mw_names])
 
 
         names = all_mw_names
@@ -153,7 +171,15 @@ This enables support for direct sensing of instance **serving** readiness based 
                     },
                 ])
             for r in response_iterator:
-                mws.extend([d for d in r["WindowIdentities"] if d["Enabled"] and d not in mws])
+                for wi in r["WindowIdentities"]:
+                    if not wi["Enabled"]:
+                        log.log(log.NOTICE, f"SSM Maintenance Window '%s' not enabled. Ignored..." % wi["Name"])
+                        continue
+                    if "NextExecutionTime" not in wi:
+                        log.log(log.NOTICE, f"SSM Maintenance Window '%s' without 'NextExecutionTime'. Ignored..." % wi["Name"])
+                        continue
+                    if wi not in mws:
+                        mws.append(wi)
             names = names[20:]
         # Make string dates as object dates
         for d in mws:
@@ -164,6 +190,7 @@ This enables support for direct sensing of instance **serving** readiness based 
         }
         if len(mws):
             log.log(log.NOTICE, f"Found matching SSM maintenance windows: %s" % self.maintenance_windows)
+
 
         # Update instance inventory
         paginator = client.get_paginator('describe_instance_information')
@@ -217,6 +244,10 @@ This enables support for direct sensing of instance **serving** readiness based 
         instance_id = i["InstanceId"]
         launch_time = i["LaunchTime"]
         return next(filter(lambda i: i["InstanceId"] == instance_id and i["LastPingDateTime"] > launch_time and i["PingStatus"] == "Online", self.instance_infos), None) 
+
+    #####################################################################
+    ## SSM RunCommand support
+    #####################################################################
 
     @xray_recorder.capture()
     def update_pending_command_statuses(self):
@@ -398,6 +429,10 @@ This enables support for direct sensing of instance **serving** readiness based 
 
 
 
+    #####################################################################
+    ## SSM Maintenance Window support
+    #####################################################################
+
     def _get_maintenance_window_for_fleet(self, fleet=None):
         default_names             = self.maintenance_windows["Names"]["__default__"]["Names"]
         main_default_names        = self.maintenance_windows["Names"]["__main__"]["Names"]
@@ -410,7 +445,7 @@ This enables support for direct sensing of instance **serving** readiness based 
         else:
             if len([w for w in mws if w["Name"] in subfleet_default_names]):
                 names = subfleet_default_names
-            subfleet_names = self.maintenance_windows["Names"][f"SubfleetName.{fleet}"]["Names"]
+            subfleet_names = self.maintenance_windows["Names"][f"Subfleet.{fleet}"]["Names"]
             if len([w for w in mws if w["Name"] in subfleet_names]):
                 names = subfleet_names
         return [w for w in mws if w["Name"] in names]
