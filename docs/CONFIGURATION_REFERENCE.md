@@ -491,20 +491,8 @@ Format       :  [Duration](#Duration)
 
 Minimum time to spend in the 'draining' state.
 
-If SSM support is enabled with [`ssm.feature.ec2.instance_ready_for_shutdown`](#ssmfeatureec2instance_ready_for_shutdown), a script located in the drained instance is executed to ensure that instance is ready for shutdown even after the duration specified is exhausted. IF this scripts return non-zero code, the shutdown is posponed for a [`ec2.schedule.draining.ssm_ready_for_shutdown_delay`](#ec2scheduledrainingssm_ready_for_shutdown_delay) duration.
+If SSM support is enabled with [`ssm.feature.ec2.instance_ready_for_shutdown`](#ssmfeatureec2instance_ready_for_shutdown), a script located in the drained instance is executed to ensure that the instance is ready for shutdown even after the specified duration is exhausted. IF this scripts return non-zero code, the shutdown is posponed for a maximum duration defined in [`ssm.feature.ec2.instance_ready_for_shutdown.max_shutdown_delay`](#ssmfeatureec2instance_ready_for_shutdownmax_shutdown_delay).
                 
-
-
-
-### ec2.schedule.draining.ssm.instance_ready_for_shutdown_delay
-Default Value: `hours=1`   
-Format       :  [Duration](#Duration)
-
- Maximum time to spend waiting for SSM based ready-for-shutdown status.
-
-When SSM support is enabled with [`ssm.feature.ec2.instance_ready_for_operation`](#ssmfeatureec2instance_ready_for_operation), instances may notify CloneSquad when they are ready for shutdown. This setting defines
-the maximum time spent by CloneSquad to receive this signal before to forcibly shutdown the instance.
-                    
 
 
 
@@ -716,6 +704,17 @@ DEPRECATED. (Now automatic detection of RDS resources is implemented.)
 
 
 
+### ssm.enable
+Default Value: `0`   
+Format       :  [Bool](#Bool)
+
+Enable globally support for AWS System Manager by CloneSquad.
+
+CloneSquad can leverage AWS SSM to take into account Maintenance Windows and use SSM RunCommand to execute status probe scripts located in managed instances.
+            
+
+
+
 ### ssm.feature.ec2.instance_ready_for_operation
 Default Value: `0`   
 Format       :  [Bool](#Bool)
@@ -724,10 +723,21 @@ Ensure an instance go out from 'initializing' state based on an instance script 
 
 This enables support for direct sensing of instance **serving** readiness based on the return code of a script located in each EC2 instances. CloneSquad never stops an instance in the 'initializing' state. This state is normally automatically left after [`ec2.schedule.start.warmup_delay`](#ec2schedulestartwarmup_delay) seconds: When this setting is set, an SSM command is sent to each instance and call a script to get a direct ack that an instance can left the 'initializing' state.
 
-* If /etc/cs-ssm/instance-ready-for-operation is present, it is executed with the SSM agent daemon user rights: If the script returns a NON-zero code, Clonesquad will postpone the instance go-out from 'initializing' state and will call this script again after 2 * [ `app.run_period`](#apprun_period) seconds...
-* If /etc/cs-ssm/instance-ready-for-operation is NOT present, the instance leaves the 'initializing' state immediatly after 'warmup delay'..
+* If `/etc/cs-ssm/instance-ready-for-operation` is present, it is executed with the SSM agent daemon user rights: If the script returns a NON-zero code, Clonesquad will postpone the instance go-out from 'initializing' state and will call this script again after 2 * [ `app.run_period`](#apprun_period) seconds...
+* If `/etc/cs-ssm/instance-ready-for-operation` is NOT present, the instance leaves the 'initializing' state immediatly after 'warmup delay'..
 
 > This setting is taken into account only if [`ssm.enable`](#ssmenable) is set to 1.
+            
+
+
+
+### ssm.feature.ec2.instance_ready_for_operation.max_initializing_time
+Default Value: `hours=1`   
+Format       :  [Duration](#Duration)
+
+Max time that an instance can spend in 'initializing' state.
+
+When [`ssm.feature.ec2.instance_ready_for_operation`](#ssmfeatureec2instance_ready_for_operation) is set, this setting defines the maximum duration that CloneSquas will attempt to get a status 'ready-for-operation' for a specific instance through SSM RunCommand calls and execution of the `/etc/cs-ssm/instance-ready-for-operation` script.
             
 
 
@@ -747,6 +757,18 @@ This enables support for direct sensing of instance shutdown readiness based on 
 
 
 
+### ssm.feature.ec2.instance_ready_for_shutdown.max_shutdown_delay
+Default Value: `hours=1`   
+Format       :  [Duration](#Duration)
+
+ Maximum time to spend waiting for SSM based ready-for-shutdown status.
+
+When SSM support is enabled with [`ssm.feature.ec2.instance_ready_for_operation`](#ssmfeatureec2instance_ready_for_operation), instances may notify CloneSquad when they are ready for shutdown. This setting defines
+the maximum time spent by CloneSquad to receive this signal before to forcibly shutdown the instance.
+                
+
+
+
 ### ssm.feature.ec2.maintenance_window
 Default Value: `1`   
 Format       :  [Bool](#Bool)
@@ -758,7 +780,18 @@ Defines if SSM maintenance window support is activated.
 
 
 
-### ssm.feature.ec2.maintenance_window.subfleet.force_running
+### ssm.maintenance_window.start_ahead
+Default Value: `minutes=15`   
+Format       :  [Duration](#Duration)
+
+Start instances this specified time ahead of the next Maintenance Window.
+
+In order to ensure that instances are up and ready when a SSM Maintenance Window starts, they are started in advance of the 'NextExecutionTime' defined in the maintenance window.
+            
+
+
+
+### ssm.maintenance_window.subfleet.{SubfleetName}.force_running
 Default Value: `0`   
 Format       :  [Bool](#Bool)
 
