@@ -223,8 +223,21 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
             "Names": mw_names,
             "Windows": mws
         }
+
+        # Retrieve Maintenace Window tags with the resourcegroup API
+        tagged_mws = self.context["o_state"].get_resources(service="ssm", resource_name="maintenancewindow")
+        for tmw in tagged_mws:
+            mw_id = tmw["ResourceARN"].split("/")[1]
+            mw = next(filter(lambda w: w["WindowId"] == mw_id, mws), None)
+            if mw:
+                mw["Tags"] = tmw["Tags"]
+        for mw in mws:
+            if "Tags" not in mw:
+                log.warning(f"Please tag Maintenance Window '%s/%s' with 'clonesquad:group-name': '%s'!" %
+                        (mw["Name"], mw["WindowId"], self.context["GroupName"]))
+
         if len(mws):
-            log.log(log.NOTICE, f"Found matching SSM maintenance windows: %s" % self.maintenance_windows)
+            log.log(log.NOTICE, f"Found matching SSM maintenance windows: %s" % self.maintenance_windows["Windows"])
 
 
         # Update instance inventory

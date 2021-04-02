@@ -49,7 +49,7 @@ class StateManager:
         self.clonesquad_resources = list(tag_mappings)
 
     def get_resource_services(self):
-        """ Return the list of services with clonesquuad:group-name tags
+        """ Return the list of services with clonesquad:group-name tags
         """
         services = []
         for r in self.get_resources():
