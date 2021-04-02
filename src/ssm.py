@@ -59,6 +59,15 @@ This enables support for direct sensing of instance shutdown readiness based on 
 > This setting is taken into account only if [`ssm.enable`](#ssmenable) is set to 1.
             """
             },
+             "ssm.feature.ec2.instance_ready_for_shutdown.max_shutdown_delay,Stable": {
+                     "DefaultValue": "hours=1",
+                     "Format": "Duration",
+                     "Description": """ Maximum time to spend waiting for SSM based ready-for-shutdown status.
+
+When SSM support is enabled with [`ssm.feature.ec2.instance_ready_for_operation`](#ssmfeatureec2instance_ready_for_operation), instances may notify CloneSquad when they are ready for shutdown. This setting defines
+the maximum time spent by CloneSquad to receive this signal before to forcibly shutdown the instance.
+                """
+             },
             "ssm.feature.ec2.instance_ready_for_operation,Stable": {
                 "DefaultValue": "0",
                 "Format": "Bool",
@@ -66,10 +75,18 @@ This enables support for direct sensing of instance shutdown readiness based on 
 
 This enables support for direct sensing of instance **serving** readiness based on the return code of a script located in each EC2 instances. CloneSquad never stops an instance in the 'initializing' state. This state is normally automatically left after [`ec2.schedule.start.warmup_delay`](#ec2schedulestartwarmup_delay) seconds: When this setting is set, an SSM command is sent to each instance and call a script to get a direct ack that an instance can left the 'initializing' state.
 
-* If /etc/cs-ssm/instance-ready-for-operation is present, it is executed with the SSM agent daemon user rights: If the script returns a NON-zero code, Clonesquad will postpone the instance go-out from 'initializing' state and will call this script again after 2 * [ `app.run_period`](#apprun_period) seconds...
-* If /etc/cs-ssm/instance-ready-for-operation is NOT present, the instance leaves the 'initializing' state immediatly after 'warmup delay'..
+* If `/etc/cs-ssm/instance-ready-for-operation` is present, it is executed with the SSM agent daemon user rights: If the script returns a NON-zero code, Clonesquad will postpone the instance go-out from 'initializing' state and will call this script again after 2 * [ `app.run_period`](#apprun_period) seconds...
+* If `/etc/cs-ssm/instance-ready-for-operation` is NOT present, the instance leaves the 'initializing' state immediatly after 'warmup delay'..
 
 > This setting is taken into account only if [`ssm.enable`](#ssmenable) is set to 1.
+            """
+            },
+            "ssm.feature.ec2.instance_ready_for_operation.max_initializing_time,Stable": {
+                "DefaultValue": "hours=1",
+                "Format": "Duration",
+                "Description": """Max time that an instance can spend in 'initializing' state.
+
+When [`ssm.feature.ec2.instance_ready_for_operation`](#ssmfeatureec2instance_ready_for_operation) is set, this setting defines the maximum duration that CloneSquas will attempt to get a status 'ready-for-operation' for a specific instance through SSM RunCommand calls and execution of the `/etc/cs-ssm/instance-ready-for-operation` script.
             """
             },
             "ssm.feature.ec2.instance_healthcheck": "0",

@@ -368,6 +368,7 @@ without any TargetGroup but another external health instance source exists).
         :param instance_id: The instance id to test
         :param state: A list of state value to test
         """
+        now = self.context["now"]
 
         # Retrieve the instance structure based on the id
         i = next(filter(lambda i: i["InstanceId"] == instance_id, self.instance_statuses), None)
@@ -392,23 +393,29 @@ without any TargetGroup but another external health instance source exists).
                     return override_status in state
 
         o_ssm = self.context["o_ssm"]
-        if "initializing" in state and o_ssm.is_feature_enabled("ec2.instance_ready_for_operation"):
+        if o_ssm.is_feature_enabled("ec2.instance_ready_for_operation"):
+            launch_time     = self.get_instance_by_id(instance_id)["LaunchTime"]
             last_ready_date = self.get_state_date(f"ec2.instance.ssm.ready_for_operation_date.{instance_id}",
-                    TTL=Cfg.get_duration_secs("ec2.state.status_ttl"))
-            if last_ready_date is not None and self.get_instance_by_id(instance_id)["LaunchTime"] < last_ready_date:
-                state.remove("initializing")
-                return i["InstanceStatus"]["Status"] in state
-            readyness = o_ssm.run_command([instance_id], "INSTANCE_READY_FOR_OPERATION", 
-                    comment="CS-InstanceReadyForOperation (%s)" % self.context["GroupName"], return_former_results=True)
-            if readyness.get(instance_id) and len(readyness[instance_id]["Warning"]):
-                log.warning(f"Got warning(s) while retrieving InstanceReadyForOperation SSM status for {instance_id} : %s" % 
-                        readyness[instance_id]["Details"])
-            status    = readyness.get(instance_id, {}).get("Status")
-            if status != "SUCCESS":
-                log.log(log.NOTICE, f"Waiting for InstanceReadyForOperation SSM status for {instance_id}...")
-                return True
-            self.set_state(f"ec2.instance.ssm.ready_for_operation_date.{instance_id}", self.context["now"],
-                    TTL=Cfg.get_duration_secs("ec2.state.status_ttl"))
+                TTL=Cfg.get_duration_secs("ec2.state.status_ttl"))
+            if ("unhealthy" in state and last_ready_date is None and 
+                (now - launch_time) > timedelta(seconds=Cfg.get_duration_secs("ssm.feature.ec2.instance_ready_for_operation.max_initializing_time"))):
+                    log.warning(f"Instance {instance_id} spent too much time in initializing state. Report it as unhealthy...")
+                    return True
+            if "initializing" in state:
+                if last_ready_date is not None and launch_time < last_ready_date:
+                    state.remove("initializing")
+                    return i["InstanceStatus"]["Status"] in state
+                readyness = o_ssm.run_command([instance_id], "INSTANCE_READY_FOR_OPERATION", 
+                        comment="CS-InstanceReadyForOperation (%s)" % self.context["GroupName"], return_former_results=True)
+                if readyness.get(instance_id) and len(readyness[instance_id]["Warning"]):
+                    log.warning(f"Got warning(s) while retrieving InstanceReadyForOperation SSM status for {instance_id} : %s" % 
+                            readyness[instance_id]["Details"])
+                status    = readyness.get(instance_id, {}).get("Status")
+                if status != "SUCCESS":
+                    log.log(log.NOTICE, f"Waiting for InstanceReadyForOperation SSM status for {instance_id}...")
+                    return True
+                self.set_state(f"ec2.instance.ssm.ready_for_operation_date.{instance_id}", self.context["now"],
+                        TTL=Cfg.get_duration_secs("ec2.state.status_ttl"))
         
         return i["InstanceStatus"]["Status"] in state 
 
