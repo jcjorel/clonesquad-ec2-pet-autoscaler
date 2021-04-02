@@ -120,7 +120,7 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
             "ssm.maintenance_window.global_defaults": "CS-GlobalDefaultMaintenanceWindow",
             "ssm.maintenance_window.defaults": "CS-{GroupName}",
             "ssm.maintenance_window.mainfleet.defaults": "CS-{GroupName}-__main__",
-            "ssm.maintenance_window.mainfleet.min_instance_count": {
+            "ssm.maintenance_window.mainfleet.ec2.schedule.min_instance_count": {
                     "DefaultValue": "100%",
                     "Format": "IntegerOrPercentage",
                     "Description": """Minimum number of instances serving in the fleet when the Maintenance Window occurs.
@@ -130,7 +130,7 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
             },
             "ssm.maintenance_window.subfleet.__all__.defaults": "CS-{GroupName}-Subfleet.__all__",
             "ssm.maintenance_window.subfleet.{SubfleetName}.defaults": "CS-{GroupName}-Subfleet.{SubfleetName}",
-            "ssm.maintenance_window.subfleet.{SubfleetName}.min_instance_count": {
+            "ssm.maintenance_window.subfleet.{SubfleetName}.ec2.schedule.min_instance_count": {
                     "DefaultValue": "100%",
                     "Format": "IntegerOrPercentage",
                     "Description": """Minimum number of instances serving in the fleet when the Maintenance Window occurs.
@@ -187,8 +187,8 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
             mw_names[f"Subfleet.{SubfleetName}"] = {}
             Cfg.register({
                 f"ssm.maintenance_window.subfleet.{SubfleetName}.defaults": Cfg.get("ssm.maintenance_window.subfleet.{SubfleetName}.defaults"),
-                f"ssm.maintenance_window.subfleet.{SubfleetName}.min_instance_count": 
-                    Cfg.get("ssm.maintenance_window.subfleet.{SubfleetName}.min_instance_count")
+                f"ssm.maintenance_window.subfleet.{SubfleetName}.ec2.schedule.min_instance_count": 
+                    Cfg.get("ssm.maintenance_window.subfleet.{SubfleetName}.ec2.schedule.min_instance_count")
             })
             mw_names[f"Subfleet.{SubfleetName}"]["Names"] = Cfg.get_list(f"ssm.maintenance_window.subfleet.{SubfleetName}.defaults", fmt=fmt)
             all_mw_names.extend([ n for n in mw_names[f"Subfleet.{SubfleetName}"]["Names"] if n not in all_mw_names])
@@ -233,9 +233,10 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
                 mw["Tags"] = tmw["Tags"]
         for mw in mws:
             if "Tags" not in mw:
-                log.warning(f"Please tag Maintenance Window '%s/%s' with 'clonesquad:group-name': '%s'!" %
+                log.warning(f"Please tag SSM Maintenance Window '%s/%s' with 'clonesquad:group-name': '%s'!" %
                         (mw["Name"], mw["WindowId"], self.context["GroupName"]))
 
+        self.manage_maintenance_windows()
         if len(mws):
             log.log(log.NOTICE, f"Found matching SSM maintenance windows: %s" % self.maintenance_windows["Windows"])
 
@@ -511,4 +512,50 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
                 if matching_window: matching_window.append(w)
                 return True
         return False
+
+    def manage_maintenance_windows(self):
+        config_tag = "clonesquad:config:"
+        def _set_tag(fleet, config, mw):
+            pdb.set_trace()
+            min_instance_count = None
+            if "Tags" in mw:
+                tags = {}
+                for t in tags:
+                    if t.startswith(config_tag):
+                        tags[t["Key"][len(config_tag):]] = t["Value"]
+                if fleet:
+                    if "ec2.schedule.min_instance_count" in tags: 
+                        min_instance_count = tags["ec2.schedule.min_instance_count"]
+                else:
+                    tag = f"subfleet.{fleet}.ec2.schedule.min_instance_count"
+                    if tag in tags:
+                        min_instance_count = tags[tag]
+                        del tags[tag]
+                    tag = f"subfleet.__all__.ec2.schedule.min_instance_count"
+                    if tag in tags:
+                        min_instance_count = tags[tag]
+                        del tags[tag]
+                for t in tags:    
+                    config.set(t, tags[t])
+            return min_instance_count
+        config          = {}
+        matching_window = []
+        if self.is_maintenance_time(fleet=None, matching_window=matching_window):
+            min_instance_count = _set_tag(None, config, matching_window[0])
+            if min_instance_count is None:
+                min_instance_count = Cfg.get("ssm.maintenance_window.mainfleet.ec2.schedule.min_instance_count")
+            config["ec2.schedule.min_instance_count"] = min_instance_count
+            if min_instance_count == "100%":
+                config["ec2.schedule.desired_instance_count"] = "100%"
+
+        for subfleet in self.o_ec2.get_subfleet_names():
+            if self.is_maintenance_time(fleet=subfleet, matching_window=matching_window):
+                min_instance_count = _set_tag(subfleet, config, matching_window[0])
+                if min_instance_count:
+                    min_instance_count = Cfg.get(f"ssm.maintenance_window.subfleet.{subfleet}.ec2.schedule.min_instance_count")
+                config[f"subfleet.{subfleet}.ec2.schedule.min_instance_count"] = min_instance_count
+                if min_instance_count == "100%":
+                    config[f"subfleet.{subfleet}.ec2.schedule.desired_instance_count"] = "100%"
+        Cfg.register(config, layer="SSM Maintenance window override", create_layer_when_needed=True)
+
 

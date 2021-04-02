@@ -647,11 +647,7 @@ By default, the dashboard is enabled.
         :return An integer (number of instances)
         """
         instances = self.all_main_fleet_instances 
-        if self.ssm.is_maintenance_time(fleet=None):
-            c = Cfg.get_abs_or_percent("ssm.maintenance_window.mainfleet.min_instance_count", -1, len(instances))
-        else:
-            c = Cfg.get_abs_or_percent("ec2.schedule.min_instance_count", -1, len(instances))
-        return c if c > 0 else 0
+        return max(0, Cfg.get_abs_or_percent("ec2.schedule.min_instance_count", -1, len(instances)))
 
     def desired_instance_count(self):
         """ Return the desired instance count linked in 'ec2.schedule.desired_instance_count'.
@@ -660,8 +656,6 @@ By default, the dashboard is enabled.
         :return An integer (number of instances
         """
         instances = self.all_main_fleet_instances 
-        if self.ssm.is_maintenance_time(fleet=None) and Cfg.get("ssm.maintenance_window.mainfleet.min_instance_count") == "100%":
-            return len(instances)
         return Cfg.get_abs_or_percent("ec2.schedule.desired_instance_count", -1, len(instances))
 
     def get_instances_with_issues(self):
@@ -1428,11 +1422,6 @@ By default, the dashboard is enabled.
                                         0, len(fleet_instances)))
         desired_instance_count = max(0, get_subfleet_key_abs_or_percent("ec2.schedule.desired_instance_count", subfleet,
                                         len(fleet_instances), len(fleet_instances)))
-        if self.ssm.is_maintenance_time(fleet=subfleet):
-            mic = Cfg.get(f"ssm.maintenance_window.subfleet.{subfleet}.min_instance_count")
-            min_instance_count = max(0, Cfg.get_abs_or_percent(mic, len(fleet_instances), len(fleet_instances)))
-            if mic == "100%":
-                desired_instance_count = len(fleet_instances)
 
         instance_count    = max(min_instance_count, desired_instance_count)
         running_instances = self.ec2.get_instances(instances=fleet_instances, 
@@ -1498,8 +1487,6 @@ By default, the dashboard is enabled.
                 log.warning("Instance '%s' contains invalid characters (%s)!! Ignore this instance..." % (instance_id, forbidden_chars))
                 continue
             expected_state = get_subfleet_key("state", subfleet_name, none_on_failure=True)
-            if self.ssm.is_maintenance_time(fleet=subfleet_name) and self.ssm.is_feature_enabled("ec2.maintenance_window.subfleet.force_running"):
-                expected_state = "running"
             if expected_state is None:
                 log.log(log.NOTICE, "Encountered a subfleet instance (%s) without state directive. Please set 'subfleet.%s.state' configuration key..." % 
                         (instance_id, subfleet_name))

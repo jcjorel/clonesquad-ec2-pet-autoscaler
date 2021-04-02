@@ -114,16 +114,6 @@ See [Parameter sets](#parameter-sets) documentation.
     _init["loaded_files"] = loaded_files
     xray_recorder.end_subsegment()
 
-    builtin_config = _init["all_configs"][0]["config"]
-    for cfg in _get_config_layers(reverse=True):
-        c = cfg["config"]
-        if "config.active_parameter_set" in c:
-            if c == builtin_config and isinstance(c, dict):
-                _init["active_parameter_set"] = c["config.active_parameter_set"]["DefaultValue"]
-            else:
-                _init["active_parameter_set"] = c["config.active_parameter_set"]
-            break
-    _parameterset_sanity_check()
 
     register({
         "config.ignored_warning_keys,Stable" : {
@@ -156,36 +146,62 @@ def _parameterset_sanity_check():
         if not found:
             log.warning("Active parameter set is '%s' but no parameter set with this name exists!" % _init["active_parameter_set"])
     
-
-def register(config, ignore_double_definition=False):
+def register(config, ignore_double_definition=False, layer="Built-in defaults", create_layer_when_needed=False):
     if _init is None:
         return
-    builtin_config = _init["all_configs"][0]["config"]
-    builtin_metas  = _init["all_configs"][0]["metas"]
+    layer_struct = next(filter(lambda l: l["source"] == layer, _init["all_configs"]), None)
+    new_layer_struct = None
+    if layer_struct is None:
+        if not create_layer_when_needed:
+            raise Exception(f"Unknown config '{layer}'!")
+        layer_struct     = {"source": layer, "config": {}, "metas": {}}
+        new_layer_struct = layer_struct
+    layer_config = layer_struct["config"]
+    layer_metas  = layer_struct["metas"]
     for c in config:
         p = misc.parse_line_as_list_of_dict(c)
         key = p[0]["_"]
-        if not ignore_double_definition and key in builtin_config:
+        if not ignore_double_definition and key in layer_config:
             raise Exception("Double definition of key '%s'!" % key)
-        builtin_config[key] = config[c]
-        builtin_metas[key]  = dict(p[0])
+        layer_config[key] = config[c]
+        layer_metas[key]  = dict(p[0])
+
+    # Build the config layer stack
+    layers = []
+    # Add built-in config
+    layers.extend(_init["all_configs"])
+    # Add file loaded config
+    if "loaded_files" in _init:
+        layers.extend(_init["loaded_files"])
+    if _init["with_kvtable"]:
+        # Add DynamoDB based configuration
+        layers.extend([{
+            "source": "DynamoDB configuration table '%s'" % _init["context"]["ConfigurationTable"],
+            "config": _init["configuration_table"].get_dict()}])
+    if new_layer_struct:
+        layers.append(new_layer_struct)
+    _init["config_layers"] = layers
+
+    # Update config.active_parameter_set
+    builtin_config = _init["all_configs"][0]["config"]
+    for cfg in _get_config_layers(reverse=True):
+        c = cfg["config"]
+        if "config.active_parameter_set" in c:
+            if c == builtin_config and isinstance(c, dict):
+                _init["active_parameter_set"] = c["config.active_parameter_set"]["DefaultValue"]
+            else:
+                _init["active_parameter_set"] = c["config.active_parameter_set"]
+            break
+    _parameterset_sanity_check()
     # Create a lookup efficient key cache
     compile_keys()
 
+
 def _get_config_layers(reverse=False):
-    l = []
-    # Add built-in config
-    l.extend(_init["all_configs"])
-    # Add file loaded config
-    if "loaded_files" in _init:
-        l.extend(_init["loaded_files"])
-    if _init["with_kvtable"]:
-        # Add DynamoDB based configuration
-        l.extend([{
-            "source": "DynamoDB configuration table '%s'" % _init["context"]["ConfigurationTable"],
-            "config": _init["configuration_table"].get_dict()}])
-    l = l.copy()
-    if reverse: l.reverse()
+    if not reverse:
+        return _init["config_layers"]
+    l = _init["config_layers"].copy()
+    l.reverse()
     return l
 
 def _k(key):

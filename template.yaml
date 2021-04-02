@@ -693,6 +693,10 @@ Resources:
                   - 'rds:DescribeDBInstances'
                   - 'transfer:ListServers'
                   - 'tag:GetResources'
+                  - 'ssm:DescribeMaintenanceWindows'
+                  - 'ssm:DescribeInstanceInformation'
+                  - 'ssm:ListCommandInvocations'
+                  - 'ssm:SendCommand'
 
     MainFunction:
             Type: AWS::Serverless::Function 
