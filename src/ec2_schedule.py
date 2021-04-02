@@ -647,7 +647,10 @@ By default, the dashboard is enabled.
         :return An integer (number of instances)
         """
         instances = self.all_main_fleet_instances 
-        c         = Cfg.get_abs_or_percent("ec2.schedule.min_instance_count", -1, len(instances))
+        if self.ssm.is_maintenance_time(fleet=None):
+            c = Cfg.get_abs_or_percent("ssm.maintenance_window.mainfleet.min_instance_count", -1, len(instances))
+        else:
+            c = Cfg.get_abs_or_percent("ec2.schedule.min_instance_count", -1, len(instances))
         return c if c > 0 else 0
 
     def desired_instance_count(self):
@@ -657,7 +660,7 @@ By default, the dashboard is enabled.
         :return An integer (number of instances
         """
         instances = self.all_main_fleet_instances 
-        if self.ssm.is_maintenance_time(fleet=None):
+        if self.ssm.is_maintenance_time(fleet=None) and Cfg.get("ssm.maintenance_window.mainfleet.min_instance_count") == "100%":
             return len(instances)
         return Cfg.get_abs_or_percent("ec2.schedule.desired_instance_count", -1, len(instances))
 
@@ -1426,7 +1429,10 @@ By default, the dashboard is enabled.
         desired_instance_count = max(0, get_subfleet_key_abs_or_percent("ec2.schedule.desired_instance_count", subfleet,
                                         len(fleet_instances), len(fleet_instances)))
         if self.ssm.is_maintenance_time(fleet=subfleet):
-            desired_instance_count = len(fleet_instances)
+            mic = Cfg.get(f"ssm.maintenance_window.subfleet.{subfleet}.min_instance_count")
+            min_instance_count = max(0, Cfg.get_abs_or_percent(mic, len(fleet_instances), len(fleet_instances)))
+            if mic == "100%":
+                desired_instance_count = len(fleet_instances)
 
         instance_count    = max(min_instance_count, desired_instance_count)
         running_instances = self.ec2.get_instances(instances=fleet_instances, 

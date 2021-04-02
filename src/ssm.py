@@ -120,8 +120,24 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
             "ssm.maintenance_window.global_defaults": "CS-GlobalDefaultMaintenanceWindow",
             "ssm.maintenance_window.defaults": "CS-{GroupName}",
             "ssm.maintenance_window.mainfleet.defaults": "CS-{GroupName}-__main__",
+            "ssm.maintenance_window.mainfleet.min_instance_count": {
+                    "DefaultValue": "100%",
+                    "Format": "IntegerOrPercentage",
+                    "Description": """Minimum number of instances serving in the fleet when the Maintenance Window occurs.
+
+> Note: If this value is set to the special value '100%', the setting [`ec2.schedule.desired_instance_count`](#ec2scheduledesired_instance_count) is also forced to '100%'. This implies that any LightHouse instances will also be started and full fleet stability ensured during the Maintenance Window.
+            """
+            },
             "ssm.maintenance_window.subfleet.__all__.defaults": "CS-{GroupName}-Subfleet.__all__",
-            "ssm.maintenance_window.subfleet.{SubfleetName}.defaults": "CS-{GroupName}-Subfleet.{SubfleetName}"
+            "ssm.maintenance_window.subfleet.{SubfleetName}.defaults": "CS-{GroupName}-Subfleet.{SubfleetName}",
+            "ssm.maintenance_window.subfleet.{SubfleetName}.min_instance_count": {
+                    "DefaultValue": "100%",
+                    "Format": "IntegerOrPercentage",
+                    "Description": """Minimum number of instances serving in the fleet when the Maintenance Window occurs.
+
+> Note: If this value is set to the special value '100%', the setting [`subfleet.{subfleet}.ec2.schedule.desired_instance_count`](#subfleetsubfleetec2scheduledesired_instance_count) is also forced to '100%' ensuring full subfleet stability.
+            """
+            }
             })
 
         self.o_state.register_aggregates([
@@ -170,7 +186,9 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
             fmt["SubfleetName"] = SubfleetName
             mw_names[f"Subfleet.{SubfleetName}"] = {}
             Cfg.register({
-                f"ssm.maintenance_window.subfleet.{SubfleetName}.defaults": Cfg.get("ssm.maintenance_window.subfleet.{SubfleetName}.defaults")
+                f"ssm.maintenance_window.subfleet.{SubfleetName}.defaults": Cfg.get("ssm.maintenance_window.subfleet.{SubfleetName}.defaults"),
+                f"ssm.maintenance_window.subfleet.{SubfleetName}.min_instance_count": 
+                    Cfg.get("ssm.maintenance_window.subfleet.{SubfleetName}.min_instance_count")
             })
             mw_names[f"Subfleet.{SubfleetName}"]["Names"] = Cfg.get_list(f"ssm.maintenance_window.subfleet.{SubfleetName}.defaults", fmt=fmt)
             all_mw_names.extend([ n for n in mw_names[f"Subfleet.{SubfleetName}"]["Names"] if n not in all_mw_names])
