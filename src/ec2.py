@@ -227,7 +227,6 @@ without any TargetGroup but another external health instance source exists).
         """
         if only_if_not_already_done and self.prereqs_done:
             return
-        misc.initialize_clients(["ec2"], self.context)
 
         self.state_table = self.o_state.get_state_table()
         client           = self.context["ec2.client"]
@@ -240,14 +239,14 @@ without any TargetGroup but another external health instance source exists).
         # Retrieve list of instances with appropriate tag
         Filters          = [{'Name': 'tag:clonesquad:group-name', 'Values': [self.context["GroupName"]]}]
         
+        log.debug("describe_instances()")
         instances = []
-        response  = None
-        while (response is None or "NextToken" in response):
-            response = client.describe_instances(Filters=Filters,
-                    MaxResults=Cfg.get_int("ec2.describe_instances.max_results"),
-                    NextToken=response["NextToken"] if response is not None and "NextToken" in response else "")
+        paginator = client.get_paginator('describe_instances')
+        response_iterator = paginator.paginate(Filters=Filters, MaxResults=Cfg.get_int("ec2.describe_instances.max_results"))
+        for response in response_iterator:
             for reservation in response["Reservations"]:
                 instances.extend(reservation["Instances"])
+        log.debug("end - describe_instances()")
 
         # Filter out instances with inappropriate state
         non_terminated_instances = []
@@ -266,6 +265,7 @@ without any TargetGroup but another external health instance source exists).
 
         # Enrich describe_instances output with instance type details
         if Cfg.get_int("ec2.describe_instance_types.enabled"):
+            log.debug("describe_instance_types()")
             self.instance_types = []
             [self.instance_types.append(i["InstanceType"]) for i in self.instances if i["InstanceType"] not in self.instance_types]
             if len(self.instance_types):
@@ -279,16 +279,18 @@ without any TargetGroup but another external health instance source exists).
         response          = None
         i_ids             = self.instance_ids.copy()
         while len(i_ids):
+            log.debug("describe_instance_status()")
             q = { "InstanceIds": i_ids[:100] }
-            while response is None or "NextToken" in response:
-                if response is not None and "NextToken" in response: q["NextToken"] = response["NextToken"]
-                response = client.describe_instance_status(**q) #TODO: Understand why this API do not always returned all requested data...
+            paginator = client.get_paginator('describe_instance_status')
+            response_iterator = paginator.paginate(**q)
+            for response in response_iterator:
                 instance_statuses.extend(response["InstanceStatuses"])
             response = None
             i_ids    = i_ids[100:]
         self.instance_statuses = instance_statuses
 
         # Get AZ status
+        log.debug("describe_availability_zones()")
         response                = client.describe_availability_zones()
         self.availability_zones = response["AvailabilityZones"]
         if len(self.availability_zones) == 0: raise Exception("Can't have a region with no AZ...")
@@ -337,6 +339,7 @@ without any TargetGroup but another external health instance source exists).
         # Load EC2 status override URL content
         self.ec2_status_override_url = Cfg.get("ec2.instance.status.override_url")
         if self.ec2_status_override_url is not None and self.ec2_status_override_url != "":
+            log.debug("Load ec2_status_override_url %s" % ec2_status_override_url)
             try:
                 content = misc.get_url(self.ec2_status_override_url)
                 self.ec2_status_override = yaml.safe_load(str(content, "utf-8"))
@@ -344,6 +347,7 @@ without any TargetGroup but another external health instance source exists).
                 log.warning("Failed to load 'ec2.instance.status.override_url' YAML file '%s' : %s" % (self.ec2_status_override_url, e))
 
         # Pre-compute scaling states for instance tp be fast later
+        log.debug("compute_scaling_states()")
         self.compute_scaling_states()
 
         self.prereqs_done = True

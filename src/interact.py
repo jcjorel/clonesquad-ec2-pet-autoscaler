@@ -106,14 +106,14 @@ class Interact:
                     "interface": ["apigw"],
                     "clients": ["dynamodb"],
                     "cache": "none",
-                    "prerequisites": ["o_ec2", "o_ssm"],
+                    "prerequisites": ["o_state", "o_ec2", "o_ssm"],
                     "func": self.configuration_dump,
                 },
                 "configuration/(.*)"       : {
                     "interface": ["apigw"],
                     "clients": ["dynamodb"],
                     "cache": "none",
-                    "prerequisites": ["o_ec2", "o_ssm"],
+                    "prerequisites": ["o_state", "o_ec2", "o_ssm"],
                     "func": self.configuration,
                 },
                 "scheduler"       : {

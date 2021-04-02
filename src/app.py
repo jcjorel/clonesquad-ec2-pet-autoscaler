@@ -77,6 +77,9 @@ if misc.is_sam_local() or __name__ == '__main__':
     for env in os.environ:
         print("%s=%s" % (env, os.environ[env]))
 
+# Avoid client initialization time during event processsing
+misc.initialize_clients(["ec2", "cloudwatch", "events", "sqs", "sns", "dynamodb",  "ssm", "lambda",
+    "elbv2", "rds", "resourcegroupstaggingapi", "transfer"], ctx)
 log.debug("End of preambule.")
 
 @xray_recorder.capture(name="app.init")
@@ -203,6 +206,8 @@ def main_handler_entrypoint(event, context):
 
     # Perform actions:
     log.debug("Main processing.")
+    log.debug("Main - prepare_ssm()")
+    ctx["o_ssm"].prepare_ssm()
     log.debug("Main - manage_targetgroup()")
     ctx["o_targetgroup"].manage_targetgroup()
     log.debug("Main - schedule_instances()")

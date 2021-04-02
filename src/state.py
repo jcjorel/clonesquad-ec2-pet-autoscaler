@@ -91,13 +91,13 @@ class StateManager:
         return value[0]
 
     def set_state(self, key, value, direct=False, TTL=0):
-        if direct or self.table is None:
+        if direct:
             kvtable.KVTable.set_kv_direct(key, value, self.context["StateTable"], TTL=TTL)
         else:
             self.table.set_kv(key, value, TTL=TTL)
 
     def get_state(self, key, default=None, direct=False, TTL=None):
-        if direct or self.table is None:
+        if direct:
             return kvtable.KVTable.get_kv_direct(key, self.context["StateTable"], default=default, TTL=TTL)
         else:
             return self.table.get_kv(key, default=default, TTL=TTL)

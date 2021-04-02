@@ -323,8 +323,10 @@ def dynamodb_table_scan(client, table_name, max_size=32*1024*1024):
 def load_prerequisites(ctx, object_list):
     for o in object_list:
         xray_recorder.begin_subsegment("prereq:%s" % o)
+        log.debug(f"Loading prerequisite '{o}'...")
         ctx[o].get_prerequisites()
         xray_recorder.end_subsegment()
+    log.debug(f"End prerequisite loading...")
 
 def initialize_clients(clients, ctx):
     config = Config(
