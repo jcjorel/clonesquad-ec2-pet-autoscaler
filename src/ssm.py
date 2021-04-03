@@ -138,7 +138,7 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
 
 > Note: If this value is set to the special value '100%', the setting [`subfleet.{subfleet}.ec2.schedule.desired_instance_count`](#subfleetsubfleetec2scheduledesired_instance_count) is also forced to '100%' ensuring full subfleet stability.
             """
-            }
+            },
             })
 
         self.o_state.register_aggregates([
@@ -267,6 +267,7 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
         now       = self.context["now"]
         client    = self.context["ssm.client"]
         # Update instance inventory
+        log.debug("describe_instance_information()")
         paginator = client.get_paginator('describe_instance_information')
         response_iterator = paginator.paginate(
             Filters=[
@@ -274,11 +275,14 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
                     'Key': 'tag:clonesquad:group-name',
                     'Values': [self.context["GroupName"]]
                 },
-            ])
+            ],
+            MaxResults=50)
 
         self.instance_infos = []
         for r in response_iterator:
             self.instance_infos.extend([d for d in r["InstanceInformationList"]])
+        log.debug("end - describe_instance_information()")
+
         instance_info_ids = [i["InstanceId"] for i in self.instance_infos]
 
         instances           = self.o_ec2.get_instances(State="pending,running")

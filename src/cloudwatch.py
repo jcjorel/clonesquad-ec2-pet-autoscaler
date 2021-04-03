@@ -160,12 +160,9 @@ See [Alarm specification documentation](ALARMS_REFERENCE.md)  for more details.
 
         # Read all existing CloudWatch alarms
         alarms = []
-        response = None
-        while (response is None or "NextToken" in response):
-            response = client.describe_alarms(
-                MaxRecords=Cfg.get_int("cloudwatch.describe_alarms.max_results"),
-                NextToken=response["NextToken"] if response is not None else ""
-            )
+        paginator = client.get_paginator('describe_alarms')
+        response_iterator = paginator.paginate(MaxRecords=Cfg.get_int("cloudwatch.describe_alarms.max_results"))
+        for response in response_iterator:
             #log.debug(Dbg.pprint(response))
             for alarm in response["MetricAlarms"]:
                 alarm_name = alarm["AlarmName"]
@@ -285,15 +282,14 @@ See [Alarm specification documentation](ALARMS_REFERENCE.md)  for more details.
             q        = queries[:500]
             queries  = queries[500:]
             results  = []
-            response = None
-            while response is None or "NextToken" in response:
-                args = {
-                        "MetricDataQueries" : q,
-                        "StartTime" : now - timedelta(seconds=Cfg.get_duration_secs("cloudwatch.metrics.data_period")),
-                        "EndTime" : now
-                  }
-                if response is not None: args["NextToken"] = response["NextToken"]
-                response = client.get_metric_data(**args)
+            args = {
+                "MetricDataQueries" : q,
+                "StartTime" : now - timedelta(seconds=Cfg.get_duration_secs("cloudwatch.metrics.data_period")),
+                "EndTime" : now
+            }
+            paginator = client.get_paginator('get_metric_data')
+            response_iterator = paginator.paginate(**args)
+            for response in response_iterator:
                 results.extend(response["MetricDataResults"])
                 query_counter += len(q)
 

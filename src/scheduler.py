@@ -66,13 +66,12 @@ class Scheduler:
            "NamePrefix": "CS-Cron-%s-" % (self.context["GroupName"]),
            "Limit":      10
         }
-        rules  = []
-        while True:
-            response = client.list_rules(**params)
-            if "Rules" in response: rules.extend(response["Rules"])
-            if "NextToken" not in response: break
-            params["NextToken"] = response["NextToken"]
-        self.rules = rules
+        self.rules = []
+        paginator  = client.get_paginator('list_rules')
+        response_iterator = paginator.paginate(**params)
+        for response in response_iterator:
+            if "Rules" in response: 
+                self.rules.extend(response["Rules"])
 
         max_rules_per_batch = Cfg.get_int("cron.max_rules_per_batch")
         # Create missing rules
