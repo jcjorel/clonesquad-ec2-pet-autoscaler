@@ -392,29 +392,26 @@ improve CloneSquad over time by allowing easy sharing of essential data for remo
         # Optimize message size by deduplicating metadata
         messages = []
         while len(events_r):
-            # Sanity check
-            msg["Events"] = [events_r[0]]
-            msg_size      = len(json.dumps(msg, default=str))
-            if msg_size > 256*1024:
-                event_type = events_r[0]["EventType"]
-                event_date = events_r[0]["EventDate"]
-                log.error(f"Notification message too big ({msg_size} > 256kB)! Possible cause is too many instances "
-                    "under management... This message {event_date}/{event_type} will be discarded...")
-                events_r = events_r[1:]
-                continue
 
             chunk = []
             m     = None
             index = 0
             for i in range(0, len(events_r)):
                 index = i
-                # Size control
+                if i == 0:
+                    # Sanity check. Check if the first item is too big to fit in the payload
+                    msg["Events"] = [events_r[0]]
+                    msg_size      = len(json.dumps(msg, default=str))
+                    if msg_size > 256*1024:
+                        event_type = events_r[0]["EventType"]
+                        event_date = events_r[0]["EventDate"]
+                        log.error(f"Notification message too big ({msg_size} > 256kB)! Possible cause is too many instances "
+                            "under management... This message {event_date}/{event_type} will be discarded...")
+                        break
+                # Size control. Check if the next message will make the message too big
                 msg["Events"] = chunk.copy()
                 if i < len(events_r)-1:
                     msg["Events"].append(events_r[i+1])
-                if len(json.dumps(msg, default=str)) > 256*1024:
-                    # Chunk is going to be too big. Create a new chunk now...
-                    break
                 if "Metadata" not in events_r[i]:
                     log.error("Malformed event %s/%s read from DynamoDB! (???) Skipping it..." % 
                             (events_r[i]["EventDate"], events_r[i]["EventType"]))
@@ -424,6 +421,9 @@ improve CloneSquad over time by allowing easy sharing of essential data for remo
                     del events_r[i]["Metadata"]
                 else:
                     m = meta
+                if len(json.dumps(msg, default=str)) > 256*1024:
+                    # Chunk is going to be too big. Create a new chunk now...
+                    break
                 chunk.append(events_r[i])
             messages.append(chunk)
             events_r = events_r[index+1:]

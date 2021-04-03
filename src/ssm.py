@@ -3,6 +3,7 @@
 License: MIT
 
 """
+import copy
 import boto3
 import json
 import pdb
@@ -158,7 +159,7 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
             log.log(log.NOTICE, "SSM support is currently disabled. Set ssm.enable to 1 to enabled it.")
             return
         now       = self.context["now"]
-        ttl       = Cfg.get_duration_secs("ssm.state.default_ttl")
+        self.ttl  = Cfg.get_duration_secs("ssm.state.default_ttl")
         GroupName = self.context["GroupName"]
 
         misc.initialize_clients(["ssm"], self.context)
@@ -219,18 +220,14 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
                         log.log(log.NOTICE, f"SSM Maintenance Window '%s' not enabled. Ignored..." % wi["Name"])
                         continue
                     if "NextExecutionTime" not in wi:
-                        log.log(log.NOTICE, f"SSM Maintenance Window '%s' without 'NextExecutionTime'. Ignored..." % wi["Name"])
-                        continue
+                        log.log(log.NOTICE, f"/!\ SSM Maintenance Window '%s' without 'NextExecutionTime'." % wi["Name"])
                     if wi not in mws:
                         mws.append(wi)
             names = names[20:]
         # Make string dates as object dates
         for d in mws:
-            d["NextExecutionTime"] = misc.str2utc(d["NextExecutionTime"])
-        self.maintenance_windows = {
-            "Names": mw_names,
-            "Windows": mws
-        }
+            if "NextExecutionTime" in d:
+                d["NextExecutionTime"] = misc.str2utc(d["NextExecutionTime"])
 
         # Retrieve Maintenace Window tags with the resourcegroup API
         tagged_mws = self.context["o_state"].get_resources(service="ssm", resource_name="maintenancewindow")
@@ -239,10 +236,18 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
             mw = next(filter(lambda w: w["WindowId"] == mw_id, mws), None)
             if mw:
                 mw["Tags"] = tmw["Tags"]
+        valid_mws = []
         for mw in mws:
             if "Tags" not in mw:
                 log.warning(f"Please tag SSM Maintenance Window '%s/%s' with 'clonesquad:group-name': '%s'!" %
                         (mw["Name"], mw["WindowId"], self.context["GroupName"]))
+                continue
+            valid_mws.append(mw)
+
+        self.maintenance_windows = {
+            "Names": mw_names,
+            "Windows": valid_mws
+        }
 
         self.manage_maintenance_windows()
         if len(mws):
@@ -256,11 +261,11 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
         if not Cfg.get_int("ssm.enable"):
             return
         # Persist data collected during update_pending_command_statuses()
-        self.o_state.set_state_json("ssm.run_commands", self.run_cmd_states, compress=True, TTL=Cfg.get_duration_secs("ssm.state.default_ttl"))
+        self.o_state.set_state_json("ssm.run_commands", self.run_cmd_states, compress=True, TTL=self.ttl)
 
 
+        now       = self.context["now"]
         client    = self.context["ssm.client"]
-        ttl       = Cfg.get_duration_secs("ssm.state.default_ttl")
         # Update instance inventory
         paginator = client.get_paginator('describe_instance_information')
         response_iterator = paginator.paginate(
@@ -288,7 +293,7 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
                 # This instance is not more pending or running...
                 continue
             last_ping_time = misc.str2utc(info["LastPingDateTime"])
-            if instance["LaunchTime"] < last_ping_time and (last_ping_time - now) < timedelta(seconds=ttl):
+            if instance["LaunchTime"] < last_ping_time and (last_ping_time - now) < timedelta(seconds=self.ttl):
                 self.instance_infos.append(info)
         # Remove useless fields
         for info in self.instance_infos:
@@ -296,7 +301,7 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
             if "AssociationOverview" in info: del info["AssociationOverview"]
             if "IPAddress" in info:           del info["IPAddress"]
             if "ComputerName" in info:        del info["ComputerName"]
-        self.o_state.set_state_json("ssm.instance_infos", self.instance_infos, compress=True, TTL=ttl)
+        self.o_state.set_state_json("ssm.instance_infos", self.instance_infos, compress=True, TTL=self.ttl)
 
     def is_feature_enabled(self, feature):
         if not Cfg.get_int("ssm.enable"):
@@ -490,7 +495,7 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
                         # Under rare circumstance, we can receive an Exception while trying to send
                         log.log(log.NOTICE, f"Failed to do SSM SendCommand : {e}, %s" % i_ids[:50])
                     i_ids = i_ids[50:]
-        self.o_state.set_state_json("ssm.run_commands", self.run_cmd_states, compress=True, TTL=Cfg.get_duration_secs("ssm.state.default_ttl"))
+        self.o_state.set_state_json("ssm.run_commands", self.run_cmd_states, compress=True, TTL=self.ttl)
 
 
 
@@ -498,13 +503,13 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
     ## SSM Maintenance Window support
     #####################################################################
 
-    def _get_maintenance_window_for_fleet(self, fleet=None):
+    def _get_maintenance_windows_for_fleet(self, fleet=None):
         default_names             = self.maintenance_windows["Names"]["__default__"]["Names"]
         main_default_names        = self.maintenance_windows["Names"]["__main__"]["Names"]
         subfleet_default_names    = self.maintenance_windows["Names"]["__all__"]["Names"]
         mws                       = self.maintenance_windows["Windows"]
         names                     = default_names
-        if not fleet:
+        if fleet is None:
             if len([w for w in mws if w["Name"] in main_default_names]):
                 names = main_default_names
         else:
@@ -516,18 +521,44 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
         return [w for w in mws if w["Name"] in names]
 
 
-    def is_maintenance_time(self, fleet=None, matching_window=None):
+    def is_maintenance_time(self, fleet=None, meta=None):
         if not self.is_feature_enabled("ec2.maintenance_window"):
             return False
         now         = self.context["now"]
-        start_ahead = timedelta(seconds=Cfg.get_duration_secs("ssm.maintenance_window.start_ahead"))
-        windows     = self._get_maintenance_window_for_fleet(fleet=fleet)
+        start_ahead = timedelta(seconds=max(Cfg.get_duration_secs("ssm.maintenance_window.start_ahead"), 30))
+        windows     = copy.deepcopy(self._get_maintenance_windows_for_fleet(fleet=fleet))
         for w in windows:
+            window_id= w["WindowId"]
+            if "NextExecutionTime" in w:
+                end_time = w["NextExecutionTime"] + timedelta(hours=int(w["Duration"]))
+                if now >= (w["NextExecutionTime"] - start_ahead) and now < end_time:
+                    # We are entering a new maintenance window period. Remember it...
+                    self.o_state.set_state(f"ssm.maintenance_window.last_next_execution_time.{window_id}", 
+                        w["NextExecutionTime"], TTL=self.ttl)
+                    self.o_state.set_state(f"ssm.maintenance_window.last_next_execution_duration.{window_id}", 
+                        w["Duration"], TTL=self.ttl)
+            # SSM maintenance window do not always have a NextExecutionTime field. Restore it from a backuped one
+            next_execution_time = self.o_state.get_state_date(f"ssm.maintenance_window.last_next_execution_time.{window_id}", TTL=self.ttl)
+            if next_execution_time is not None:
+                w["NextExecutionTime"] = next_execution_time
+            next_execution_duration = self.o_state.get_state(f"ssm.maintenance_window.last_next_execution_duration.{window_id}", TTL=self.ttl)
+            if next_execution_duration is not None:
+                w["Duration"] = next_execution_duration
+
+        valid_windows    = [w for w in windows if "NextExecutionTime" in w and "Duration" in w]
+        fleetname        = "Main" if fleet is None else fleet
+        next_window_time = None
+        for w in sorted(valid_windows, key=lambda w: w["NextExecutionTime"]):
             end_time = w["NextExecutionTime"] + timedelta(hours=int(w["Duration"]))
             if now >= (w["NextExecutionTime"] - start_ahead) and now < end_time:
-                if matching_window is not None: 
-                    matching_window.append(w)
+                if meta is not None: 
+                    meta["MatchingWindow"] = w
+                    meta["MatchingWindowMessage"] = f"Found ACTIVE matching window for fleet {fleetname} : {w}"
                 return True
+            if next_window_time is None and w["NextExecutionTime"] > now:
+                next_window_time = now
+        if next_window_time is not None and meta is not None:
+            meta["NextWindowMessage"] = f"Next SSM Maintenance Window for {fleetname} fleet in %s" % (next_window_time - now)
         return False
 
     def manage_maintenance_windows(self):
@@ -541,7 +572,7 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
                 for t in tags:
                     if t.startswith(config_tag):
                         tags[t["Key"][len(config_tag):]] = t["Value"]
-                if fleet:
+                if fleet is None:
                     if "ec2.schedule.min_instance_count" in tags: 
                         min_instance_count = tags["ec2.schedule.min_instance_count"]
                 else:
@@ -556,10 +587,14 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
                 for t in tags:    
                     config.set(t, tags[t])
             return min_instance_count
-        config          = {}
-        matching_window = []
-        if self.is_maintenance_time(fleet=None, matching_window=matching_window):
-            min_instance_count = _set_tag(None, config, matching_window[0])
+        config = {}
+        meta   = {}
+        if not self.is_maintenance_time(fleet=None, meta=meta):
+            if "NextWindowMessage" in meta:
+                log.log(log.NOTICE, meta["NextWindowMessage"])
+        else:
+            log.log(log.NOTICE, meta["MatchingWindowMessage"])
+            min_instance_count = _set_tag(None, config, meta["MatchingWindow"])
             if min_instance_count is None:
                 min_instance_count = Cfg.get("ssm.maintenance_window.mainfleet.ec2.schedule.min_instance_count")
             config["ec2.schedule.min_instance_count"] = min_instance_count
@@ -567,14 +602,20 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
                 config["ec2.schedule.desired_instance_count"] = "100%"
 
         for subfleet in self.o_ec2.get_subfleet_names():
-            matching_window = []
-            if self.is_maintenance_time(fleet=subfleet, matching_window=matching_window):
-                min_instance_count = _set_tag(subfleet, config, matching_window[0])
-                if min_instance_count:
+            meta = {}
+            if not self.is_maintenance_time(fleet=subfleet, meta=meta):
+                if "NextWindowMessage" in meta:
+                    log.log(log.NOTICE, meta["NextWindowMessage"])
+            else:
+                log.log(log.NOTICE, meta["MatchingWindowMessage"])
+                min_instance_count = _set_tag(subfleet, config, meta["MatchingWindow"])
+                if min_instance_count is None:
                     min_instance_count = Cfg.get(f"ssm.maintenance_window.subfleet.{subfleet}.ec2.schedule.min_instance_count")
                 config[f"subfleet.{subfleet}.ec2.schedule.min_instance_count"] = min_instance_count
                 if min_instance_count == "100%":
                     config[f"subfleet.{subfleet}.ec2.schedule.desired_instance_count"] = "100%"
+                if Cfg.get_int("ssm.maintenance_window.subfleet.{SubfleetName}.force_running"):
+                    config[f"subfleet.{subfleet}.state"] = "running"
         Cfg.register(config, layer="SSM Maintenance window override", create_layer_when_needed=True)
 
 

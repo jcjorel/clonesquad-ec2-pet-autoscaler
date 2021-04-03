@@ -529,6 +529,7 @@ See [Alarm specification documentation](ALARMS_REFERENCE.md)  for more details.
             raise Exception("Unknown metric set '%s' (Dimensions=%s)"  % (name, dimensions))
 
         m["Value"]     = float(value) if value is not None else None
+        value          = m["Value"]
         m["Timestamp"] = self.context["now"]
         log.log(log.NOTICE, f"Metric[{name}] = {value} (Dimensions={dimensions})")
 

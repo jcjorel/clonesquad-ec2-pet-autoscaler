@@ -209,11 +209,12 @@ without any TargetGroup but another external health instance source exists).
                  }
         })
 
+        self.ttl = Cfg.get_duration_secs("ec2.state.default_ttl")
         self.o_state.register_aggregates([
             {
                 "Prefix": "ec2.instance.",
                 "Compress": True,
-                "DefaultTTL": Cfg.get_duration_secs("ec2.state.default_ttl"),
+                "DefaultTTL": self.ttl,
                 "Exclude" : [
                     "ec2.instance.scaling.state.", 
                     "ec2.instance.spot.event."
@@ -399,8 +400,7 @@ without any TargetGroup but another external health instance source exists).
         o_ssm = self.context["o_ssm"]
         if o_ssm.is_feature_enabled("ec2.instance_ready_for_operation"):
             launch_time     = self.get_instance_by_id(instance_id)["LaunchTime"]
-            last_ready_date = self.get_state_date(f"ec2.instance.ssm.ready_for_operation_date.{instance_id}",
-                TTL=Cfg.get_duration_secs("ec2.state.status_ttl"))
+            last_ready_date = self.get_state_date(f"ec2.instance.ssm.ready_for_operation_date.{instance_id}", TTL=self.ttl)
             if ("unhealthy" in state and last_ready_date is None and 
                 (now - launch_time) > timedelta(seconds=Cfg.get_duration_secs("ssm.feature.ec2.instance_ready_for_operation.max_initializing_time"))):
                     log.warning(f"Instance {instance_id} spent too much time in initializing state. Report it as unhealthy...")
@@ -418,8 +418,7 @@ without any TargetGroup but another external health instance source exists).
                 if status != "SUCCESS":
                     log.log(log.NOTICE, f"Waiting for InstanceReadyForOperation SSM status for {instance_id}...")
                     return True
-                self.set_state(f"ec2.instance.ssm.ready_for_operation_date.{instance_id}", self.context["now"],
-                        TTL=Cfg.get_duration_secs("ec2.state.status_ttl"))
+                self.set_state(f"ec2.instance.ssm.ready_for_operation_date.{instance_id}", self.context["now"])
         
         return i["InstanceStatus"]["Status"] in state 
 
@@ -575,8 +574,7 @@ without any TargetGroup but another external health instance source exists).
                         previous_state = r["PreviousState"]
                         current_state  = r["CurrentState"]
                         if current_state["Name"] in ["pending", "running"]:
-                            self.set_state("ec2.instance.last_start_date.%s" % instance_id, now,
-                                    TTL=Cfg.get_duration_secs("ec2.state.status_ttl"))
+                            self.set_state("ec2.instance.last_start_date.%s" % instance_id, now)
                             max_startable_instances -= 1
                             # Update statuses
                             instance = self.get_instance_by_id(instance_id)
@@ -585,7 +583,7 @@ without any TargetGroup but another external health instance source exists).
                         else:
                             log.error("Failed to start instance '%s'! Blacklist it for a while... (pre/current status=%s/%s)" %
                                     (instance_id, previous_state["Name"], current_state["Name"]))
-                            self.set_scaling_state(instance_id, "error", ttl=Cfg.get_duration_secs("ec2.state.error_ttl"))
+                            self.set_scaling_state(instance_id, "error")
                             R(None, self.instance_in_error, Operation="start", InstanceId=instance_id, 
                                     PreviousState=previous_state["Name"], CurrentState=current_state["Name"])
                 else:
@@ -620,8 +618,7 @@ without any TargetGroup but another external health instance source exists).
             ids       = ids[max_start:]
 
             for i in to_start:
-                self.set_state("ec2.instance.last_start_attempt_date.%s" % i, now,
-                    TTL=Cfg.get_duration_secs("ec2.schedule.state_ttl"))
+                self.set_state("ec2.instance.last_start_attempt_date.%s" % i, now)
 
             log.info("Starting instances %s..." % to_start)
             response = None
@@ -639,7 +636,7 @@ without any TargetGroup but another external health instance source exists).
                     except ClientError as e:
                         if e.response['Error']['Code'] != 'IncorrectSpotRequestState':
                             log.warning("Got Exception while trying to start instance '%s' : %s" % (i, e))
-                            self.set_scaling_state(i, "error", ttl=Cfg.get_duration_secs("ec2.state.error_ttl"))
+                            self.set_scaling_state(i, "error")
 
 
     def stop_instances(self, instance_ids_to_stop):
@@ -665,8 +662,7 @@ without any TargetGroup but another external health instance source exists).
                     for i in response["StoppingInstances"]:
                         instance_id = i["InstanceId"]
                         self.set_scaling_state(instance_id, "")
-                        self.set_state("ec2.schedule.instance.last_stop_date.%s" % instance_id, now, 
-                                TTL=Cfg.get_duration_secs("ec2.state.status_ttl"))
+                        self.set_state("ec2.schedule.instance.last_stop_date.%s" % instance_id, now) 
                         # Update the statuses 
                         instance = self.get_instance_by_id(instance_id)
                         instance["State"]["Code"] = 64
@@ -684,8 +680,7 @@ without any TargetGroup but another external health instance source exists).
                             for i in response["StoppingInstances"]:
                                 instance_id = i["InstanceId"]
                                 self.set_scaling_state(instance_id, "")
-                                self.set_state("ec2.schedule.instance.last_stop_date.%s" % instance_id, now, 
-                                        TTL=Cfg.get_duration_secs("ec2.state.status_ttl"))
+                                self.set_state("ec2.schedule.instance.last_stop_date.%s" % instance_id, now)
                                 # Update the statuses 
                                 instance = self.get_instance_by_id(instance_id)
                                 instance["State"]["Code"] = 64
@@ -1027,7 +1022,7 @@ without any TargetGroup but another external health instance source exists).
         return state["state"] if state["state"] is not None else default
 
     def set_scaling_state(self, instance_id, value, ttl=None, meta=None, default_date=None):
-        if ttl is None: ttl = Cfg.get_duration_secs("ec2.state.default_ttl") 
+        if ttl is None: ttl = self.ttl
         if default_date is None: default_date = self.context["now"]
 
         if value != "":
@@ -1067,13 +1062,15 @@ without any TargetGroup but another external health instance source exists).
     def get_state_json(self, key, default=None, direct=False, TTL=None):
         return self.o_state.get_state_json(key, default=default, direct=direct, TTL=TTL)
 
-    def set_state_json(self, key, value, compress=True, TTL=0):
+    def set_state_json(self, key, value, compress=True, TTL=None):
+        if TTL is None: TTL = self.ttl
         self.o_state.set_state_json(key, value, compress=compress, TTL=TTL)
 
     def get_state_date(self, key, default=None, direct=False, TTL=None):
         return self.o_state.get_state_date(key, default=default, direct=direct, TTL=TTL)
 
     def set_state(self, key, value, direct=False, TTL=None):
+        if TTL is None: TTL = self.ttl
         self.o_state.set_state(key, value, direct=direct, TTL=TTL)
 
     ### 
@@ -1160,7 +1157,7 @@ without any TargetGroup but another external health instance source exists).
 
     def set_instance_control_state(self, state):
         # Test if we are going to write an empty state so we may optimize it
-        min_ttl = Cfg.get_duration_secs("ec2.state.default_ttl")
+        min_ttl = self.ttl
         now     = misc.seconds_from_epoch_utc() 
         ttl     = now + min_ttl 
         for c in state:

@@ -899,10 +899,7 @@ By default, the dashboard is enabled.
         cw.set_metric("NbOfInstanceInUnuseableState", len(instances_with_issues) if fl_size > 0 else None)
         cw.set_metric("NbOfCPUCreditExhaustedInstances", len(exhausted_cpu_credits) if fl_size > 0 else None)
         if self.ssm.is_feature_enabled("ec2.maintenance_window"):
-            matching_window = []
-            cw.set_metric("SSM.MaintenanceWindow", 1 if self.ssm.is_maintenance_time(fleet=None, matching_window=matching_window) else 0)
-            if len(matching_window):
-                log.info(f"Active main fleet maintenance window: {matching_window}")
+            cw.set_metric("SSM.MaintenanceWindow", self.ssm.is_maintenance_time(fleet=None))
         else:
             cw.set_metric("SSM.MaintenanceWindow", None)
         subfleet_count = len(subfleet_instances)
@@ -1565,13 +1562,9 @@ By default, the dashboard is enabled.
                         min_instance_count if send_metric else None, dimensions=dimensions)
                 cw.set_metric("Subfleet.EC2.DesiredInstanceCount", 
                         desired_instance_count if send_metric else None, dimensions=dimensions)
-                matching_window = []
                 cw.set_metric("Subfleet.SSM.MaintenanceWindow", 
-                        self.ssm.is_maintenance_time(fleet=subfleet, matching_window=matching_window) 
-                            if self.ssm.is_feature_enabled("ec2.maintenance_window") else None, 
+                        self.ssm.is_maintenance_time(fleet=subfleet) if self.ssm.is_feature_enabled("ec2.maintenance_window") else None, 
                         dimensions=dimensions)
-                if len(matching_window):
-                    log.info(f"Active '{subfleet}' subfleet maintenance window: {matching_window}")
             else:
                 cw.set_metric("Subfleet.EC2.Size", None, dimensions=dimensions)
                 cw.set_metric("Subfleet.EC2.ExcludedInstances", None, dimensions=dimensions)

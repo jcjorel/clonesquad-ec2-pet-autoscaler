@@ -25,6 +25,7 @@ def init(context, with_kvtable=True, with_predefined_configuration=True):
         "config": {},
         "metas" : {}
         }]
+    _init["dynamic_config"] = []
     _init["active_parameter_set"]    = None
     _init["with_kvtable"]            = False
     if with_kvtable:
@@ -150,12 +151,11 @@ def register(config, ignore_double_definition=False, layer="Built-in defaults", 
     if _init is None:
         return
     layer_struct = next(filter(lambda l: l["source"] == layer, _init["all_configs"]), None)
-    new_layer_struct = None
     if layer_struct is None:
         if not create_layer_when_needed:
             raise Exception(f"Unknown config '{layer}'!")
         layer_struct     = {"source": layer, "config": {}, "metas": {}}
-        new_layer_struct = layer_struct
+        _init["dynamic_config"].append(layer_struct)
     layer_config = layer_struct["config"]
     layer_metas  = layer_struct["metas"]
     for c in config:
@@ -178,8 +178,7 @@ def register(config, ignore_double_definition=False, layer="Built-in defaults", 
         layers.extend([{
             "source": "DynamoDB configuration table '%s'" % _init["context"]["ConfigurationTable"],
             "config": _init["configuration_table"].get_dict()}])
-    if new_layer_struct:
-        layers.append(new_layer_struct)
+    layers.extend(_init["dynamic_config"])
     _init["config_layers"] = layers
 
     # Update config.active_parameter_set
