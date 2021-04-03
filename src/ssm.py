@@ -508,20 +508,19 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
     #####################################################################
 
     def _get_maintenance_windows_for_fleet(self, fleet=None):
-        default_names             = self.maintenance_windows["Names"]["__default__"]["Names"]
-        main_default_names        = self.maintenance_windows["Names"]["__main__"]["Names"]
-        subfleet_default_names    = self.maintenance_windows["Names"]["__all__"]["Names"]
-        mws                       = self.maintenance_windows["Windows"]
-        names                     = default_names
+        global_default_names   = self.maintenance_windows["Names"]["__default__"]["Names"]
+        default_names          = self.maintenance_windows["Names"]["__default__"]["Names"]
+        main_default_names     = self.maintenance_windows["Names"]["__main__"]["Names"]
+        subfleet_default_names = self.maintenance_windows["Names"]["__all__"]["Names"]
+        mws                    = self.maintenance_windows["Windows"]
+        names                  = []
+        names.extend(global_default_names)
+        names.extend(default_names)
         if fleet is None:
-            if len([w for w in mws if w["Name"] in main_default_names]):
-                names = main_default_names
+            names.extend(main_default_names)
         else:
-            if len([w for w in mws if w["Name"] in subfleet_default_names]):
-                names = subfleet_default_names
-            subfleet_names = self.maintenance_windows["Names"][f"Subfleet.{fleet}"]["Names"]
-            if len([w for w in mws if w["Name"] in subfleet_names]):
-                names = subfleet_names
+            names.extend(subfleet_default_names)
+            names.extend(self.maintenance_windows["Names"][f"Subfleet.{fleet}"]["Names"])
         return [w for w in mws if w["Name"] in names]
 
 
