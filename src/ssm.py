@@ -601,9 +601,9 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
             min_instance_count = _set_tag(None, config, meta["MatchingWindow"])
             if min_instance_count is None:
                 min_instance_count = Cfg.get("ssm.maintenance_window.mainfleet.ec2.schedule.min_instance_count")
-            config["ec2.schedule.min_instance_count"] = min_instance_count
+            config["override:ec2.schedule.min_instance_count"] = min_instance_count
             if min_instance_count == "100%":
-                config["ec2.schedule.desired_instance_count"] = "100%"
+                config["override:ec2.schedule.desired_instance_count"] = "100%"
 
         for subfleet in self.o_ec2.get_subfleet_names():
             meta = {}
@@ -615,11 +615,11 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
                 min_instance_count = _set_tag(subfleet, config, meta["MatchingWindow"])
                 if min_instance_count is None:
                     min_instance_count = Cfg.get(f"ssm.maintenance_window.subfleet.{subfleet}.ec2.schedule.min_instance_count")
-                config[f"subfleet.{subfleet}.ec2.schedule.min_instance_count"] = min_instance_count
+                config[f"override:subfleet.{subfleet}.ec2.schedule.min_instance_count"] = min_instance_count
                 if min_instance_count == "100%":
-                    config[f"subfleet.{subfleet}.ec2.schedule.desired_instance_count"] = "100%"
+                    config[f"override:subfleet.{subfleet}.ec2.schedule.desired_instance_count"] = "100%"
                 if Cfg.get_int("ssm.maintenance_window.subfleet.{SubfleetName}.force_running"):
-                    config[f"subfleet.{subfleet}.state"] = "running"
+                    config[f"override:subfleet.{subfleet}.state"] = "running"
         Cfg.register(config, layer="SSM Maintenance window override", create_layer_when_needed=True)
 
 
