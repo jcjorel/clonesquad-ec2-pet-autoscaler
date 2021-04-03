@@ -321,7 +321,7 @@ def compile_keys():
                 c = config["config"]
 
                 parameter_set = "None"
-                if active_parameter_set in c:
+                if not key_pattern.startswith("override:") and active_parameter_set in c:
                     if key in c[active_parameter_set]:
                         parameter_set = active_parameter_set
                         r = _test_key(c[active_parameter_set], key_pattern)
