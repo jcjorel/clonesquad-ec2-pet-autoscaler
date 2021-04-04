@@ -388,7 +388,6 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
                     if set(cmd["ReceivedInstanceIds"]) & set(cmd["InstanceIds"]) == set(cmd["InstanceIds"]):
                         # All invocation results received
                         cmd["Complete"] = True
-        #self.o_state.set_state_json("ssm.run_commands", self.run_cmd_states, compress=True, TTL=Cfg.get_duration_secs("ssm.state.default_ttl"))
         self.commands_to_send = []
 
     def run_command(self, instance_ids, command, args="", comment="", timeout=30, return_former_results=False):
@@ -517,7 +516,7 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
         default_struct = {
             "EventName": None,
             "InstanceIdSuccesses": [],
-            "InstanceIdNotified": []
+            "InstanceIdsNotified": []
         }
         event_desc = self.o_state.get_state_json(f"ssm.events.class.{event_class}", default=default_struct, TTL=self.ttl)
         if event_name != event_desc["EventName"]:
@@ -528,9 +527,10 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
         # Notify users
         if event_name is not None and notification_handler is not None:
             not_notified_instance_ids = [i for i in instance_ids if i not in event_desc["InstanceIdsNotified"]]
-            R(None, notification_handler, InstanceIds=not_notified_instance_ids, 
-                    EventClass=event_class, EventName=event_name, EventArgs=event_args)
-            event_desc["InstanceIdsNotified"].extend(not_notified_instance_ids)
+            if len(not_notified_instance_ids):
+                R(None, notification_handler, InstanceIds=not_notified_instance_ids, 
+                        EventClass=event_class, EventName=event_name, EventArgs=event_args)
+                event_desc["InstanceIdsNotified"].extend(not_notified_instance_ids)
 
         # Send SSM events to instances
         if event_name is None:
@@ -540,10 +540,12 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
             if len(ev_ids):
                 log.log(log.NOTICE, f"Send event {event_class}: {event_name}({event_args}) to {ev_ids}")
                 b64_args = str(base64.b64encode(bytes(json.dumps(event_args, sort_keys=True, default=str), "utf-8")), "utf-8")
-                r = self.run_command(instance_ids, event_name, args=b64_args, 
+                r = self.run_command(ev_ids, event_name, args=b64_args, 
                         comment="CS-SendEvents (%s)" % self.context["GroupName"])
-                for i in ev_ids:
-                    if i in r and r[i] == "SUCCESS" and i not in event_desc["InstanceIdSuccesses"]:
+                for i in [i for i in ev_ids if i in r]:
+                    if len(r[i]["Warning"]):
+                        log.warning(f"Got warning(s) while retrieving SSM SendEvent result for {i} : %s" % r[i]["Details"])
+                    if r[i]["Status"] == "SUCCESS" and i not in event_desc["InstanceIdSuccesses"]:
                         # Keep track that we received a SUCCESS for this instance id to not resend it again later
                         event_desc["InstanceIdSuccesses"].append(i)
 
@@ -583,15 +585,15 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
                 end_time = w["NextExecutionTime"] + timedelta(hours=int(w["Duration"]))
                 if now >= (w["NextExecutionTime"] - start_ahead) and now < end_time:
                     # We are entering a new maintenance window period. Remember it...
-                    self.o_state.set_state(f"ssm.maintenance_window.last_next_execution_time.{window_id}", 
+                    self.o_state.set_state(f"ssm.events.maintenance_window.last_next_execution_time.{window_id}", 
                         w["NextExecutionTime"], TTL=self.ttl)
-                    self.o_state.set_state(f"ssm.maintenance_window.last_next_execution_duration.{window_id}", 
+                    self.o_state.set_state(f"ssm.events.maintenance_window.last_next_execution_duration.{window_id}", 
                         w["Duration"], TTL=self.ttl)
             # SSM maintenance window do not always have a NextExecutionTime field. Restore it from a backuped one
-            next_execution_time = self.o_state.get_state_date(f"ssm.maintenance_window.last_next_execution_time.{window_id}", TTL=self.ttl)
+            next_execution_time = self.o_state.get_state_date(f"ssm.events.maintenance_window.last_next_execution_time.{window_id}", TTL=self.ttl)
             if next_execution_time is not None:
                 w["NextExecutionTime"] = next_execution_time
-            next_execution_duration = self.o_state.get_state(f"ssm.maintenance_window.last_next_execution_duration.{window_id}", TTL=self.ttl)
+            next_execution_duration = self.o_state.get_state(f"ssm.events.maintenance_window.last_next_execution_duration.{window_id}", TTL=self.ttl)
             if next_execution_duration is not None:
                 w["Duration"] = next_execution_duration
 
