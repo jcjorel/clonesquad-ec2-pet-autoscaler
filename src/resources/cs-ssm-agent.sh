@@ -69,8 +69,11 @@ function main()
 	shift
 	cs_echo "$CMD" "START:$*"
 	case $CMD in
-	INSTANCE_STATE_TRANSITION)
-		run_user_scripts instance-state-transition $*
+	ENTER_MAINTENANCE_WINDOW_PERIOD)
+		run_user_scripts maintenance-window enter $*
+	;;
+	EXIT_MAINTENANCE_WINDOW_PERIOD)
+		run_user_scripts maintenance-window exit $*
 	;;
 	INSTANCE_HEALTHCHECK)
 		probe_test instance-healthcheck \

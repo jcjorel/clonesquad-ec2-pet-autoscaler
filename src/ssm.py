@@ -4,6 +4,7 @@ License: MIT
 
 """
 import copy
+import base64
 import boto3
 import json
 import pdb
@@ -143,12 +144,17 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
 
         self.o_state.register_aggregates([
             {
-                "Prefix": "ssm.",
+                "Prefix": "ssm.context",
                 "Compress": True,
                 "DefaultTTL": Cfg.get_duration_secs("ssm.state.default_ttl"),
-                "Exclude" : [
-                    ]
-            }
+                "Exclude" : []
+            },
+            {
+                "Prefix": "ssm.events",
+                "Compress": True,
+                "DefaultTTL": Cfg.get_duration_secs("ssm.state.default_ttl"),
+                "Exclude" : []
+            },
             ])
 
     @xray_recorder.capture()
@@ -249,19 +255,21 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
             "Windows": valid_mws
         }
 
+        # Update asynchronous results from previously launched commands
+        self.update_pending_command_statuses()
+
+        # Perform maintenance window house keeping
         self.manage_maintenance_windows()
         if len(mws):
             log.log(log.NOTICE, f"Found matching SSM maintenance windows: %s" % self.maintenance_windows["Windows"])
         
-        # Update asynchronous results from previously launched commands
-        self.update_pending_command_statuses()
 
 
     def prepare_ssm(self):
         if not Cfg.get_int("ssm.enable"):
             return
         # Persist data collected during update_pending_command_statuses()
-        self.o_state.set_state_json("ssm.run_commands", self.run_cmd_states, compress=True, TTL=self.ttl)
+        self.o_state.set_state_json("ssm.events.run_commands", self.run_cmd_states, compress=True, TTL=self.ttl)
 
 
         now       = self.context["now"]
@@ -287,7 +295,7 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
 
         instances           = self.o_ec2.get_instances(State="pending,running")
         instance_ids        = [i["InstanceId"] for i in instances]
-        for info in self.o_state.get_state_json("ssm.instance_infos", default=[]):
+        for info in self.o_state.get_state_json("ssm.context.instance_infos", default=[]):
             instance_id    = info["InstanceId"]
             if instance_id in instance_info_ids:
                 # We just recived an update...
@@ -305,7 +313,7 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
             if "AssociationOverview" in info: del info["AssociationOverview"]
             if "IPAddress" in info:           del info["IPAddress"]
             if "ComputerName" in info:        del info["ComputerName"]
-        self.o_state.set_state_json("ssm.instance_infos", self.instance_infos, compress=True, TTL=self.ttl)
+        self.o_state.set_state_json("ssm.context.instance_infos", self.instance_infos, compress=True, TTL=self.ttl)
 
     def is_feature_enabled(self, feature):
         if not Cfg.get_int("ssm.enable"):
@@ -326,7 +334,7 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
     @xray_recorder.capture()
     def update_pending_command_statuses(self):
         client = self.context["ssm.client"]
-        self.run_cmd_states = self.o_state.get_state_json("ssm.run_commands", default={
+        self.run_cmd_states = self.o_state.get_state_json("ssm.events.run_commands", default={
             "Commands": [],
             "FormerResults": {}
             })
@@ -499,8 +507,47 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
                         # Under rare circumstance, we can receive an Exception while trying to send
                         log.log(log.NOTICE, f"Failed to do SSM SendCommand : {e}, %s" % i_ids[:50])
                     i_ids = i_ids[50:]
-        self.o_state.set_state_json("ssm.run_commands", self.run_cmd_states, compress=True, TTL=self.ttl)
+        self.o_state.set_state_json("ssm.events.run_commands", self.run_cmd_states, compress=True, TTL=self.ttl)
 
+    def send_events(self, instance_ids, event_class, event_name, event_args, notification_handler=None):
+        if not self.is_feature_enabled("ec2.maintenance_window"):
+            return False
+
+        now            = self.context["now"]
+        default_struct = {
+            "EventName": None,
+            "InstanceIdSuccesses": [],
+            "InstanceIdNotified": []
+        }
+        event_desc = self.o_state.get_state_json(f"ssm.events.class.{event_class}", default=default_struct, TTL=self.ttl)
+        if event_name != event_desc["EventName"]:
+            event_desc["EventName"]           = event_name
+            event_desc["InstanceIdSuccesses"] = []
+            event_desc["InstanceIdsNotified"] = []
+
+        # Notify users
+        if event_name is not None and notification_handler is not None:
+            not_notified_instance_ids = [i for i in instance_ids if i not in event_desc["InstanceIdsNotified"]]
+            R(None, notification_handler, InstanceIds=not_notified_instance_ids, 
+                    EventClass=event_class, EventName=event_name, EventArgs=event_args)
+            event_desc["InstanceIdsNotified"].extend(not_notified_instance_ids)
+
+        # Send SSM events to instances
+        if event_name is None:
+            event_desc = default_struct
+        else:
+            ev_ids = [i for i in instance_ids if i not in event_desc["InstanceIdSuccesses"]]
+            if len(ev_ids):
+                log.log(log.NOTICE, f"Send event {event_class}: {event_name}({event_args}) to {ev_ids}")
+                b64_args = str(base64.b64encode(bytes(json.dumps(event_args, sort_keys=True, default=str), "utf-8")), "utf-8")
+                r = self.run_command(instance_ids, event_name, args=b64_args, 
+                        comment="CS-SendEvents (%s)" % self.context["GroupName"])
+                for i in ev_ids:
+                    if i in r and r[i] == "SUCCESS" and i not in event_desc["InstanceIdSuccesses"]:
+                        # Keep track that we received a SUCCESS for this instance id to not resend it again later
+                        event_desc["InstanceIdSuccesses"].append(i)
+
+        self.o_state.set_state_json(f"ssm.events.class.{event_class}", event_desc, TTL=self.ttl)
 
 
     #####################################################################
@@ -592,7 +639,16 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
             return min_instance_count
         config = {}
         meta   = {}
-        if not self.is_maintenance_time(fleet=None, meta=meta):
+        is_maintenance_time = self.is_maintenance_time(meta=meta)
+
+        # Send events with SSM and notify users
+        instances    = self.o_ec2.get_instances(State="pending,running", main_fleet_only=True)
+        instance_ids = [i["InstanceId"] for i in instances]
+        event_name = "ENTER_MAINTENANCE_WINDOW_PERIOD" if is_maintenance_time else "EXIT_MAINTENANCE_WINDOW_PERIOD"
+        self.send_events(instance_ids, "maintenance_window.state_change", event_name, {
+            }, notification_handler=self.ssm_maintenance_window_event)
+
+        if not is_maintenance_time:
             if "NextWindowMessage" in meta:
                 log.log(log.NOTICE, meta["NextWindowMessage"])
         else:
@@ -606,7 +662,15 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
 
         for subfleet in self.o_ec2.get_subfleet_names():
             meta = {}
-            if not self.is_maintenance_time(fleet=subfleet, meta=meta):
+            is_maintenance_time = self.is_maintenance_time(fleet=subfleet, meta=meta)
+            # Send events with SSM and notify users
+            instances           = self.o_ec2.get_instances(State="running", instances=self.o_ec2.get_subfleet_instances(subfleet_name=subfleet))
+            instance_ids        = [i["InstanceId"] for i in instances]
+            event_name          = "ENTER_MAINTENANCE_WINDOW_PERIOD" if is_maintenance_time else "EXIT_MAINTENANCE_WINDOW_PERIOD"
+            self.send_events(instance_ids, "maintenance_window.state_change", event_name, {
+                }, notification_handler=self.ssm_maintenance_window_event)
+
+            if not is_maintenance_time:
                 if "NextWindowMessage" in meta:
                     log.log(log.NOTICE, meta["NextWindowMessage"])
             else:
@@ -620,5 +684,8 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
                 if Cfg.get_int("ssm.maintenance_window.subfleet.{SubfleetName}.force_running"):
                     config[f"override:subfleet.{subfleet}.state"] = "running"
         Cfg.register(config, layer="SSM Maintenance window override", create_layer_when_needed=True)
+
+    def ssm_maintenance_window_event(self, InstanceIds=None, EventClass=None, EventName=None, EventArgs=None):
+        return {}
 
 
