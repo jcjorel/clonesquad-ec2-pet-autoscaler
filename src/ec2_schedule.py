@@ -1471,7 +1471,7 @@ By default, the dashboard is enabled.
                 if len(candidates):
                     instances_to_stop = [i["InstanceId"] for i in candidates][:-delta]
                     if self.ssm.is_feature_enabled("ec2.maintenance_window") and self.ssm.is_maintenance_time(fleet=subfleet):
-                        log.info(f"Scale-in actions disabled during  {subfleet} subfleet SSM Maintenance Window: "
+                        log.info(f"Scale-in actions disabled during '{subfleet}' subfleet SSM Maintenance Window: "
                             "Should have placed in 'draining' state up to %s instances..." % len(instances_to_stop))
                     else:
                         if len(instances_to_stop):
