@@ -1115,6 +1115,12 @@ By default, the dashboard is enabled.
 
         if delta_instance_count < 0:
             # Request to remove running instances (scalein)
+            c = min(-delta_instance_count, Cfg.get_int("ec2.schedule.max_instance_stop_at_a_time"))
+            if self.ssm.is_feature_enabled("ec2.maintenance_window") and self.ssm.is_maintenance_time(fleet=None):
+                log.info(f"Scale-in actions disabled during Main fleet SSM Maintenance Window: "
+                    "Should have placed in 'draining' state up to {c} instances...")
+                return False
+
             # We need to assume that instances in a 'initializing' state
             #    can't be stated as useable instances yet. We usually prefer to delay downsize decision until there 
             #    are not more instance in 'initializing' state to take precise decisions.
@@ -1125,7 +1131,6 @@ By default, the dashboard is enabled.
                     log.log(log.NOTICE, "Some targets are still initializing. Do not consider stopping instances now...")
                     return False
 
-            c = min(-delta_instance_count, Cfg.get_int("ec2.schedule.max_instance_stop_at_a_time"))
             log.info("Draining up to %s (shapped to %d) instances..." % (-delta_instance_count, c))
 
             # Retrieve a list of running instances candidates for stop
@@ -1465,6 +1470,10 @@ By default, the dashboard is enabled.
                 candidates             = self.filter_running_instance_candidates(candidates)
                 if len(candidates):
                     instances_to_stop = [i["InstanceId"] for i in candidates][:-delta]
+                    if self.ssm.is_feature_enabled("ec2.maintenance_window") and self.ssm.is_maintenance_time(fleet=subfleet):
+                        log.info(f"Scale-in actions disabled during  {subfleet} subfleet SSM Maintenance Window: "
+                            "Should have placed in 'draining' state up to %s instances..." % len(instances_to_stop))
+                        return False
                     if len(instances_to_stop):
                         log.info("Draining subfleet instance(s) '%s'..." % instances_to_stop)
                     for instance_id in instances_to_stop:
