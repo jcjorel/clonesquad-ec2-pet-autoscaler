@@ -315,7 +315,6 @@ class KVTable():
             client = boto3.client("dynamodb")
         else:
             client = context["dynamodb.client"]
-
         query  = {
                  'Key': {
                      'S': key
@@ -328,6 +327,7 @@ class KVTable():
             ReturnConsumedCapacity='TOTAL',
             Key=query
             )
+        log.log(log.NOTICE, f"DynamoDB: Direct read of item '[{table_name}]{key}'")
         if "Item" not in response:
             return default
         item  = response["Item"]
