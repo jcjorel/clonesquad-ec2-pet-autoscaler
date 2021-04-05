@@ -780,6 +780,19 @@ Defines if SSM maintenance window support is activated.
 
 
 
+### ssm.feature.maintenance_window.events.enable
+Default Value: `0`   
+Format       :  [Bool](#Bool)
+
+Enable/Disable sending Enter/Exit Maintenance Window period events to instances.
+
+This enables event notification support of instances when they enter or exit a SSM Maintenance Window. When set to 1, CloneSquad sends a SSM RunCommand to run the script /etc/cs-ssm/(enter|exit)-maintenance-window-period script located in each instances. The event is repeasted until the script returns a zero-code. If the script doesn't exist on an instance, the event is sent only once.
+
+> This setting is taken into account only if [`ssm.enable`](#ssmenable) is set to 1.
+            
+
+
+
 ### ssm.maintenance_window.start_ahead
 Default Value: `minutes=15`   
 Format       :  [Duration](#Duration)
@@ -792,7 +805,7 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
 
 
 ### ssm.maintenance_window.subfleet.{SubfleetName}.force_running
-Default Value: `0`   
+Default Value: `1`   
 Format       :  [Bool](#Bool)
 
 Defines if a subfleet is forcibly set to 'running' when a maintenance window is actice.
