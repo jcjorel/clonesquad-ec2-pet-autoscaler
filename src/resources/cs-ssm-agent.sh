@@ -70,10 +70,14 @@ function main()
 	cs_echo "$CMD" "START:$*"
 	case $CMD in
 	ENTER_MAINTENANCE_WINDOW_PERIOD)
-		run_user_scripts maintenance-window enter $*
+		probe_test enter-maintenance-window-period \
+			"instance $AWS_SSM_INSTANCE_ID acked the event!" 
+			"instance $AWS_SSM_INSTANCE_ID returned a non-zero code. The message will be repeated..."
 	;;
 	EXIT_MAINTENANCE_WINDOW_PERIOD)
-		run_user_scripts maintenance-window exit $*
+		probe_test exit-maintenance-window-period \
+			"instance $AWS_SSM_INSTANCE_ID acked the event!" 
+			"instance $AWS_SSM_INSTANCE_ID returned a non-zero code. The message will be repeated..."
 	;;
 	INSTANCE_HEALTHCHECK)
 		probe_test instance-healthcheck \

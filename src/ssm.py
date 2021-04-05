@@ -49,6 +49,16 @@ class SSM:
 CloneSquad can leverage AWS SSM to take into account Maintenance Windows and use SSM RunCommand to execute status probe scripts located in managed instances.
             """
             },
+            "ssm.feature.maintenance_window.events.enable,Stable": {
+                "DefaultValue": "0",
+                "Format": "Bool",
+                "Description": """Enable/Disable sending Enter/Exit Maintenance Window period events to instances.
+
+This enables event notification support of instances when they enter or exit a SSM Maintenance Window. When set to 1, CloneSquad sends a SSM RunCommand to run the script /etc/cs-ssm/(enter|exit)-maintenance-window-period script located in each instances. The event is repeasted until the script returns a zero-code. If the script doesn't exist on an instance, the event is sent only once.
+
+> This setting is taken into account only if [`ssm.enable`](#ssmenable) is set to 1.
+            """
+            },
             "ssm.feature.ec2.instance_ready_for_shutdown,Stable": {
                 "DefaultValue": "0",
                 "Format": "Bool",
@@ -535,7 +545,7 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
         # Send SSM events to instances
         if event_name is None:
             event_desc = default_struct
-        else:
+        elif Cfg.get_int("ssm.feature.maintenance_window.events.enable"):
             ev_ids = [i for i in instance_ids if i not in event_desc["InstanceIdSuccesses"]]
             if len(ev_ids):
                 log.log(log.NOTICE, f"Send event {event_class}: {event_name}({event_args}) to {ev_ids}")
