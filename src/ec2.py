@@ -398,11 +398,11 @@ without any TargetGroup but another external health instance source exists).
                     return override_status in state
 
         o_ssm = self.context["o_ssm"]
-        if o_ssm.is_feature_enabled("ec2.instance_ready_for_operation"):
+        if o_ssm.is_feature_enabled("events.ec2.instance_ready_for_operation"):
             launch_time     = self.get_instance_by_id(instance_id)["LaunchTime"]
             last_ready_date = self.get_state_date(f"ec2.instance.ssm.ready_for_operation_date.{instance_id}", TTL=self.ttl)
             if ("unhealthy" in state and last_ready_date is None and 
-                (now - launch_time) > timedelta(seconds=Cfg.get_duration_secs("ssm.feature.ec2.instance_ready_for_operation.max_initializing_time"))):
+                (now - launch_time) > timedelta(seconds=Cfg.get_duration_secs("ssm.feature.events.ec2.instance_ready_for_operation.max_initializing_time"))):
                     log.warning(f"Instance {instance_id} spent too much time in initializing state. Report it as unhealthy...")
                     return True
             if "initializing" in state:

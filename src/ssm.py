@@ -49,7 +49,7 @@ class SSM:
 CloneSquad can leverage AWS SSM to take into account Maintenance Windows and use SSM RunCommand to execute status probe scripts located in managed instances.
             """
             },
-            "ssm.feature.maintenance_window.events.enable,Stable": {
+            "ssm.feature.events.ec2.maintenance_window_period,Stable": {
                 "DefaultValue": "0",
                 "Format": "Bool",
                 "Description": """Enable/Disable sending Enter/Exit Maintenance Window period events to instances.
@@ -59,7 +59,7 @@ This enables event notification support of instances when they enter or exit a S
 > This setting is taken into account only if [`ssm.enable`](#ssmenable) is set to 1.
             """
             },
-            "ssm.feature.ec2.instance_ready_for_shutdown,Stable": {
+            "ssm.feature.events.ec2.instance_ready_for_shutdown,Stable": {
                 "DefaultValue": "0",
                 "Format": "Bool",
                 "Description": """Ensure instance shutdown readiness with /etc/cs-ssm/instance-ready-for-shutdown script on SSM managed instances."
@@ -71,16 +71,16 @@ This enables support for direct sensing of instance shutdown readiness based on 
 > This setting is taken into account only if [`ssm.enable`](#ssmenable) is set to 1.
             """
             },
-             "ssm.feature.ec2.instance_ready_for_shutdown.max_shutdown_delay,Stable": {
+             "ssm.feature.events.ec2.instance_ready_for_shutdown.max_shutdown_delay,Stable": {
                      "DefaultValue": "hours=1",
                      "Format": "Duration",
                      "Description": """ Maximum time to spend waiting for SSM based ready-for-shutdown status.
 
-When SSM support is enabled with [`ssm.feature.ec2.instance_ready_for_operation`](#ssmfeatureec2instance_ready_for_operation), instances may notify CloneSquad when they are ready for shutdown. This setting defines
+When SSM support is enabled with [`ssm.feature.events.ec2.instance_ready_for_operation`](#ssmfeatureec2instance_ready_for_operation), instances may notify CloneSquad when they are ready for shutdown. This setting defines
 the maximum time spent by CloneSquad to receive this signal before to forcibly shutdown the instance.
                 """
              },
-            "ssm.feature.ec2.instance_ready_for_operation,Stable": {
+            "ssm.feature.events.ec2.instance_ready_for_operation,Stable": {
                 "DefaultValue": "0",
                 "Format": "Bool",
                 "Description": """Ensure an instance go out from 'initializing' state based on an instance script returns code.
@@ -93,16 +93,16 @@ This enables support for direct sensing of instance **serving** readiness based 
 > This setting is taken into account only if [`ssm.enable`](#ssmenable) is set to 1.
             """
             },
-            "ssm.feature.ec2.instance_ready_for_operation.max_initializing_time,Stable": {
+            "ssm.feature.events.ec2.instance_ready_for_operation.max_initializing_time,Stable": {
                 "DefaultValue": "hours=1",
                 "Format": "Duration",
                 "Description": """Max time that an instance can spend in 'initializing' state.
 
-When [`ssm.feature.ec2.instance_ready_for_operation`](#ssmfeatureec2instance_ready_for_operation) is set, this setting defines the maximum duration that CloneSquas will attempt to get a status 'ready-for-operation' for a specific instance through SSM RunCommand calls and execution of the `/etc/cs-ssm/instance-ready-for-operation` script.
+When [`ssm.feature.events.ec2.instance_ready_for_operation`](#ssmfeatureec2instance_ready_for_operation) is set, this setting defines the maximum duration that CloneSquas will attempt to get a status 'ready-for-operation' for a specific instance through SSM RunCommand calls and execution of the `/etc/cs-ssm/instance-ready-for-operation` script.
             """
             },
-            "ssm.feature.ec2.instance_healthcheck": "0",
-            "ssm.feature.ec2.maintenance_window,Stable": {
+            "ssm.feature.events.ec2.instance_healthcheck": "0",
+            "ssm.feature.maintenance_window,Stable": {
                 "DefaultValue": "1",
                 "Format": "Bool",
                 "Description": """Defines if SSM maintenance window support is activated.
@@ -110,7 +110,7 @@ When [`ssm.feature.ec2.instance_ready_for_operation`](#ssmfeatureec2instance_rea
 > This setting is taken into account only if [`ssm.enable`](#ssmenable) is set to 1.
             """
             },
-            "ssm.maintenance_window.subfleet.{SubfleetName}.force_running,Stable": {
+            "ssm.feature.maintenance_window.subfleet.{SubfleetName}.force_running,Stable": {
                 "DefaultValue": "1",
                 "Format": "Bool",
                 "Description": """Defines if a subfleet is forcibly set to 'running' when a maintenance window is actice.
@@ -121,7 +121,7 @@ When [`ssm.feature.ec2.instance_ready_for_operation`](#ssmfeatureec2instance_rea
             "ssm.state.default_ttl": "hours=1",
             "ssm.state.command.default_ttl": "minutes=10",
             "ssm.state.command.result.default_ttl": "minutes=5",
-            "ssm.maintenance_window.start_ahead,Stable": {
+            "ssm.feature.maintenance_window.start_ahead,Stable": {
                     "DefaultValue": "minutes=15",
                     "Format": "Duration",
                     "Description": """Start instances this specified time ahead of the next Maintenance Window.
@@ -129,10 +129,10 @@ When [`ssm.feature.ec2.instance_ready_for_operation`](#ssmfeatureec2instance_rea
 In order to ensure that instances are up and ready when a SSM Maintenance Window starts, they are started in advance of the 'NextExecutionTime' defined in the maintenance window.
             """
             },
-            "ssm.maintenance_window.global_defaults": "CS-GlobalDefaultMaintenanceWindow",
-            "ssm.maintenance_window.defaults": "CS-{GroupName}",
-            "ssm.maintenance_window.mainfleet.defaults": "CS-{GroupName}-__main__",
-            "ssm.maintenance_window.mainfleet.ec2.schedule.min_instance_count": {
+            "ssm.feature.maintenance_window.global_defaults": "CS-GlobalDefaultMaintenanceWindow",
+            "ssm.feature.maintenance_window.defaults": "CS-{GroupName}",
+            "ssm.feature.maintenance_window.mainfleet.defaults": "CS-{GroupName}-__main__",
+            "ssm.feature.maintenance_window.mainfleet.ec2.schedule.min_instance_count": {
                     "DefaultValue": "100%",
                     "Format": "IntegerOrPercentage",
                     "Description": """Minimum number of instances serving in the fleet when the Maintenance Window occurs.
@@ -140,9 +140,9 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
 > Note: If this value is set to the special value '100%', the setting [`ec2.schedule.desired_instance_count`](#ec2scheduledesired_instance_count) is also forced to '100%'. This implies that any LightHouse instances will also be started and full fleet stability ensured during the Maintenance Window.
             """
             },
-            "ssm.maintenance_window.subfleet.__all__.defaults": "CS-{GroupName}-Subfleet.__all__",
-            "ssm.maintenance_window.subfleet.{SubfleetName}.defaults": "CS-{GroupName}-Subfleet.{SubfleetName}",
-            "ssm.maintenance_window.subfleet.{SubfleetName}.ec2.schedule.min_instance_count": {
+            "ssm.feature.maintenance_window.subfleet.__all__.defaults": "CS-{GroupName}-Subfleet.__all__",
+            "ssm.feature.maintenance_window.subfleet.{SubfleetName}.defaults": "CS-{GroupName}-Subfleet.{SubfleetName}",
+            "ssm.feature.maintenance_window.subfleet.{SubfleetName}.ec2.schedule.min_instance_count": {
                     "DefaultValue": "100%",
                     "Format": "IntegerOrPercentage",
                     "Description": """Minimum number of instances serving in the fleet when the Maintenance Window occurs.
@@ -190,10 +190,10 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
         }
 
         fmt                              = self.context.copy()
-        mw_names["__globaldefault__"]["Names"] = Cfg.get_list("ssm.maintenance_window.global_defaults", fmt=fmt)
-        mw_names["__default__"]["Names"] = Cfg.get_list("ssm.maintenance_window.defaults", fmt=fmt)
-        mw_names["__main__"]["Names"]    = Cfg.get_list("ssm.maintenance_window.mainfleet.defaults", fmt=fmt)
-        mw_names["__all__"]["Names"]     = Cfg.get_list("ssm.maintenance_window.subfleet.__all__.defaults", fmt=fmt)
+        mw_names["__globaldefault__"]["Names"] = Cfg.get_list("ssm.feature.maintenance_window.global_defaults", fmt=fmt)
+        mw_names["__default__"]["Names"] = Cfg.get_list("ssm.feature.maintenance_window.defaults", fmt=fmt)
+        mw_names["__main__"]["Names"]    = Cfg.get_list("ssm.feature.maintenance_window.mainfleet.defaults", fmt=fmt)
+        mw_names["__all__"]["Names"]     = Cfg.get_list("ssm.feature.maintenance_window.subfleet.__all__.defaults", fmt=fmt)
 
         all_mw_names = mw_names["__globaldefault__"]["Names"]
         all_mw_names.extend([ n for n in mw_names["__default__"]["Names"] if n not in all_mw_names])
@@ -201,21 +201,21 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
         all_mw_names.extend([ n for n in mw_names["__all__"]["Names"] if n not in all_mw_names])
 
         Cfg.register({
-                f"ssm.maintenance_window.subfleet.__all__.force_running":
-                    Cfg.get("ssm.maintenance_window.subfleet.{SubfleetName}.force_running")
+                f"ssm.feature.maintenance_window.subfleet.__all__.force_running":
+                    Cfg.get("ssm.feature.maintenance_window.subfleet.{SubfleetName}.force_running")
             })
 
         for SubfleetName in self.o_ec2.get_subfleet_names():
             fmt["SubfleetName"] = SubfleetName
             mw_names[f"Subfleet.{SubfleetName}"] = {}
             Cfg.register({
-                f"ssm.maintenance_window.subfleet.{SubfleetName}.defaults": Cfg.get("ssm.maintenance_window.subfleet.{SubfleetName}.defaults"),
-                f"ssm.maintenance_window.subfleet.{SubfleetName}.ec2.schedule.min_instance_count": 
-                    Cfg.get("ssm.maintenance_window.subfleet.{SubfleetName}.ec2.schedule.min_instance_count"),
-                f"ssm.maintenance_window.subfleet.{SubfleetName}.force_running":
-                    Cfg.get("ssm.maintenance_window.subfleet.{SubfleetName}.force_running"),
+                f"ssm.feature.maintenance_window.subfleet.{SubfleetName}.defaults": Cfg.get("ssm.feature.maintenance_window.subfleet.{SubfleetName}.defaults"),
+                f"ssm.feature.maintenance_window.subfleet.{SubfleetName}.ec2.schedule.min_instance_count": 
+                    Cfg.get("ssm.feature.maintenance_window.subfleet.{SubfleetName}.ec2.schedule.min_instance_count"),
+                f"ssm.feature.maintenance_window.subfleet.{SubfleetName}.force_running":
+                    Cfg.get("ssm.feature.maintenance_window.subfleet.{SubfleetName}.force_running"),
             })
-            mw_names[f"Subfleet.{SubfleetName}"]["Names"] = Cfg.get_list(f"ssm.maintenance_window.subfleet.{SubfleetName}.defaults", fmt=fmt)
+            mw_names[f"Subfleet.{SubfleetName}"]["Names"] = Cfg.get_list(f"ssm.feature.maintenance_window.subfleet.{SubfleetName}.defaults", fmt=fmt)
             all_mw_names.extend([ n for n in mw_names[f"Subfleet.{SubfleetName}"]["Names"] if n not in all_mw_names])
 
 
@@ -296,34 +296,38 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
             ],
             MaxResults=50)
 
-        self.instance_infos = []
+        instance_infos = []
         for r in response_iterator:
-            self.instance_infos.extend([d for d in r["InstanceInformationList"]])
+            instance_infos.extend([d for d in r["InstanceInformationList"]])
+        self.instance_infos = instance_infos
         log.debug("end - describe_instance_information()")
 
-        instance_info_ids = [i["InstanceId"] for i in self.instance_infos]
+        #instance_info_ids = [i["InstanceId"] for i in instance_infos]
 
-        instances           = self.o_ec2.get_instances(State="pending,running")
-        instance_ids        = [i["InstanceId"] for i in instances]
-        for info in self.o_state.get_state_json("ssm.context.instance_infos", default=[]):
-            instance_id    = info["InstanceId"]
-            if instance_id in instance_info_ids:
+        #instances           = self.o_ec2.get_instances(State="pending,running")
+        #instance_ids        = [i["InstanceId"] for i in instances]
+        #for info in self.o_state.get_state_json("ssm.context.instance_infos", default=[]):
+        #    instance_id    = info["InstanceId"]
+        #    if instance_id in instance_info_ids:
                 # We just recived an update...
-                continue
-            instance       = next(filter(lambda i: i["InstanceId"] == instance_id, instances), None)
-            if instance is None:
-                # This instance is not more pending or running...
-                continue
-            last_ping_time = misc.str2utc(info["LastPingDateTime"])
-            if instance["LaunchTime"] < last_ping_time and (last_ping_time - now) < timedelta(seconds=self.ttl):
-                self.instance_infos.append(info)
-        # Remove useless fields
-        for info in self.instance_infos:
-            if "AssociationStatus" in info:   del info["AssociationStatus"]
-            if "AssociationOverview" in info: del info["AssociationOverview"]
-            if "IPAddress" in info:           del info["IPAddress"]
-            if "ComputerName" in info:        del info["ComputerName"]
-        self.o_state.set_state_json("ssm.context.instance_infos", self.instance_infos, compress=True, TTL=self.ttl)
+        #        continue
+        #    instance       = next(filter(lambda i: i["InstanceId"] == instance_id, instances), None)
+        #    if instance is None:
+        #        # This instance is not more pending or running...
+        #        continue
+        #    last_ping_time = misc.str2utc(info["LastPingDateTime"])
+        #    if instance["LaunchTime"] < last_ping_time and (last_ping_time - now) < timedelta(seconds=self.ttl):
+        #        instance_infos.append(info)
+        # Keep only needed fields
+        #self.instance_infos = []
+        #for info in instance_infos:
+        #    self.instance_infos.append({
+        #        "InstanceId": info["InstanceId"],
+        #        "PingStatus": info["PingStatus"],
+        #        "LastPingDateTime": info["LastPingDateTime"],
+        #        "PlatformType": info["PlatformType"]
+        #    })
+        #self.o_state.set_state_json("ssm.context.instance_infos", self.instance_infos, compress=True, TTL=self.ttl)
 
     def is_feature_enabled(self, feature):
         if not Cfg.get_int("ssm.enable"):
@@ -519,7 +523,7 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
         self.o_state.set_state_json("ssm.events.run_commands", self.run_cmd_states, compress=True, TTL=self.ttl)
 
     def send_events(self, instance_ids, event_class, event_name, event_args, notification_handler=None):
-        if not self.is_feature_enabled("ec2.maintenance_window"):
+        if not self.is_feature_enabled("maintenance_window"):
             return False
 
         now            = self.context["now"]
@@ -545,7 +549,7 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
         # Send SSM events to instances
         if event_name is None:
             event_desc = default_struct
-        elif Cfg.get_int("ssm.feature.maintenance_window.events.enable"):
+        elif Cfg.get_int("ssm.feature.events.ec2.maintenance_window_period"):
             ev_ids = [i for i in instance_ids if i not in event_desc["InstanceIdSuccesses"]]
             if len(ev_ids):
                 log.log(log.NOTICE, f"Send event {event_class}: {event_name}({event_args}) to {ev_ids}")
@@ -555,7 +559,7 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
                 for i in [i for i in ev_ids if i in r]:
                     if len(r[i]["Warning"]):
                         log.warning(f"Got warning(s) while retrieving SSM SendEvent result for {i} : %s" % r[i]["Details"])
-                    if r[i]["Status"] == "SUCCESS" and i not in event_desc["InstanceIdSuccesses"]:
+                    if r[i]["Status"] == "SUCCESS":
                         # Keep track that we received a SUCCESS for this instance id to not resend it again later
                         event_desc["InstanceIdSuccesses"].append(i)
 
@@ -584,10 +588,10 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
 
 
     def is_maintenance_time(self, fleet=None, meta=None):
-        if not self.is_feature_enabled("ec2.maintenance_window"):
+        if not self.is_feature_enabled("maintenance_window"):
             return False
         now         = self.context["now"]
-        start_ahead = timedelta(seconds=max(Cfg.get_duration_secs("ssm.maintenance_window.start_ahead"), 30))
+        start_ahead = timedelta(seconds=max(Cfg.get_duration_secs("ssm.feature.maintenance_window.start_ahead"), 30))
         windows     = copy.deepcopy(self._get_maintenance_windows_for_fleet(fleet=fleet))
         for w in windows:
             window_id= w["WindowId"]
@@ -667,7 +671,7 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
             log.log(log.NOTICE, meta["MatchingWindowMessage"])
             min_instance_count = _set_tag(None, config, meta["MatchingWindow"])
             if min_instance_count is None:
-                min_instance_count = Cfg.get("ssm.maintenance_window.mainfleet.ec2.schedule.min_instance_count")
+                min_instance_count = Cfg.get("ssm.feature.maintenance_window.mainfleet.ec2.schedule.min_instance_count")
             config["override:ec2.schedule.min_instance_count"] = min_instance_count
             if min_instance_count == "100%":
                 config["override:ec2.schedule.desired_instance_count"] = "100%"
@@ -689,11 +693,11 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
                 log.log(log.NOTICE, meta["MatchingWindowMessage"])
                 min_instance_count = _set_tag(subfleet, config, meta["MatchingWindow"])
                 if min_instance_count is None:
-                    min_instance_count = Cfg.get(f"ssm.maintenance_window.subfleet.{subfleet}.ec2.schedule.min_instance_count")
+                    min_instance_count = Cfg.get(f"ssm.feature.maintenance_window.subfleet.{subfleet}.ec2.schedule.min_instance_count")
                 config[f"override:subfleet.{subfleet}.ec2.schedule.min_instance_count"] = min_instance_count
                 if min_instance_count == "100%":
                     config[f"override:subfleet.{subfleet}.ec2.schedule.desired_instance_count"] = "100%"
-                if Cfg.get_int("ssm.maintenance_window.subfleet.{SubfleetName}.force_running"):
+                if Cfg.get_int("ssm.feature.maintenance_window.subfleet.{SubfleetName}.force_running"):
                     config[f"override:subfleet.{subfleet}.state"] = "running"
         Cfg.register(config, layer="SSM Maintenance window override", create_layer_when_needed=True)
 

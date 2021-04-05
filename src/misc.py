@@ -263,23 +263,26 @@ def parse_line_as_list_of_dict(string, with_leading_string=True, leading_keyname
         return default
     def _remove_escapes(s):
         return s.replace("\\;", ";").replace("\\,", ",").replace("\\=", "=")
-    l = []
-    for d in re.split("(?<!\\\\);", string):
-        if d == "": continue
+    try:
+        l = []
+        for d in re.split("(?<!\\\\);", string):
+            if d == "": continue
 
-        dct       = defaultdict(str)
-        el        = re.split("(?<!\\\\),", d)
-        idx_start = 0
-        if with_leading_string:
-            key = el[0]
-            if key == "": continue
-            dct[leading_keyname] = _remove_escapes(key) #.replace("\\,", ",")
-            idx_start = 1
-        for item in el[idx_start:]:
-            i_el = re.split("(?<!\\\\)=", item, maxsplit=1)
-            dct[i_el[0]] = _remove_escapes(i_el[1]) if len(i_el) > 1 else True
-        l.append(dct)
-    return l
+            dct       = defaultdict(str)
+            el        = re.split("(?<!\\\\),", d)
+            idx_start = 0
+            if with_leading_string:
+                key = el[0]
+                if key == "": continue
+                dct[leading_keyname] = _remove_escapes(key) #.replace("\\,", ",")
+                idx_start = 1
+            for item in el[idx_start:]:
+                i_el = re.split("(?<!\\\\)=", item, maxsplit=1)
+                dct[i_el[0]] = _remove_escapes(i_el[1]) if len(i_el) > 1 else True
+            l.append(dct)
+        return l
+    except:
+        return default
 
 def dynamodb_table_scan(client, table_name, max_size=32*1024*1024):
     xray_recorder.begin_subsegment("misc.dynamodb_table_scan")

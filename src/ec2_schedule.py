@@ -272,7 +272,7 @@ is enabled, from an instance type distribution PoV.
                          "Format": "Duration",
                          "Description": """Minimum time to spend in the 'draining' state.
 
-If SSM support is enabled with [`ssm.feature.ec2.instance_ready_for_shutdown`](#ssmfeatureec2instance_ready_for_shutdown), a script located in the drained instance is executed to ensure that the instance is ready for shutdown even after the specified duration is exhausted. IF this scripts return non-zero code, the shutdown is posponed for a maximum duration defined in [`ssm.feature.ec2.instance_ready_for_shutdown.max_shutdown_delay`](#ssmfeatureec2instance_ready_for_shutdownmax_shutdown_delay).
+If SSM support is enabled with [`ssm.feature.ec2.instance_ready_for_shutdown`](#ssmfeatureec2instance_ready_for_shutdown), a script located in the drained instance is executed to ensure that the instance is ready for shutdown even after the specified duration is exhausted. IF this scripts return non-zero code, the shutdown is posponed for a maximum duration defined in [`ssm.feature.events.ec2.instance_ready_for_shutdown.max_shutdown_delay`](#ssmfeatureeventsec2instance_ready_for_shutdownmax_shutdown_delay).
                 """
                 },
                  "ec2.schedule.start.warmup_delay,Stable": {
@@ -695,27 +695,27 @@ By default, the dashboard is enabled.
             instances_with_issue_ids.append(i)
             max_i -= 1
 
-        if self.ssm.is_feature_enabled("ec2.instance_healthcheck"):
-            # If instances are SSM ready, we retrieve the health status by calling a script on the instance itself
-            young_instance_ids  = self.get_young_instance_ids()
-            pending_running_ids = [i["InstanceId"] for i in self.pending_running_instances 
-                    if not i["InstanceId"] not in young_instance_ids and not self.ec2.is_instance_state(i["InstanceId"], ["initializing"])]
-            ssm_hcheck = self.ssm.run_command([i["InstanceId"] for i in self.pending_running_instances], 
-                    "INSTANCE_HEALTHCHECK", comment="CS-InstanceHealthCheck (%s)" % self.context["GroupName"], return_former_results=True)
-            for instance_id in pending_running_ids:
-                hcheck = ssm_hcheck.get(instance_id)
-                if hcheck is None:
-                    log.log(log.NOTICE, f"Instance {instance_id} is not returning a 'HEALTHY' SSM HealthCheck... "
-                            "Assuming unhealthy...")
-                    if instance_id not in instances_with_issue_ids:
-                        instances_with_issue_ids.append(instance_id)
-                    continue
-                if len(hcheck["Warning"]):
-                    log.warning(f"Got warning(s) while retrieving SSM healthcheck for {instance_id} : %s" % hcheck["Details"])
-                status = hcheck["Status"]
-                if status not in ["SUCCESS"] and instance_id not in instances_with_issue_ids:
-                    log.info(f"Got {status} while retrieving SSM healthcheck for {instance_id} : %s" % hcheck["Details"])
-                    instances_with_issue_ids.append(instance_id)
+        #if self.ssm.is_feature_enabled("ec2.instance_healthcheck"):
+        #    # If instances are SSM ready, we retrieve the health status by calling a script on the instance itself
+        #    young_instance_ids  = self.get_young_instance_ids()
+        #    pending_running_ids = [i["InstanceId"] for i in self.pending_running_instances 
+        #            if not i["InstanceId"] not in young_instance_ids and not self.ec2.is_instance_state(i["InstanceId"], ["initializing"])]
+        #    ssm_hcheck = self.ssm.run_command([i["InstanceId"] for i in self.pending_running_instances], 
+        #            "INSTANCE_HEALTHCHECK", comment="CS-InstanceHealthCheck (%s)" % self.context["GroupName"], return_former_results=True)
+        #    for instance_id in pending_running_ids:
+        #        hcheck = ssm_hcheck.get(instance_id)
+        #        if hcheck is None:
+        #            log.log(log.NOTICE, f"Instance {instance_id} is not returning a 'HEALTHY' SSM HealthCheck... "
+        #                    "Assuming unhealthy...")
+        #            if instance_id not in instances_with_issue_ids:
+        #                instances_with_issue_ids.append(instance_id)
+        #            continue
+        #        if len(hcheck["Warning"]):
+        #            log.warning(f"Got warning(s) while retrieving SSM healthcheck for {instance_id} : %s" % hcheck["Details"])
+        #        status = hcheck["Status"]
+        #        if status not in ["SUCCESS"] and instance_id not in instances_with_issue_ids:
+        #            log.info(f"Got {status} while retrieving SSM healthcheck for {instance_id} : %s" % hcheck["Details"])
+        #            instances_with_issue_ids.append(instance_id)
 
         return instances_with_issue_ids
 
@@ -898,7 +898,7 @@ By default, the dashboard is enabled.
         cw.set_metric("NbOfInstanceInInitialState", len(self.get_initial_instances()) if fl_size > 0 else None)
         cw.set_metric("NbOfInstanceInUnuseableState", len(instances_with_issues) if fl_size > 0 else None)
         cw.set_metric("NbOfCPUCreditExhaustedInstances", len(exhausted_cpu_credits) if fl_size > 0 else None)
-        if self.ssm.is_feature_enabled("ec2.maintenance_window"):
+        if self.ssm.is_feature_enabled("maintenance_window"):
             cw.set_metric("SSM.MaintenanceWindow", self.ssm.is_maintenance_time(fleet=None))
         else:
             cw.set_metric("SSM.MaintenanceWindow", None)
@@ -1116,7 +1116,7 @@ By default, the dashboard is enabled.
         if delta_instance_count < 0:
             # Request to remove running instances (scalein)
             c = min(-delta_instance_count, Cfg.get_int("ec2.schedule.max_instance_stop_at_a_time"))
-            if self.ssm.is_feature_enabled("ec2.maintenance_window") and self.ssm.is_maintenance_time(fleet=None):
+            if self.ssm.is_feature_enabled("maintenance_window") and self.ssm.is_maintenance_time(fleet=None):
                 log.info(f"Scale-in actions disabled during Main fleet SSM Maintenance Window: "
                     "Should have placed in 'draining' state up to {c} instances...")
                 return False
@@ -1254,7 +1254,7 @@ By default, the dashboard is enabled.
                                                                # can't be part of a full scaleout sequence (so are useless to be rendered available)
         ids_to_stop                    = []
         too_much_cpu_crediting         = False
-        ssm_ready_for_shutdown_delay   = Cfg.get_duration_secs("ssm.feature.ec2.instance_ready_for_shutdown.max_shutdown_delay")
+        ssm_ready_for_shutdown_delay   = Cfg.get_duration_secs("ssm.feature.events.ec2.instance_ready_for_shutdown.max_shutdown_delay")
         cooldown                       = Cfg.get_duration_secs("ec2.schedule.draining.instance_cooldown")
         for i in instances:
            instance_id = i["InstanceId"]
@@ -1321,7 +1321,8 @@ By default, the dashboard is enabled.
                         "Do not assess stop now..." % (instance_id, elapsed_time.total_seconds(), cooldown))
                    continue
 
-               if self.ssm.is_feature_enabled("ec2.instance_ready_for_shutdown") and elapsed_time < timedelta(seconds=ssm_ready_for_shutdown_delay):
+               if (self.ssm.is_feature_enabled("events.ec2.instance_ready_for_shutdown") and 
+                       elapsed_time < timedelta(seconds=ssm_ready_for_shutdown_delay)):
                    # Check SSM based instance-ready-for-shutdown status
                    ssm_hcheck = self.ssm.run_command([instance_id], "INSTANCE_READY_FOR_SHUTDOWN", 
                            comment="CS-InstanceReadyForShutdown (%s)" % self.context["GroupName"], return_former_results=True)
@@ -1572,7 +1573,7 @@ By default, the dashboard is enabled.
                 cw.set_metric("Subfleet.EC2.DesiredInstanceCount", 
                         desired_instance_count if send_metric else None, dimensions=dimensions)
                 cw.set_metric("Subfleet.SSM.MaintenanceWindow", 
-                        self.ssm.is_maintenance_time(fleet=subfleet) if self.ssm.is_feature_enabled("ec2.maintenance_window") else None, 
+                        self.ssm.is_maintenance_time(fleet=subfleet) if self.ssm.is_feature_enabled("maintenance_window") else None, 
                         dimensions=dimensions)
             else:
                 cw.set_metric("Subfleet.EC2.Size", None, dimensions=dimensions)
