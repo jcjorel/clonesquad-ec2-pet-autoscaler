@@ -71,12 +71,12 @@ function main()
 	case $CMD in
 	ENTER_MAINTENANCE_WINDOW_PERIOD)
 		probe_test enter-maintenance-window-period \
-			"instance $AWS_SSM_INSTANCE_ID acked the event!" 
+			"instance $AWS_SSM_INSTANCE_ID acked the event!" \
 			"instance $AWS_SSM_INSTANCE_ID returned a non-zero code. The message will be repeated..."
 	;;
 	EXIT_MAINTENANCE_WINDOW_PERIOD)
 		probe_test exit-maintenance-window-period \
-			"instance $AWS_SSM_INSTANCE_ID acked the event!" 
+			"instance $AWS_SSM_INSTANCE_ID acked the event!" \
 			"instance $AWS_SSM_INSTANCE_ID returned a non-zero code. The message will be repeated..."
 	;;
 	INSTANCE_HEALTHCHECK)
