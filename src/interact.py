@@ -113,14 +113,14 @@ class Interact:
                     "interface": ["apigw"],
                     "clients": ["dynamodb"],
                     "cache": "none",
-                    "prerequisites": ["o_state", "o_ec2", "o_ssm"],
+                    "prerequisites": ["o_state"],
                     "func": self.configuration_dump,
                 },
                 "configuration/(.*)"       : {
                     "interface": ["apigw"],
                     "clients": ["dynamodb"],
                     "cache": "none",
-                    "prerequisites": ["o_state", "o_ec2", "o_ssm"],
+                    "prerequisites": ["o_state"],
                     "func": self.configuration,
                 },
                 "scheduler"       : {
@@ -356,7 +356,12 @@ class Interact:
 
     def configuration_dump(self, context, event, response, cacheddata):
         response["statusCode"] = 200
-        is_yaml = "format" in event and event["format"].lower() == "yaml"
+        is_yaml                 = "format" in event and event["format"].lower() == "yaml"
+        with_maintenance_window = "with_maintenance_window" in event and event["with_maintenance_window"].lower() == "true"
+        if with_maintenance_window:
+            # We load the EC2 and SSM to inherit their override parameters if a SSM Maintenance Window is active
+            misc.load_prerequisites(self.context, ["o_ec2", "o_ssm"])
+
         if "httpMethod" in event and event["httpMethod"] == "POST":
             try:
                 c = yaml.safe_load(event["body"]) if is_yaml else json.loads(event["body"])
@@ -382,6 +387,10 @@ class Interact:
             response["body"]       = "Missing config key path."
             return False
         config_key = m.group(1)
+        with_maintenance_window = "with_maintenance_window" in event and event["with_maintenance_window"].lower() == "true"
+        if with_maintenance_window:
+            # We load the EC2 and SSM to inherit their override parameters if a SSM Maintenance Window is active
+            misc.load_prerequisites(self.context, ["o_ec2", "o_ssm"])
         if "httpMethod" in event and event["httpMethod"] == "POST":
             value = event["body"].partition('\n')[0]
             log.info(f"TTL=%s" % event.get("ttl"))

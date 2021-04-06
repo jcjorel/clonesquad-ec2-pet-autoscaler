@@ -282,6 +282,7 @@ This API dumps (or upload) the whole CloneSquad configuration in JSON format by 
 
 * `format`: (Optional) `json` or `yaml`.
 * `raw`: (Optional) Dump the configuration in a format ready for subsequent import.
+* `with_maintenance_window`: (Optional) Set to 'True' to see configuration overrides due to active an SSM Maintenance Window period.
 * `unstable`: (Optional) `true` or `false`. (Dump unstable configuration keys. **WARNING: Unstable configuration keys can be modified/suppressed between CloneSquad releases. Use them only for testing/debugging.**)
 
 **API Gateway synopsis:**
@@ -320,6 +321,7 @@ This API dumps and updates configuration on a per key basis.
 **Argument:**
 
 * `ttl`: Specifying this parameter while updating a configuration, set an expiration time on key written in the DynamoDB table. When the TTL expires, the key is automatically deleted from the DynamoDB table. Format: Number of seconds or duration specification (ex: minutes=30,hours=1)
+* `with_maintenance_window`: (Optional) Set to 'True' to see configuration overrides due to an active SSM Maintenance Window period.
 
 
 **API Gateway synopsis:**
