@@ -64,11 +64,17 @@ This policy means:
 * All non-LightHouse instances **in Spot model** must be scheduled first,
 * All other non-LightHouse instances are scheduled with the lowest priority.
 
-> **Remember that LightHouse instances are optional!** You can omit to specify instance type for LightHouse if you do not want to use this feature!
+Another **typical vertical policy to favor On-Demand over Spot instances**:
 
-*Tip: It is recommend to define 3 LightHouse instances, one per AZ and [`ec2.schedule.min_instance_count`](CONFIGURATION_REFERENCE#ec2schedulemin_instance_count) set to the value 2 to optimize cost at most*
+	.*,spot=False;.*
 
-*Tip: Use vertical scaling with high instance type diversity only if your workload is able to leverage
+> **Remember that LightHouse instances are always optional!** You can omit to specify instance type for LightHouse if you do not want to use this feature!
+
+### Tips
+
+* It is recommended to define 3 LightHouse instances, one per AZ and [`ec2.schedule.min_instance_count`](CONFIGURATION_REFERENCE#ec2schedulemin_instance_count) set to the value 2 to optimize cost at most*
+
+* Use vertical scaling with high instance type diversity only if your workload is able to leverage
 a non-homogeneous fleet (ex: using [Least Outstanding Requests algorithm](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/load-balancer-target-groups.html#modify-routing-algorithm). If not, prefer this setup: one small/cheap instance type for LighHouse instances and a single instance 
 type for non-LightHouse ones.*
 

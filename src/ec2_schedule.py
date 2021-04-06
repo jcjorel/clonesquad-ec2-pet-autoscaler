@@ -226,7 +226,7 @@ This parameter controls how the vertical scaler will prioritize usage and on-the
 By default, no vertical scaling is configured meaning all instances whatever their instance type or launch model (Spot vs
 On-Demand) are handled the same way. 
                          
-This parameter is a [MetaStringList](#MetaStringList)
+This parameter is a [MetaStringList](#MetaStringList).
 
     Ex: t3.medium,lighthouse;c5.large,spot;c5.large;c5.xlarge
 
