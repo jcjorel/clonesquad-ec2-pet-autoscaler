@@ -130,7 +130,7 @@ def sha256(s):
 def abs_or_percent(value, default, max_value):
     v = default
     try: 
-        if value.endswith("%"):
+        if value.endswith("%") or value.endswith("p") or value.endswith("P"):
             v = math.ceil(float(value[:-1])/100.0 * max_value)
         else:
             v = int(value)
