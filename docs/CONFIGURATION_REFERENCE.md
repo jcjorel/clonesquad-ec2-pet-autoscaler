@@ -459,7 +459,8 @@ Format       :  [IntegerOrPercentage](#IntegerOrPercentage)
 
 If set to -1, the autoscaler controls freely the number of running instances. Set to a value different than -1,
 the autoscaler is disabled and this value defines the number of serving (=running & healthy) instances to maintain at all time.
-The [`ec2.schedule.min_instance_count`](#ec2schedulemin_instance_count) is still authoritative and the `ec2.schedule.desired_instance_count` parameter cannot bring
+The [`ec2.schedule.min_instance_count`](#ec2schedulemin_instance_count) is still authoritative and the 
+[`ec2.schedule.desired_instance_count`](#ec2scheduledesired_instance_count) parameter cannot bring
 the serving fleet size below this hard lower limit. 
 
 A typical usage for this key is to set it to `100%` to temporarily force all the instances to run at the same time to perform mutable maintenance
@@ -467,6 +468,8 @@ A typical usage for this key is to set it to `100%` to temporarily force all the
 
 > Tip: Setting this key to the special `100%` value has also the side effect to disable all instance health check management and so ensure the whole fleet running 
 at its maximum size in a stable manner (i.e. even if there are impaired/unhealthy instances in the fleet, they won't be restarted automatically).
+
+> **Important tip related to LightHouse instances**:  In a maintenance use-case, users may require to have all instances **including LightHouse ones** up and running; setting both [`ec2.schedule.desired_instance_count`](#ec2scheduledesired_instance_count) and [`ec2.schedule.min_instance_count`](#ec2schedulemin_instance_count) to the string value `100%` will start ALL instances.
                      
 
 
@@ -505,6 +508,8 @@ Minimum number of healthy serving instances.
 CloneSquad will ensure that at least this number of instances
 are runnning at a given time. A serving instance has passed all the health checks (if part of Target group) and is not detected with
 system issues.
+
+                 
 
 
 

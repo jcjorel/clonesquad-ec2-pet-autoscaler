@@ -268,7 +268,6 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
             log.log(log.NOTICE, f"Found matching SSM maintenance windows: %s" % self.maintenance_windows["Windows"])
         
 
-
     def prepare_ssm(self):
         if not Cfg.get_int("ssm.enable"):
             return

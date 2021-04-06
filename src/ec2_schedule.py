@@ -92,14 +92,17 @@ class EC2_Schedule:
 
 CloneSquad will ensure that at least this number of instances
 are runnning at a given time. A serving instance has passed all the health checks (if part of Target group) and is not detected with
-system issues."""
-                  },
+system issues.
+
+                 """
+                 },
                  "ec2.schedule.desired_instance_count,Stable" : {
                      "DefaultValue" : -1,
                      "Format"       : "IntegerOrPercentage", 
                      "Description"  : """If set to -1, the autoscaler controls freely the number of running instances. Set to a value different than -1,
 the autoscaler is disabled and this value defines the number of serving (=running & healthy) instances to maintain at all time.
-The [`ec2.schedule.min_instance_count`](#ec2schedulemin_instance_count) is still authoritative and the `ec2.schedule.desired_instance_count` parameter cannot bring
+The [`ec2.schedule.min_instance_count`](#ec2schedulemin_instance_count) is still authoritative and the 
+[`ec2.schedule.desired_instance_count`](#ec2scheduledesired_instance_count) parameter cannot bring
 the serving fleet size below this hard lower limit. 
 
 A typical usage for this key is to set it to `100%` to temporarily force all the instances to run at the same time to perform mutable maintenance
@@ -107,6 +110,8 @@ A typical usage for this key is to set it to `100%` to temporarily force all the
 
 > Tip: Setting this key to the special `100%` value has also the side effect to disable all instance health check management and so ensure the whole fleet running 
 at its maximum size in a stable manner (i.e. even if there are impaired/unhealthy instances in the fleet, they won't be restarted automatically).
+
+> **Important tip related to LightHouse instances**:  In a maintenance use-case, users may require to have all instances **including LightHouse ones** up and running; setting both [`ec2.schedule.desired_instance_count`](#ec2scheduledesired_instance_count) and [`ec2.schedule.min_instance_count`](#ec2schedulemin_instance_count) to the string value `100%` will start ALL instances.
                      """
                  },
                  "ec2.schedule.max_instance_start_at_a_time" : 10,
@@ -1991,6 +1996,13 @@ By default, the dashboard is enabled.
 
         :return A sorted list of instances ordered from the highest priority instance to start to the lower one
         """
+
+        # Special behavior when min_instance_count and desired_instance_count are both set to the string '100%':
+        #   This is the official way to request that all instances --including the LightHouse ones-- needs to be started.
+        if Cfg.get("ec2.schedule.min_instance_count") == "100%" and Cfg.get("ec2.schedule.desired_instance_count") == "100%":
+            log.info("'ec2.schedule.min_instance_count' and 'ec2.schedule.desired_instance_count' are both set to '100%': Start all instances including LightHouse ones!")
+            return candidates
+
         # Sort instances according to vertical policy
         vertical_sorted_instances  = self.verticalscaling_sort_instances(Cfg.get("ec2.schedule.verticalscale.instance_type_distribution"), candidates)
 
