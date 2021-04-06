@@ -359,7 +359,7 @@ class Interact:
         is_yaml                 = "format" in event and event["format"].lower() == "yaml"
         with_maintenance_window = "with_maintenance_window" in event and event["with_maintenance_window"].lower() == "true"
         if with_maintenance_window:
-            # We load the EC2 and SSM to inherit their override parameters if a SSM Maintenance Window is active
+            # We load the EC2 and SSM modules to inherit their override parameters if a SSM Maintenance Window is active
             misc.load_prerequisites(self.context, ["o_ec2", "o_ssm"])
 
         if "httpMethod" in event and event["httpMethod"] == "POST":
@@ -389,7 +389,7 @@ class Interact:
         config_key = m.group(1)
         with_maintenance_window = "with_maintenance_window" in event and event["with_maintenance_window"].lower() == "true"
         if with_maintenance_window:
-            # We load the EC2 and SSM to inherit their override parameters if a SSM Maintenance Window is active
+            # We load the EC2 and SSM modules to inherit their override parameters if a SSM Maintenance Window is active
             misc.load_prerequisites(self.context, ["o_ec2", "o_ssm"])
         if "httpMethod" in event and event["httpMethod"] == "POST":
             value = event["body"].partition('\n')[0]
