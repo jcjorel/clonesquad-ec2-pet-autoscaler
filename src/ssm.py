@@ -596,8 +596,8 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
             min_instance_count = None
             if "Tags" in mw:
                 tags = {}
-                for t in tags:
-                    if t.startswith(config_tag):
+                for t in mw["Tags"]:
+                    if t["Key"].startswith(config_tag):
                         tags[t["Key"][len(config_tag):]] = t["Value"]
                 if fleet is None:
                     if "ec2.schedule.min_instance_count" in tags: 
@@ -612,7 +612,7 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
                         min_instance_count = tags[tag]
                         del tags[tag]
                 for t in tags:    
-                    config.set(t, tags[t])
+                    config[f"override:{t}"] = tags[t]
             return min_instance_count
         config = {}
         meta   = {}
