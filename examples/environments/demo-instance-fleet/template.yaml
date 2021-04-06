@@ -212,9 +212,11 @@ Resources:
                 - curl https://raw.githubusercontent.com/jcjorel/clonesquad-ec2-pet-autoscaler/master/tools/cs-instance-watcher -o /root/cs-instance-watcher
                 - chmod a+x /root/cs-instance-watcher
                 # Start the instance watcher ready to block ports 80 and 443 if the instance is placed in draining state
-                - /root/cs-instance-watcher --on-draining-block-new-connections-to-ports 80 443 --log-file /var/log/cs-instance-watcher.log --log-file-rotate d,1,10 --generate-systemd /etc/systemd/system/cs-instance-watcher.service
+                - /root/cs-instance-watcher --on-draining-block-new-connections-to-ports 80 443 --log-file /var/log/cs-instance-watcher.log --log-file-rotate h,1,24 --generate-systemd /etc/systemd/system/cs-instance-watcher.service
                 - systemctl enable cs-instance-watcher
                 - systemctl start cs-instance-watcher
+                # Avoid warning that CloneSquad SSM dir doesn't exist on EC2 instance
+                - mkdir -p /etc/cs-ssm
 
     {% endblock %}
         InstanceMarketOptions:

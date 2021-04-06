@@ -35,6 +35,7 @@ class Scheduler:
         self.local_now              = None
         Cfg.register({
             "cron.max_rules_per_batch": "10",
+            "scheduler.cache.max_age": "seconds=60",
             "cron.disable": "0"
         })
 
@@ -55,7 +56,8 @@ class Scheduler:
                 (self.utc_offset, self.dst_offset, self.tz))
 
         # Load scheduler KV table
-        self.scheduler_table = kvtable.KVTable(self.context, self.context["SchedulerTable"])
+        self.scheduler_table = kvtable.KVTable.create(self.context, self.context["SchedulerTable"],
+                cache_max_age=Cfg.get_duration_secs("scheduler.cache.max_age"))
 
         # Compute event names
         self.load_event_definitions()

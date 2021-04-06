@@ -28,11 +28,6 @@ def init(context, with_kvtable=True, with_predefined_configuration=True):
     _init["dynamic_config"] = []
     _init["active_parameter_set"]    = None
     _init["with_kvtable"]            = False
-    if with_kvtable:
-        _init["configuration_table"] = kvtable.KVTable(context, context["ConfigurationTable"])
-        _init["configuration_table"].reread_table()
-        _init["with_kvtable"]        = True
-
     register({
              "config.dump_configuration,Stable" : {
                  "DefaultValue": "0",
@@ -66,8 +61,15 @@ YAML files.
 See [Parameter sets](#parameter-sets) documentation.
                  """
              },
-             "config.default_ttl": 0
+             "config.default_ttl": 0,
+             "config.cache.max_age": 60
     })
+    if with_kvtable:
+        _init["configuration_table"] = kvtable.KVTable.create(context, context["ConfigurationTable"],
+                cache_max_age=get_duration_secs("config.cache.max_age"))
+        _init["configuration_table"].reread_table()
+        _init["with_kvtable"]        = True
+
 
     # Load extra configuration from specified URLs
     xray_recorder.begin_subsegment("config.init:load_files")
@@ -343,7 +345,7 @@ def set(key, value, ttl=None):
     _init["configuration_table"].set_kv(key, value, TTL=ttl)
 
 def get_direct_from_kv(key, default=None):
-    t = kvtable.KVTable(ctx, ctx["ConfigurationTable"])
+    t = kvtable.KVTable.create(ctx, ctx["ConfigurationTable"], cache_max_age=Cfg.get_duration_secs("config.cache.max_age"))
     v = t.get_kv(key, direct=True)
     return v if not None else default
 

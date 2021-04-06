@@ -154,12 +154,6 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
 
         self.o_state.register_aggregates([
             {
-                "Prefix": "ssm.context",
-                "Compress": True,
-                "DefaultTTL": Cfg.get_duration_secs("ssm.state.default_ttl"),
-                "Exclude" : []
-            },
-            {
                 "Prefix": "ssm.events",
                 "Compress": True,
                 "DefaultTTL": Cfg.get_duration_secs("ssm.state.default_ttl"),
@@ -278,9 +272,6 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
     def prepare_ssm(self):
         if not Cfg.get_int("ssm.enable"):
             return
-        # Persist data collected during update_pending_command_statuses()
-        self.o_state.set_state_json("ssm.events.run_commands", self.run_cmd_states, compress=True, TTL=self.ttl)
-
 
         now       = self.context["now"]
         client    = self.context["ssm.client"]
@@ -301,33 +292,6 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
             instance_infos.extend([d for d in r["InstanceInformationList"]])
         self.instance_infos = instance_infos
         log.debug("end - describe_instance_information()")
-
-        #instance_info_ids = [i["InstanceId"] for i in instance_infos]
-
-        #instances           = self.o_ec2.get_instances(State="pending,running")
-        #instance_ids        = [i["InstanceId"] for i in instances]
-        #for info in self.o_state.get_state_json("ssm.context.instance_infos", default=[]):
-        #    instance_id    = info["InstanceId"]
-        #    if instance_id in instance_info_ids:
-                # We just recived an update...
-        #        continue
-        #    instance       = next(filter(lambda i: i["InstanceId"] == instance_id, instances), None)
-        #    if instance is None:
-        #        # This instance is not more pending or running...
-        #        continue
-        #    last_ping_time = misc.str2utc(info["LastPingDateTime"])
-        #    if instance["LaunchTime"] < last_ping_time and (last_ping_time - now) < timedelta(seconds=self.ttl):
-        #        instance_infos.append(info)
-        # Keep only needed fields
-        #self.instance_infos = []
-        #for info in instance_infos:
-        #    self.instance_infos.append({
-        #        "InstanceId": info["InstanceId"],
-        #        "PingStatus": info["PingStatus"],
-        #        "LastPingDateTime": info["LastPingDateTime"],
-        #        "PlatformType": info["PlatformType"]
-        #    })
-        #self.o_state.set_state_json("ssm.context.instance_infos", self.instance_infos, compress=True, TTL=self.ttl)
 
     def is_feature_enabled(self, feature):
         if not Cfg.get_int("ssm.enable"):
@@ -383,13 +347,13 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
                             status_msg = status_msg[len(agent_status):]
                         details_msg = list(filter(lambda s: s.startswith("CLONESQUAD-SSM-AGENT-DETAILS:"), stdout))
                         warning_msg = list(filter(lambda s: ":WARNING:" in s, stdout))
+                        if len(warning_msg):
+                            log.warning(f"Got warning while retrieving SSM RunCommand output for {cmd_id}/{instance_id}/{command}: "
+                                    "{warning_msg}/{details_msg}")
 
                         result = {
                             "SSMInvocationStatus": status,
-                            "Output": stdout,
                             "Status": status_msg,
-                            "Details": details_msg,
-                            "Warning": warning_msg,
                             "Truncated": bie_msg is None,
                             "Expiration": misc.seconds_from_epoch_utc() + Cfg.get_duration_secs("ssm.state.command.result.default_ttl")
                         }
@@ -557,8 +521,6 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
                 r = self.run_command(ev_ids, event_name, args=b64_args, 
                         comment="CS-SendEvents (%s)" % self.context["GroupName"])
                 for i in [i for i in ev_ids if i in r]:
-                    if len(r[i]["Warning"]):
-                        log.warning(f"Got warning(s) while retrieving SSM SendEvent result for {i} : %s" % r[i]["Details"])
                     if r[i]["Status"] == "SUCCESS":
                         # Keep track that we received a SUCCESS for this instance id to not resend it again later
                         event_desc["InstanceIdSuccesses"].append(i)

@@ -10,6 +10,7 @@ import re
 import itertools
 from datetime import datetime
 from datetime import timedelta
+import config as Cfg
 
 from aws_xray_sdk.core import xray_recorder
 from aws_xray_sdk.core import patch_all
@@ -24,10 +25,14 @@ class StateManager:
         self.table                 = None
         self.table_aggregates      = []
         self.clonesquad_resources = []
+        Cfg.register({
+            "statemanager.cache.max_age" : "minutes=5",
+            }, ignore_double_definition=True)
 
     def get_prerequisites(self):
         ctx        = self.context
-        self.table = kvtable.KVTable.create(self.context, self.context["StateTable"], use_cache=ctx["FunctionName"] == "Main")
+        self.table = kvtable.KVTable.create(self.context, self.context["StateTable"], 
+                cache_max_age=Cfg.get_duration_secs("statemanager.cache.max_age"))
         for a in self.table_aggregates:
             self.table.register_aggregates(a)
         self.table.reread_table()

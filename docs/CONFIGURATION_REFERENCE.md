@@ -491,7 +491,7 @@ Format       :  [Duration](#Duration)
 
 Minimum time to spend in the 'draining' state.
 
-If SSM support is enabled with [`ssm.feature.ec2.instance_ready_for_shutdown`](#ssmfeatureec2instance_ready_for_shutdown), a script located in the drained instance is executed to ensure that the instance is ready for shutdown even after the specified duration is exhausted. IF this scripts return non-zero code, the shutdown is posponed for a maximum duration defined in [`ssm.feature.ec2.instance_ready_for_shutdown.max_shutdown_delay`](#ssmfeatureec2instance_ready_for_shutdownmax_shutdown_delay).
+If SSM support is enabled with [`ssm.feature.ec2.instance_ready_for_shutdown`](#ssmfeatureec2instance_ready_for_shutdown), a script located in the drained instance is executed to ensure that the instance is ready for shutdown even after the specified duration is exhausted. IF this scripts return non-zero code, the shutdown is posponed for a maximum duration defined in [`ssm.feature.events.ec2.instance_ready_for_shutdown.max_shutdown_delay`](#ssmfeatureeventsec2instance_ready_for_shutdownmax_shutdown_delay).
                 
 
 
@@ -715,7 +715,7 @@ CloneSquad can leverage AWS SSM to take into account Maintenance Windows and use
 
 
 
-### ssm.feature.ec2.instance_ready_for_operation
+### ssm.feature.events.ec2.instance_ready_for_operation
 Default Value: `0`   
 Format       :  [Bool](#Bool)
 
@@ -731,18 +731,18 @@ This enables support for direct sensing of instance **serving** readiness based 
 
 
 
-### ssm.feature.ec2.instance_ready_for_operation.max_initializing_time
+### ssm.feature.events.ec2.instance_ready_for_operation.max_initializing_time
 Default Value: `hours=1`   
 Format       :  [Duration](#Duration)
 
 Max time that an instance can spend in 'initializing' state.
 
-When [`ssm.feature.ec2.instance_ready_for_operation`](#ssmfeatureec2instance_ready_for_operation) is set, this setting defines the maximum duration that CloneSquas will attempt to get a status 'ready-for-operation' for a specific instance through SSM RunCommand calls and execution of the `/etc/cs-ssm/instance-ready-for-operation` script.
+When [`ssm.feature.events.ec2.instance_ready_for_operation`](#ssmfeatureec2instance_ready_for_operation) is set, this setting defines the maximum duration that CloneSquas will attempt to get a status 'ready-for-operation' for a specific instance through SSM RunCommand calls and execution of the `/etc/cs-ssm/instance-ready-for-operation` script.
             
 
 
 
-### ssm.feature.ec2.instance_ready_for_shutdown
+### ssm.feature.events.ec2.instance_ready_for_shutdown
 Default Value: `0`   
 Format       :  [Bool](#Bool)
 
@@ -757,30 +757,19 @@ This enables support for direct sensing of instance shutdown readiness based on 
 
 
 
-### ssm.feature.ec2.instance_ready_for_shutdown.max_shutdown_delay
+### ssm.feature.events.ec2.instance_ready_for_shutdown.max_shutdown_delay
 Default Value: `hours=1`   
 Format       :  [Duration](#Duration)
 
  Maximum time to spend waiting for SSM based ready-for-shutdown status.
 
-When SSM support is enabled with [`ssm.feature.ec2.instance_ready_for_operation`](#ssmfeatureec2instance_ready_for_operation), instances may notify CloneSquad when they are ready for shutdown. This setting defines
+When SSM support is enabled with [`ssm.feature.events.ec2.instance_ready_for_operation`](#ssmfeatureec2instance_ready_for_operation), instances may notify CloneSquad when they are ready for shutdown. This setting defines
 the maximum time spent by CloneSquad to receive this signal before to forcibly shutdown the instance.
                 
 
 
 
-### ssm.feature.ec2.maintenance_window
-Default Value: `1`   
-Format       :  [Bool](#Bool)
-
-Defines if SSM maintenance window support is activated.
-
-> This setting is taken into account only if [`ssm.enable`](#ssmenable) is set to 1.
-            
-
-
-
-### ssm.feature.maintenance_window.events.enable
+### ssm.feature.events.ec2.maintenance_window_period
 Default Value: `0`   
 Format       :  [Bool](#Bool)
 
@@ -793,7 +782,18 @@ This enables event notification support of instances when they enter or exit a S
 
 
 
-### ssm.maintenance_window.start_ahead
+### ssm.feature.maintenance_window
+Default Value: `1`   
+Format       :  [Bool](#Bool)
+
+Defines if SSM maintenance window support is activated.
+
+> This setting is taken into account only if [`ssm.enable`](#ssmenable) is set to 1.
+            
+
+
+
+### ssm.feature.maintenance_window.start_ahead
 Default Value: `minutes=15`   
 Format       :  [Duration](#Duration)
 
@@ -804,7 +804,7 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
 
 
 
-### ssm.maintenance_window.subfleet.{SubfleetName}.force_running
+### ssm.feature.maintenance_window.subfleet.{SubfleetName}.force_running
 Default Value: `1`   
 Format       :  [Bool](#Bool)
 

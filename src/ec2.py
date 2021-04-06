@@ -411,9 +411,6 @@ without any TargetGroup but another external health instance source exists).
                     return i["InstanceStatus"]["Status"] in state
                 readyness = o_ssm.run_command([instance_id], "INSTANCE_READY_FOR_OPERATION", 
                         comment="CS-InstanceReadyForOperation (%s)" % self.context["GroupName"], return_former_results=True)
-                if readyness.get(instance_id) and len(readyness[instance_id]["Warning"]):
-                    log.warning(f"Got warning(s) while retrieving InstanceReadyForOperation SSM status for {instance_id} : %s" % 
-                            readyness[instance_id]["Details"])
                 status    = readyness.get(instance_id, {}).get("Status")
                 if status != "SUCCESS":
                     log.log(log.NOTICE, f"Waiting for InstanceReadyForOperation SSM status for {instance_id}...")
@@ -1169,7 +1166,6 @@ without any TargetGroup but another external health instance source exists).
             # Former value was already empty => no need to create a record
             return
         self.set_state_json("ec2.control.state", state, TTL=(ttl-now))
-        self.set_state("cache.flush", "1") # Force state cache flush
 
     def update_instance_control_state(self, listname, mode, filter_query, ttl_string):
         ctrl = self.get_instance_control_state()
@@ -1319,7 +1315,7 @@ without any TargetGroup but another external health instance source exists).
     def set_spot_event(ctx, instance_id, reason, now):
         ctx["o_ec2"].set_state("ec2.instance.spot.event.%s.%s_at" % (instance_id, reason), now,
             TTL=Cfg.get_duration_secs("ec2.instance.spot.event.%s_at_ttl" % reason))
-        ctx["o_ec2"].set_state("cache.flush", "1") # Force state cache flush
+        ctx["o_ec2"].set_state("cache.last_write_index", ctx["now"]) # Force state cache flush
 
 def manage_spot_notification(sqs_record, ctx):
     try:

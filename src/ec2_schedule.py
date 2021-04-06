@@ -593,6 +593,14 @@ By default, the dashboard is enabled.
                           "Dimensions": dimensions,
                           "Unit": "Count",
                           "StorageResolution": self.metric_time_resolution },
+                        { "MetricName": "Subfleet.EC2.NbOfInstanceInUnuseableState",
+                          "Dimensions": dimensions,
+                          "Unit": "Count",
+                          "StorageResolution": self.metric_time_resolution },
+                        { "MetricName": "Subfleet.EC2.NbOfInstanceInInitialState",
+                          "Dimensions": dimensions,
+                          "Unit": "Count",
+                          "StorageResolution": self.metric_time_resolution },
                         { "MetricName": "Subfleet.SSM.MaintenanceWindow",
                           "Dimensions": dimensions,
                           "Unit": "Count",
@@ -695,28 +703,6 @@ By default, the dashboard is enabled.
             instances_with_issue_ids.append(i)
             max_i -= 1
 
-        #if self.ssm.is_feature_enabled("ec2.instance_healthcheck"):
-        #    # If instances are SSM ready, we retrieve the health status by calling a script on the instance itself
-        #    young_instance_ids  = self.get_young_instance_ids()
-        #    pending_running_ids = [i["InstanceId"] for i in self.pending_running_instances 
-        #            if not i["InstanceId"] not in young_instance_ids and not self.ec2.is_instance_state(i["InstanceId"], ["initializing"])]
-        #    ssm_hcheck = self.ssm.run_command([i["InstanceId"] for i in self.pending_running_instances], 
-        #            "INSTANCE_HEALTHCHECK", comment="CS-InstanceHealthCheck (%s)" % self.context["GroupName"], return_former_results=True)
-        #    for instance_id in pending_running_ids:
-        #        hcheck = ssm_hcheck.get(instance_id)
-        #        if hcheck is None:
-        #            log.log(log.NOTICE, f"Instance {instance_id} is not returning a 'HEALTHY' SSM HealthCheck... "
-        #                    "Assuming unhealthy...")
-        #            if instance_id not in instances_with_issue_ids:
-        #                instances_with_issue_ids.append(instance_id)
-        #            continue
-        #        if len(hcheck["Warning"]):
-        #            log.warning(f"Got warning(s) while retrieving SSM healthcheck for {instance_id} : %s" % hcheck["Details"])
-        #        status = hcheck["Status"]
-        #        if status not in ["SUCCESS"] and instance_id not in instances_with_issue_ids:
-        #            log.info(f"Got {status} while retrieving SSM healthcheck for {instance_id} : %s" % hcheck["Details"])
-        #            instances_with_issue_ids.append(instance_id)
-
         return instances_with_issue_ids
 
     def get_useable_instances(self, instances=None, State="pending,running", ScalingState=None,
@@ -794,7 +780,7 @@ By default, the dashboard is enabled.
                 (self.ec2.get_instance_ids(instances_unhealthy), info if len(instances_should_be_unhealthy) else "")) 
         return instances_unhealthy
 
-    def get_young_instance_ids(self):
+    def get_young_instance_ids(self, instances=None):
         """ Return a list of instance that are considered young based on their running time.
 
         Instances that are running for less than duration specified in 'ec2.schedule.start.warmup_delay'.
@@ -803,10 +789,10 @@ By default, the dashboard is enabled.
         """
         now                     = self.context["now"]
         warmup_delay            = Cfg.get_duration_secs("ec2.schedule.start.warmup_delay")
-        active_instances        = self.pending_running_instances_wo_excluded 
+        active_instances        = self.pending_running_instances_wo_excluded if instances is None else instances
         return [ i["InstanceId"] for i in active_instances if (now - i["LaunchTime"]).total_seconds() < warmup_delay]
 
-    def get_initial_instances(self):
+    def get_initial_instances(self, instances=None):
         """ Return list of instances in 'initializing' state.
 
         'Initializing' status is aither:
@@ -816,11 +802,13 @@ By default, the dashboard is enabled.
 
         :param A list of instance structures.
         """
-        active_instances        = self.pending_running_instances_wo_excluded
+        active_instances        = self.pending_running_instances_wo_excluded if instances is None else instances
+        active_instance_ids     = [i["InstanceId"] for i in active_instances]
         initializing_instances  = []
         initializing_instances.extend([ i["InstanceId"] for i in active_instances if self.ec2.is_instance_state(i["InstanceId"], ["initializing"]) ])
-        initializing_instances.extend(self.targetgroup.get_registered_instance_ids(state="initial"))
-        young_instances         = self.get_young_instance_ids()
+        registered_instance_ids = self.targetgroup.get_registered_instance_ids(state="initial")
+        initializing_instances.extend([i for i in registered_instance_ids if i in active_instance_ids])
+        young_instances         = self.get_young_instance_ids(instances=active_instances)
         return list(filter(lambda i: i["InstanceId"] in young_instances or i["InstanceId"] in initializing_instances, active_instances))
 
     def get_initial_instances_ids(self):
@@ -1329,8 +1317,6 @@ By default, the dashboard is enabled.
                    status = ""
                    if instance_id in ssm_hcheck:
                        hcheck = ssm_hcheck[instance_id]
-                       if len(hcheck["Warning"]):
-                           log.warning(f"Got warning(s) while retrieving SSM ready-for-shutdown status for {instance_id} : %s" % hcheck["Details"])
                        status = hcheck["Status"]
                    if status not in ["SUCCESS"]:
                        log.log(log.NOTICE, f"Instance '{instance_id}' is waiting for ready-for-shutdown SSM status (elapsed_time=%d, "
@@ -1471,7 +1457,7 @@ By default, the dashboard is enabled.
                 candidates             = self.filter_running_instance_candidates(candidates)
                 if len(candidates):
                     instances_to_stop = [i["InstanceId"] for i in candidates][:-delta]
-                    if self.ssm.is_feature_enabled("ec2.maintenance_window") and self.ssm.is_maintenance_time(fleet=subfleet):
+                    if self.ssm.is_feature_enabled("maintenance_window") and self.ssm.is_maintenance_time(fleet=subfleet):
                         log.info(f"Scale-in actions disabled during '{subfleet}' subfleet SSM Maintenance Window: "
                             "Should have placed in 'draining' state up to %s instances..." % len(instances_to_stop))
                     else:
@@ -1552,11 +1538,14 @@ By default, the dashboard is enabled.
                 running_instances  = self.ec2.get_instances(instances=fleet["All"], 
                         State="pending,running", ScalingState="-error")
                 running_instances  = self.ec2.filter_out_excluded_instances(running_instances)
+                initial_instances  = self.get_initial_instances(instances=running_instances)
                 draining_instances = self.ec2.get_instances(instances=fleet["All"], 
                         State="pending,running", ScalingState="draining")
                 draining_instances  = self.ec2.filter_out_excluded_instances(draining_instances)
                 subfleet_instances_w_excluded = self.ec2.get_subfleet_instances(subfleet_name=subfleet, 
                         with_excluded_instances=True)
+                subfleet_faulty_instance_ids_w_excluded = [i["InstanceId"] for i in subfleet_instances_w_excluded 
+                        if i["InstanceId"] in self.instances_with_issues]
                 fleet_size             = fleet["size"]
                 fleet_size_wo_excluded = len(fleet["All"]) 
                 excluded_count = len(subfleet_instances_w_excluded) - fleet_size_wo_excluded
@@ -1572,6 +1561,10 @@ By default, the dashboard is enabled.
                         min_instance_count if send_metric else None, dimensions=dimensions)
                 cw.set_metric("Subfleet.EC2.DesiredInstanceCount", 
                         desired_instance_count if send_metric else None, dimensions=dimensions)
+                cw.set_metric("Subfleet.EC2.NbOfInstanceInUnuseableState", 
+                        len(subfleet_faulty_instance_ids_w_excluded) if send_metric else None, dimensions=dimensions)
+                cw.set_metric("Subfleet.EC2.NbOfInstanceInInitialState", 
+                        len(initial_instances) if send_metric else None, dimensions=dimensions)
                 cw.set_metric("Subfleet.SSM.MaintenanceWindow", 
                         self.ssm.is_maintenance_time(fleet=subfleet) if self.ssm.is_feature_enabled("maintenance_window") else None, 
                         dimensions=dimensions)
@@ -1582,6 +1575,8 @@ By default, the dashboard is enabled.
                 cw.set_metric("Subfleet.EC2.DrainingInstances", None, dimensions=dimensions)
                 cw.set_metric("Subfleet.EC2.MinInstanceCount", None, dimensions=dimensions)
                 cw.set_metric("Subfleet.EC2.DesiredInstanceCount", None, dimensions=dimensions)
+                cw.set_metric("Subfleet.EC2.NbOfInstanceInUnuseableState", None, dimensions=dimensions)
+                cw.set_metric("Subfleet.EC2.NbOfInstanceInInitialState", None, dimensions=dimensions)
                 cw.set_metric("Subfleet.SSM.MaintenanceWindow", None, dimensions=dimensions)
 
     def generate_subfleet_dashboard(self):
@@ -1613,6 +1608,8 @@ By default, the dashboard is enabled.
                             [ ".", "Subfleet.EC2.NbOfCPUCreditingInstances", ".", ".", ".", "." ],
                             [ ".", "Subfleet.EC2.DrainingInstances", ".", ".", ".", "." ],
                             [ ".", "Subfleet.EC2.RunningInstances", ".", ".", ".", "." ],
+                            [ ".", "Subfleet.EC2.NbOfInstanceInUnuseableState", ".", ".", ".", "." ],
+                            [ ".", "Subfleet.EC2.NbOfInstanceInInitialState", ".", ".", ".", "." ],
                             [ ".", "Subfleet.SSM.MaintenanceWindow", ".", ".", ".", "." ]
                         ],
                         "region": self.context["AWS_DEFAULT_REGION"],
