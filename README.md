@@ -33,6 +33,7 @@ and **per region** depending on your autoscaling needs.*
 	- **Always-on Availability Zone instance balancing algorithm**,
 		* Ex: If multiple instances need to be running in a given fleet, CloneSquad will try to select instances evenly spread in different AZs.
 	- Automatic replacement of unhealthy/unavail/impaired instances,
+	- [Maintenance Window and In-instance Event notifications with SSM (AWS System Manager)](docs/SSM.md)
 	- Support for 'persistent' [Spot instances](https://aws.amazon.com/ec2/spot/) aside of On-Demand ones in the same fleet with **configurable priorities and Spot Rebalance recommendation/interruption handling**,
 	- [Manual](docs/CONFIGURATION_REFERENCE.md#ec2azunavailable_list) or automatic instance eviction in case of an AWS Region outage affecting one or more AZs,
 	- (Optional) **Instance bouncing**: Frictionless fleet rebalancing and [AWS hypervisor maintenance](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/monitoring-instances-status-check_sched.html) by performing a permanent rolling state cycle (periodic start/stop of instances),
