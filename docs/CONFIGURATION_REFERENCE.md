@@ -788,7 +788,7 @@ This enables event notification support of instances when they enter or exit a S
 
 
 ### ssm.feature.maintenance_window
-Default Value: `1`   
+Default Value: `0`   
 Format       :  [Bool](#Bool)
 
 Defines if SSM maintenance window support is activated.
