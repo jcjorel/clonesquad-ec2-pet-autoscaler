@@ -104,7 +104,7 @@ A typical use-case for this event is to perform house keeping tasks and allow to
 
 This event is sent to probe if a just started instance is ready and can exit the 'initializing' state. If the user script `/etc/cs-ssm/instance-ready-for-operation` returns a zero code, CloneSquad assumes readiness and the instance is placed in 'running' state. 
 
-When in 'initializing' state, an instance will never be stopped by CloneSquad. As a typical use-case, this event can by leveraged to ensure that an instance is assumed 'ready' only if it has completed its boot sequence. By using this event, you can avoid CloneSquad shutdowNing down prematurely an instance with a very long boot time.
+When in 'initializing' state, an instance will never be stopped by CloneSquad. As a typical use-case, this event can by leveraged to ensure that an instance is assumed 'ready' only if it has completed its boot sequence. By using this event, you can avoid CloneSquad shutdowning down prematurely an instance with a very long boot time.
 
 By default, CloneSquad waits up to one hour (see [`ssm.feature.events.ec2.instance_ready_for_operation.max_initializing_time`](CONFIGURATION_REFERENCE.md#ssmfeatureeventsec2instance_ready_for_operationmax_initializing_time)) to receive a zero return code. After this delay, the instance is set to 'unuseable' state and will be forcibly shutdown after a delay.
 
