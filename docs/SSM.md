@@ -63,7 +63,7 @@ CloneSquad uses the [AWS SSM RunCommand](https://docs.aws.amazon.com/systems-man
 > Note: Sending events to windows instances is currently not supported.
 
 These event scripts allow user to react to some critical events to make operations smooth and reliable.
-These scripts are not meant to perform long running tasks but to inform and probe about an event and associated return status if required. As a general rule of thumb, if a user script return a zero-code, the event is assumed successfully taken into account by the instance. If the user scripts returns a non-zero code, the event will be repeated until timeout or zero status code received.
+**These scripts are not meant to perform long running tasks** but to inform and probe about an event and associated return status if required. As a general rule of thumb, if a user script return a zero-code, the event is assumed successfully taken into account by the instance. If the user scripts returns a non-zero code, the event will be repeated until timeout or zero status code received.
 
 > **IMPORTANT: All launched user scripts MUST execute in less than 30 seconds or will be forcibly terminated otherwise by the AWS SSM agent running in the EC2 instance.**  
 
