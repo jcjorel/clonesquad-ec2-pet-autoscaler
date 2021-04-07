@@ -67,7 +67,7 @@ These event scripts allow user to react to some critical events to make operatio
 
 > **IMPORTANT: All launched user scripts MUST execute in less than 30 seconds or will be forcibly terminated otherwise by the AWS SSM agent running in the EC2 instance.**  
 
-#### Notification of start/end of maintenance window period
+### Notification of start/end of maintenance window period
 
 **Feature toggle:** [`ssm.feature.events.ec2.maintenance_window_period`][CONFIGURATION_REFERENCE.md#ssmfeatureeventsec2maintenance_window_period)]
 
@@ -81,17 +81,17 @@ Scripts called depending on the event type:
 > Note: A just started instance always receives ASAP this event to inform it what is the period type (i.e. this event is not only sent at the very moment of entering or exiting the maintenance window period).
 
 
-#### Probe of shutdown readyness
+### Probe of shutdown readyness
 
 **Feature toggle:** [`ssm.feature.events.ec2.instance_ready_for_shutdown`](CONFIGURATION_REFERENCE.md#ssm.feature.events.ec2.instance_ready_for_shutdown)
 
-This event is sent as soon as an instance enter the 'draining' state. CloneSquad will wait for up to one hour (see [`ssm.feature.events.ec2.instance_ready_for_shutdown.max_shutdown_delay`][CONFIGURATION_REFERENCE.md#ssmfeatureeventsec2instance_ready_for_shutdownmax_shutdown_delay). A zero return code is expected from the user script `/etc/cs-ssm/instance-ready-for-shutdown` as prerequisite to shutdown the instance. After this delay, the instance is forcibly shutdowned.
+This event is sent as soon as an instance enter the 'draining' state. CloneSquad will wait for up to one hour (see [`ssm.feature.events.ec2.instance_ready_for_shutdown.max_shutdown_delay`](CONFIGURATION_REFERENCE.md#ssmfeatureeventsec2instance_ready_for_shutdownmax_shutdown_delay). A zero return code is expected from the user script `/etc/cs-ssm/instance-ready-for-shutdown` as prerequisite to shutdown the instance. After this delay, the instance is forcibly shutdowned.
 
 A typical use-case for this event is to perform house keeping tasks and allow to shutdown instance gracefully. Examples of tasks can range from breaking the lifeline of loadbalancer healthchecks, wait for all active connections to terminate or backup the machine...
 
 
 
-#### Probe of operational readiness
+### Probe of operational readiness
 
 **Feature toggle:** [`ssm.feature.events.ec2.instance_ready_for_operation`](CONFIGURATION_REFERENCE.md#ssmfeatureeventsec2instance_ready_for_operation)
 
