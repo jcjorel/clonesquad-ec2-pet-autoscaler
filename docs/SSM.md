@@ -31,7 +31,7 @@ Default SSM Maintenance Window naming convention:
 
 If multiple MW matches, they are cumulative (meaning effective maintenance window periods will be the union of all matching MWs).
 
-By default, CloneSquad starts instances 15 minutes (see [`ssm.feature.maintenance_window.start_ahead`](CONFIGURATION_REFERENCE.md#ssmfeaturemaintenance_windowstart_ahead)) before the next MW period to ensure that the instances are ready and stable when the SSM MW period effectively begins. The CloneSquad MW decisions are technically implemented by generating a temporary set of overriding settings (that can be seen by the user [through the API GW](INTERACTING.md#api-configuration). At end of a MW period, these temporary scaling settings are removed and all user settings defined in CloneSquad configuration takes fully effect again. 
+By default, CloneSquad starts instances 15 minutes (see [`ssm.feature.maintenance_window.start_ahead`](CONFIGURATION_REFERENCE.md#ssmfeaturemaintenance_windowstart_ahead)) before the next MW period to ensure that the instances are ready and stable when the SSM MW period effectively begins. The CloneSquad MW decisions are technically implemented by generating a temporary set of overriding settings (that can be seen by the user [through the API GW](INTERACTING.md#api-configuration)). At end of a MW period, these temporary scaling settings are removed and all user settings defined in CloneSquad configuration takes fully effect again. 
 
 ### Customizing behaviors during a Maintenance Window
 
@@ -41,21 +41,22 @@ One can change the default behaviors implied by a Maintenance Window period.
 
 Temporary MW settings can be modified through tags on the MW objects: All tags starting with the string `clonesquad:config:` will be considered as overriding directives.
 
-By default, entering a MW period means that `ec2.schedule.min_instance_count` and `ec2.schedule.desired_instance_count` configuration settings are both temporary overriden with the string value `100%`. This makes all instances start (including LightHouse ones).
+By default, entering a MW period means that `ec2.schedule.min_instance_count` and `ec2.schedule.desired_instance_count` configuration settings are both temporary overriden with the string value `100%`: This makes all instances start (including LightHouse ones).
 
-Tagging the MW object may be used to change these default settings (but others as-well).
+Tagging the MW object may be used to change these default settings (but also any possible settings as-well).
 
 Example of tag names to set on a MW object:
 
 	clonesquad:config:ec2.min_instance_count
 	clonesquad:config:ec2.desired_instance_count
+	clonesquad:config:subfleet.__all__.state
 
 > **IMPORTANT: Due to tag value constraint, you can not use the `%` character to express a pourcentage. Please use the letter `p` as replacement** (Ex: `100p` means `100%`).
 
 
 ## In-instance Event notifications
 
-CloneSquad is able to launch *Event scripts" located in managed instances running a SSM agent that sucessfully registerad to AWS SSM.
+CloneSquad is able to launch *Event scripts* hosted in managed instances running a SSM agent that sucessfully [registered to AWS SSM](https://docs.aws.amazon.com/systems-manager/latest/userguide/ssm-agent.html).
 
 CloneSquad uses the AWS SSM RunCommand feature to upload in memory the [Linux helper script](../src/resources/cs-ssm-agent.sh) and launch scripts with expected names and location in the instance filesystem.
 
