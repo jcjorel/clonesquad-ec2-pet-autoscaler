@@ -69,7 +69,7 @@ These event scripts allow user to react to some critical events to make operatio
 
 ### Notification of start/end of maintenance window period
 
-**Feature toggle:** [`ssm.feature.events.ec2.maintenance_window_period`][CONFIGURATION_REFERENCE.md#ssmfeatureeventsec2maintenance_window_period)]
+**Feature toggle:** [`ssm.feature.events.ec2.maintenance_window_period`](CONFIGURATION_REFERENCE.md#ssmfeatureeventsec2maintenance_window_period)
 
 This event notifies an instance that it is entering/exiting a Maintenance Window period.
 
