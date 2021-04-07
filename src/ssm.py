@@ -486,7 +486,7 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
                     i_ids = i_ids[50:]
         self.o_state.set_state_json("ssm.events.run_commands", self.run_cmd_states, compress=True, TTL=self.ttl)
 
-    def send_events(self, instance_ids, event_class, event_name, event_args, notification_handler=None):
+    def send_events(self, instance_ids, event_class, event_name, event_args, pretty_event_name=None, notification_handler=None):
         if not self.is_feature_enabled("maintenance_window"):
             return False
 
@@ -517,9 +517,11 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
             ev_ids = [i for i in instance_ids if i not in event_desc["InstanceIdSuccesses"]]
             if len(ev_ids):
                 log.log(log.NOTICE, f"Send event {event_class}: {event_name}({event_args}) to {ev_ids}")
+                if pretty_event_name is None: 
+                    pretty_event_name = "SendEvent"
+                comment  = f"CS-{pretty_event_name} (%s)" % self.context["GroupName"]
                 b64_args = str(base64.b64encode(bytes(json.dumps(event_args, sort_keys=True, default=str), "utf-8")), "utf-8")
-                r = self.run_command(ev_ids, event_name, args=b64_args, 
-                        comment="CS-SendEvents (%s)" % self.context["GroupName"])
+                r = self.run_command(ev_ids, event_name, args=b64_args, comment=comment)
                 for i in [i for i in ev_ids if i in r]:
                     if r[i]["Status"] == "SUCCESS":
                         # Keep track that we received a SUCCESS for this instance id to not resend it again later
@@ -620,11 +622,12 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
         is_maintenance_time = self.is_maintenance_time(meta=meta)
 
         # Send events with SSM and notify users
-        instances    = self.o_ec2.get_instances(State="pending,running", main_fleet_only=True)
-        instance_ids = [i["InstanceId"] for i in instances]
-        event_name = "ENTER_MAINTENANCE_WINDOW_PERIOD" if is_maintenance_time else "EXIT_MAINTENANCE_WINDOW_PERIOD"
+        instances         = self.o_ec2.get_instances(State="pending,running", main_fleet_only=True)
+        instance_ids      = [i["InstanceId"] for i in instances]
+        event_name        = "ENTER_MAINTENANCE_WINDOW_PERIOD" if is_maintenance_time else "EXIT_MAINTENANCE_WINDOW_PERIOD"
+        pretty_event_name = "EnterMaintenanceWindowPeriod" if is_maintenance_time else "ExitMaintenanceWindowPeriod"
         self.send_events(instance_ids, "maintenance_window.state_change", event_name, {
-            }, notification_handler=self.ssm_maintenance_window_event)
+            }, notification_handler=self.ssm_maintenance_window_event, pretty_event_name=pretty_event_name)
 
         if not is_maintenance_time:
             if "NextWindowMessage" in meta:

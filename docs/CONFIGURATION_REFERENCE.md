@@ -483,7 +483,7 @@ Disable all scale or automations algorithm in the Main fleet.
 Setting this parameter to '1' disables all scaling and automation algorithms in the Main fleet. While set, all Main fleet instances can be freely started 
 and stopped by the users without CloneSquad trying to manage them. 
 
-Note: It is semantically similar to the value `undefined` in subfleet configuration key [`subfleet.&lt;subfleet_name&gt;.state`](#subfleetsubfleetnamestate).
+Note: It is semantically similar to the value `undefined` in subfleet configuration key [`subfleet.{SubfleetName}.state`](#subfleetsubfleetnamestate).
                     
 
 
@@ -820,7 +820,7 @@ By default, all the subfleets is woken up by a maintenance window ([`subfleet.{S
 
 
 
-### subfleet.&lt;subfleetname&gt;.ec2.schedule.burstable_instance.max_cpu_crediting_instances
+### subfleet.{SubfleetName}.ec2.schedule.burstable_instance.max_cpu_crediting_instances
 Default Value: `0%`   
 Format       :  [IntegerOrPercentage](#IntegerOrPercentage)
 
@@ -831,7 +831,7 @@ Follow the same semantic and usage than [`ec2.schedule.burstable_instance.max_cp
 
 
 
-### subfleet.&lt;subfleetname&gt;.ec2.schedule.desired_instance_count
+### subfleet.{SubfleetName}.ec2.schedule.desired_instance_count
 Default Value: `100%`   
 Format       :  [IntegerOrPercentage](#IntegerOrPercentage)
 
@@ -844,11 +844,11 @@ Define the number of EC2 instances to start when a subfleet is in a 'running' st
 
 
 
-### subfleet.&lt;subfleetname&gt;.ec2.schedule.metrics.enable
+### subfleet.{SubfleetName}.ec2.schedule.metrics.enable
 Default Value: `1`   
 Format       :  [Bool](#Bool)
 
-Enable detailed metrics for the subfleet &lt;subfleetname&gt;.
+Enable detailed metrics for the subfleet {SubfleetName}.
 
 The following additional metrics are generated:
 * Subfleet.EC2.Size,
@@ -862,7 +862,7 @@ the autoscaled fleet.
 
 
 
-### subfleet.&lt;subfleetname&gt;.ec2.schedule.min_instance_count
+### subfleet.{SubfleetName}.ec2.schedule.min_instance_count
 Default Value: `0`   
 Format       :  [IntegerOrPercentage](#IntegerOrPercentage)
 
@@ -873,7 +873,7 @@ Define the minimum number of EC2 instances to keep up when a subfleet is in a 'r
 
 
 
-### subfleet.&lt;subfleetname&gt;.ec2.schedule.verticalscale.instance_type_distribution
+### subfleet.{SubfleetName}.ec2.schedule.verticalscale.instance_type_distribution
 Default Value: `.*,spot;.*`   
 Format       :  [MetaStringList](#MetaStringList)
 
@@ -889,11 +889,11 @@ that it does not support LightHouse instance specifications.
 
 
 
-### subfleet.&lt;subfleetname&gt;.state
+### subfleet.{SubfleetName}.state
 Default Value: `undefined`   
 Format       :  [String](#String)
 
-Define the status of the subfleet named &lt;subfleetname&gt;.
+Define the status of the subfleet named {SubfleetName}.
 
 Can be one the following values ['`stopped`', '`undefined`', '`running`'].
 

@@ -126,7 +126,7 @@ at its maximum size in a stable manner (i.e. even if there are impaired/unhealth
 Setting this parameter to '1' disables all scaling and automation algorithms in the Main fleet. While set, all Main fleet instances can be freely started 
 and stopped by the users without CloneSquad trying to manage them. 
 
-Note: It is semantically similar to the value `undefined` in subfleet configuration key [`subfleet.<subfleet_name>.state`](#subfleetsubfleetnamestate).
+Note: It is semantically similar to the value `undefined` in subfleet configuration key [`subfleet.{SubfleetName}.state`](#subfleetsubfleetnamestate).
                     """
                  },
                  "ec2.schedule.scaleout.disable,Stable": {

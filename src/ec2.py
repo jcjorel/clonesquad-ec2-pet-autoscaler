@@ -119,10 +119,10 @@ forcing their immediate replacement in healthy AZs in the region.
                      with value 'True'.
                      """
                  },
-                 "subfleet.<subfleetname>.state,Stable": {
+                 "subfleet.{SubfleetName}.state,Stable": {
                          "DefaultValue": "undefined",
                          "Format": "String",
-                         "Description": """Define the status of the subfleet named <subfleetname>.
+                         "Description": """Define the status of the subfleet named {SubfleetName}.
 
 Can be one the following values ['`stopped`', '`undefined`', '`running`'].
 
@@ -130,7 +130,7 @@ A subfleet can contain EC2 instances but also RDS and TransferFamilies tagged in
 
 Note: **When subfleet name is `__all__`, the key is overriden in all subfleets.**
                  """},
-                 "subfleet.<subfleetname>.ec2.schedule.desired_instance_count,Stable": {
+                 "subfleet.{SubfleetName}.ec2.schedule.desired_instance_count,Stable": {
                          "DefaultValue": "100%",
                          "Format": "IntegerOrPercentage",
                          "Description": """Define the number of EC2 instances to start when a subfleet is in a 'running' state.
@@ -139,21 +139,21 @@ Note: **When subfleet name is `__all__`, the key is overriden in all subfleets.*
 
 > This parameter has no effect if [`subfleet.subfleetname.state`](#subfleetsubfleetnamestate) is set to a value different than `running`.
                  """},
-                 "subfleet.<subfleetname>.ec2.schedule.burstable_instance.max_cpu_crediting_instances,Stable": {
+                 "subfleet.{SubfleetName}.ec2.schedule.burstable_instance.max_cpu_crediting_instances,Stable": {
                          "DefaultValue": "0%",
                          "Format": "IntegerOrPercentage",
                          "Description": """Define the maximum number of EC2 instances that can be in CPU Crediting state at the same time in the designated subfleet.
 
 Follow the same semantic and usage than [`ec2.schedule.burstable_instance.max_cpu_crediting_instances`](#ec2scheduleburstable_instancemax_cpu_crediting_instances).
                  """},
-                 "subfleet.<subfleetname>.ec2.schedule.min_instance_count,Stable": {
+                 "subfleet.{SubfleetName}.ec2.schedule.min_instance_count,Stable": {
                          "DefaultValue": "0",
                          "Format": "IntegerOrPercentage",
                          "Description": """Define the minimum number of EC2 instances to keep up when a subfleet is in a 'running' state.
 
 > This parameter has no effect if [`subfleet.subfleetname.state`](#subfleetsubfleetnamestate) is set to a value different than `running`.
                  """},
-                 "subfleet.<subfleetname>.ec2.schedule.verticalscale.instance_type_distribution,Stable": {
+                 "subfleet.{SubfleetName}.ec2.schedule.verticalscale.instance_type_distribution,Stable": {
                          "DefaultValue": ".*,spot;.*",
                          "Format": "MetaStringList",
                          "Description": """Define the vertical policy of the subfleet.
@@ -165,10 +165,10 @@ that it does not support LightHouse instance specifications.
 
 > This parameter has no effect if [`subfleet.subfleetname.state`](#subfleetsubfleetnamestate) is set to a value different than `running`.
                  """},
-                 "subfleet.<subfleetname>.ec2.schedule.metrics.enable,Stable": {
+                 "subfleet.{SubfleetName}.ec2.schedule.metrics.enable,Stable": {
                          "DefaultValue": "1",
                          "Format": "Bool",
-                         "Description": """Enable detailed metrics for the subfleet <subfleetname>.
+                         "Description": """Enable detailed metrics for the subfleet {SubfleetName}.
 
 The following additional metrics are generated:
 * Subfleet.EC2.Size,
@@ -331,8 +331,8 @@ without any TargetGroup but another external health instance source exists).
         subfleet_names.extend(self.get_subfleet_names())
         for subfleet in subfleet_names:
             for k in Cfg.keys():
-                key = k.replace("<subfleetname>", subfleet)
-                if k.startswith("subfleet.<subfleetname>.") and not Cfg.is_builtin_key_exist(key):
+                key = k.replace("{SubfleetName}", subfleet)
+                if k.startswith("subfleet.{SubfleetName}.") and not Cfg.is_builtin_key_exist(key):
                     Cfg.register({ f"{key},Stable" : Cfg.get(k) if subfleet != "__all__" else None })
         if len(subfleet_names) > 1:
             log.log(log.NOTICE, "Detected following subfleet names across EC2 resources: %s" % subfleet_names)
