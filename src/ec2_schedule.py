@@ -682,14 +682,15 @@ By default, the dashboard is enabled.
             - Burstable instances that have CPU Credit exhausted.
         :return A list if instance ids
         """
-        active_instances        = self.pending_running_instances_wo_excluded 
+        active_instances        = self.pending_running_instances
         instances_with_issue_ids= []
 
         # TargetGroup related issues
         instances_with_issue_ids.extend(self.targetgroup.get_registered_instance_ids(state="unavail,unhealthy"))
 
         # EC2 related issues
-        impaired_instances      = [ i["InstanceId"] for i in active_instances if self.ec2.is_instance_state(i["InstanceId"], ["impaired", "unhealthy", "az_evicted"]) ]
+        impaired_instances      = [i["InstanceId"] for i in active_instances 
+                if self.ec2.is_instance_state(i["InstanceId"], ["impaired", "unhealthy", "az_evicted"]) ]
         [ instances_with_issue_ids.append(i) for i in impaired_instances if i not in instances_with_issue_ids]
 
         # Interrupted spot instances are 'unhealthy' too
@@ -700,13 +701,35 @@ By default, the dashboard is enabled.
 
         # CPU credit "issues"
         exhausted_cpu_instances = sorted([ i["InstanceId"] for i in self.cpu_exhausted_instances])
-        all_instances          = self.instances_wo_excluded_error 
+        all_instances           = self.all_instances
         max_i                   = len(all_instances)
         for i in exhausted_cpu_instances:
-            if max_i <= 0 or i in instances_with_issue_ids:
+            if max_i <= 0:
+                break
+            if i in instances_with_issue_ids:
                 continue
             instances_with_issue_ids.append(i)
             max_i -= 1
+
+        instance_ready_for_operation = self.ssm.is_feature_enabled("events.ec2.instance_ready_for_operation")
+        instance_ready_for_shutdown  = self.ssm.is_feature_enabled("events.ec2.instance_ready_for_shutdown")
+        if instance_ready_for_shutdown or instance_ready_for_operation:
+            #  If SSM feature instance_ready_for_shutdown is enabled, we place any long running 'initializing' or 'draining' instance as unhealthy
+            grace_period           = Cfg.get_duration_secs("ec2.schedule.bounce.instances_with_issue_grace_period")
+            max_initializing_delay = Cfg.get_duration_secs("ssm.feature.events.ec2.instance_ready_for_operation.max_initializing_time")
+            max_shutdown_delay     = Cfg.get_duration_secs("ssm.feature.events.ec2.instance_ready_for_shutdown.max_shutdown_delay")
+            for i in active_instances:
+                if i["InstanceId"] in instances_with_issue_ids:
+                    continue
+                if instance_ready_for_operation and self.ec2.is_instance_state(i["InstanceId"], ["initializing"]):
+                    if (self.context["now"] - i["LaunchTime"]).total_seconds() > (max_initializing_delay - grace_period):
+                        instances_with_issue_ids.append(i["InstanceId"])
+                        continue
+                meta = {}
+                if instance_ready_for_shutdown and self.ec2.get_scaling_state(i["InstanceId"], meta=meta) == "draining":
+                    if (self.context["now"] - meta["last_draining_date"]).total_seconds() > (max_shutdown_delay - grace_period):
+                        instances_with_issue_ids.append(i["InstanceId"])
+                        continue
 
         return instances_with_issue_ids
 
@@ -1319,10 +1342,7 @@ By default, the dashboard is enabled.
                    # Check SSM based instance-ready-for-shutdown status
                    ssm_hcheck = self.ssm.run_command([instance_id], "INSTANCE_READY_FOR_SHUTDOWN", 
                            comment="CS-InstanceReadyForShutdown (%s)" % self.context["GroupName"], return_former_results=True)
-                   status = ""
-                   if instance_id in ssm_hcheck:
-                       hcheck = ssm_hcheck[instance_id]
-                       status = hcheck["Status"]
+                   status     = ssm_hcheck[instance_id]["Status"] if instance_id in ssm_hcheck else ""
                    if status not in ["SUCCESS"]:
                        log.log(log.NOTICE, f"Instance '{instance_id}' is waiting for ready-for-shutdown SSM status (elapsed_time=%d, "
                             f"ec2.schedule.draining.ssm_ready_for_shutdown_delay={ssm_ready_for_shutdown_delay}): "
@@ -1549,7 +1569,7 @@ By default, the dashboard is enabled.
                 draining_instances  = self.ec2.filter_out_excluded_instances(draining_instances)
                 subfleet_instances_w_excluded = self.ec2.get_subfleet_instances(subfleet_name=subfleet, 
                         with_excluded_instances=True)
-                subfleet_faulty_instance_ids_w_excluded = [i["InstanceId"] for i in subfleet_instances_w_excluded 
+                subfleet_faulty_instance_ids_w_excluded = [i["InstanceId"] for i in running_instances 
                         if i["InstanceId"] in self.instances_with_issues]
                 fleet_size             = fleet["size"]
                 fleet_size_wo_excluded = len(fleet["All"]) 
