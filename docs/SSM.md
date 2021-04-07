@@ -78,7 +78,7 @@ Scripts called depending on the event type:
 * `/etc/cs-ssm/enter-maintenance-window-period`: Called when an instance enters a maintenance window period.
 * `/etc/cs-ssm/exit-maintenance-window-period`: Called when an instance exits a maintenance window period.
 
-> Note: A just started instance always receives ASAP this event to inform it what is the period type (i.e. this event is not only sent at the very moment of entering or exiting the maintenance window period).
+> Note: A just started instance **always** receives ASAP this event to inform it what is the period type (i.e. this event is not only sent at the very moment of entering or exiting the maintenance window period).
 
 
 ### Probe of shutdown readyness
