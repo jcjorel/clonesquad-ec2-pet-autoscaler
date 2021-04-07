@@ -494,7 +494,7 @@ Format       :  [Duration](#Duration)
 
 Minimum time to spend in the 'draining' state.
 
-If SSM support is enabled with [`ssm.feature.ec2.instance_ready_for_shutdown`](#ssmfeatureec2instance_ready_for_shutdown), a script located in the drained instance is executed to ensure that the instance is ready for shutdown even after the specified duration is exhausted. IF this scripts return non-zero code, the shutdown is posponed for a maximum duration defined in [`ssm.feature.events.ec2.instance_ready_for_shutdown.max_shutdown_delay`](#ssmfeatureeventsec2instance_ready_for_shutdownmax_shutdown_delay).
+If SSM support is enabled with [`ssm.feature.events.ec2.instance_ready_for_shutdown`](#ssmfeatureeventsec2instance_ready_for_shutdown), a script located in the drained instance is executed to ensure that the instance is ready for shutdown even after the specified duration is exhausted. IF this scripts return non-zero code, the shutdown is posponed for a maximum duration defined in [`ssm.feature.events.ec2.instance_ready_for_shutdown.max_shutdown_delay`](#ssmfeatureeventsec2instance_ready_for_shutdownmax_shutdown_delay).
                 
 
 
@@ -815,7 +815,7 @@ Format       :  [Bool](#Bool)
 
 Defines if a subfleet is forcibly set to 'running' when a maintenance window is actice.
         
-            By default, the subfleet is not waken up by a maintenance window if the current subfleet state is in 'stopped' or 'undefined' state.
+By default, all the subfleets is woken up by a maintenance window ([`subfleet.{SubfleetName}.state`](#subfleetsubfleetnamestate) is temprarily forced to `running`).
             
 
 

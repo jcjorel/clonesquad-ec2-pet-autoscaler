@@ -115,7 +115,7 @@ When [`ssm.feature.events.ec2.instance_ready_for_operation`](#ssmfeatureec2insta
                 "Format": "Bool",
                 "Description": """Defines if a subfleet is forcibly set to 'running' when a maintenance window is actice.
         
-            By default, the subfleet is not waken up by a maintenance window if the current subfleet state is in 'stopped' or 'undefined' state.
+By default, all the subfleets is woken up by a maintenance window ([`subfleet.{SubfleetName}.state`](#subfleetsubfleetnamestate) is temprarily forced to `running`).
             """,
             },
             "ssm.state.default_ttl": "hours=1",
@@ -253,7 +253,7 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
                         (mw["Name"], mw["WindowId"], self.context["GroupName"]))
                 continue
             valid_mws.append(mw)
-
+        
         self.maintenance_windows = {
             "Names": mw_names,
             "Windows": valid_mws
