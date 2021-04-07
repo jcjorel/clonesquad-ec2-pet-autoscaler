@@ -54,7 +54,7 @@ CloneSquad can leverage AWS SSM to take into account Maintenance Windows and use
                 "Format": "Bool",
                 "Description": """Enable/Disable sending Enter/Exit Maintenance Window period events to instances.
 
-This enables event notification support of instances when they enter or exit a SSM Maintenance Window. When set to 1, CloneSquad sends a SSM RunCommand to run the script /etc/cs-ssm/(enter|exit)-maintenance-window-period script located in each instances. The event is repeasted until the script returns a zero-code. If the script doesn't exist on an instance, the event is sent only once.
+This enables event notification support of instances when they enter or exit a SSM Maintenance Window. When set to 1, CloneSquad sends a SSM RunCommand to run the script `/etc/cs-ssm/(enter|exit)-maintenance-window-period` script located in each instances. The event is repeasted until the script returns a zero-code. If the script doesn't exist on an instance, the event is sent only once.
 
 > This setting is taken into account only if [`ssm.enable`](#ssmenable) is set to 1.
             """
@@ -65,8 +65,8 @@ This enables event notification support of instances when they enter or exit a S
                 "Description": """Ensure instance shutdown readiness with /etc/cs-ssm/instance-ready-for-shutdown script on SSM managed instances."
 
 This enables support for direct sensing of instance shutdown readiness based on the return code of a script located in each EC2 instances. When set to 1, CloneSquad sends a SSM RunCommand to a managed instance candidate prior to shutdown: 
-* If /etc/cs-ssm/instance-ready-for-shutdown is present, it is executed with the SSM agent daemon user rights: If the script returns a NON-zero code, Clonesquad will postpone the instance shutdown and will call this script again after 2 * [ `app.run_period`](#apprun_period) seconds...
-* If /etc/cs-ssm/instance-ready-for-shutdown is NOT present, immediate shutdown readyness is assumed.
+* If `/etc/cs-ssm/instance-ready-for-shutdown` is present, it is executed with the SSM agent daemon user rights: If the script returns a NON-zero code, Clonesquad will postpone the instance shutdown and will call this script again after 2 * [ `app.run_period`](#apprun_period) seconds...
+* If `/etc/cs-ssm/instance-ready-for-shutdown` is NOT present, immediate shutdown readyness is assumed.
 
 > This setting is taken into account only if [`ssm.enable`](#ssmenable) is set to 1.
             """
@@ -302,7 +302,8 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
             i = self.o_ec2.get_instance_by_id(i)
         instance_id = i["InstanceId"]
         launch_time = i["LaunchTime"]
-        return next(filter(lambda i: i["InstanceId"] == instance_id and i["LastPingDateTime"] > launch_time and i["PingStatus"] == "Online", self.instance_infos), None) 
+        return next(filter(lambda i: i["InstanceId"] == instance_id and 
+            i["LastPingDateTime"] > launch_time and i["PingStatus"] == "Online", self.instance_infos), None) 
 
     #####################################################################
     ## SSM RunCommand support
