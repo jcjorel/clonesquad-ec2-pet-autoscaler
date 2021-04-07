@@ -1279,9 +1279,10 @@ By default, the dashboard is enabled.
            meta = {}
            self.ec2.set_scaling_state(instance_id, "draining", meta=meta)
 
+            
+           subfleet_name = self.ec2.get_subfleet_name_for_instance(i)
            if self.is_instance_need_cpu_crediting(i, meta):
                if self.ec2.is_subfleet_instance(instance_id):
-                   subfleet_name          = self.ec2.get_subfleet_name_for_instance(i)
                    if subfleet_details[subfleet_name]["IsRunningState"] and subfleet_details[subfleet_name]["desired_instance_count"] == "100%":
                       pass # When desired_instance_count is set to 100%, we want all instances up and running as fast as possible
                            #   so we prematuraly exit currently CPU Crediting instances.
@@ -1348,6 +1349,10 @@ By default, the dashboard is enabled.
                             f"ec2.schedule.draining.ssm_ready_for_shutdown_delay={ssm_ready_for_shutdown_delay}): "
                             "Do not assess stop now..." % elapsed_time.total_seconds())
                        continue
+
+           if self.ssm.is_feature_enabled("maintenance_window") and self.is_maintenance_time(fleet=subfleet_name):
+               log.info(f"Can't stop drained instance {instance_id} while SSM Maintenance window is active.")
+               continue
 
            ids_to_stop.append(instance_id)
 

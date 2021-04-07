@@ -15,6 +15,13 @@ AWS SSM allows definition of up to 50 Maintenance Windows (MW) per account and r
 
 CloneSquad extends native SSM Maintenance Window capabilities by looking at them as a source of scaling decisions and fleet behavior triggers. During a maintenance window period, the default behavior is to start all instances (including LightHouse ones) but also forbids any stop actions on instance fleet ensuring full fleet stability. 
 
+**During a Maintenance Window period**, the following statements are true:
+
+* No instance can be put in `draining` state or even shutdown by CloneSquad,
+	* As consequence, any instance started during the Maintenance Window period (manually through console or by the auto-scaler) remains up until end of the MW period,
+* Managed EC2 instances MUST run a successfully registered SSM agent or will be considered as unhealthy otherwise,
+* By default, all managed instances (Main fleet or subfleets) are started.
+
 ### Getting started with SSM Maintenance Window and CloneSquad
 
 By default, CloneSquad expects to follow directions derived from SSM Maintenance Windows (MW) object named by convention.
@@ -31,7 +38,7 @@ Default SSM Maintenance Window naming convention:
 
 If multiple MW matches, they are cumulative (meaning effective maintenance window periods will be the union of all matching MWs).
 
-By default, CloneSquad starts instances 15 minutes (see [`ssm.feature.maintenance_window.start_ahead`](CONFIGURATION_REFERENCE.md#ssmfeaturemaintenance_windowstart_ahead)) before the next MW period to ensure that the instances are ready and stable when the SSM MW period effectively begins. The CloneSquad MW decisions are technically implemented by generating a temporary set of overriding settings (that can be seen by the user [through the API GW](INTERACTING.md#api-configuration)). At end of a MW period, these temporary scaling settings are removed and all user settings defined in CloneSquad configuration takes fully effect again. 
+By default, CloneSquad starts instances 15 minutes (see [`ssm.feature.maintenance_window.start_ahead`](CONFIGURATION_REFERENCE.md#ssmfeaturemaintenance_windowstart_ahead)) before the next MW period to ensure that instances are ready and stable when the SSM MW period effectively begins. The CloneSquad MW decisions are technically implemented by generating a temporary set of overriding settings (that can be seen by the user [through the API GW](INTERACTING.md#api-configuration)). At end of a MW period, these temporary scaling settings are removed and all user settings defined in CloneSquad configuration takes fully effect again. 
 
 ### Customizing behaviors during a Maintenance Window
 
