@@ -31,7 +31,7 @@ Default SSM Maintenance Window naming convention:
 
 If multiple MW matches, they are cumulative (meaning effective maintenance window periods will be the union of all matching MWs).
 
-By default, CloneSquad starts instances 15 minutes (see [`ssm.feature.maintenance_window.start_ahead`](CONFIGURATION_REFERENCE.md#ssmfeaturemaintenance_windowstart_ahead)) before the next MW period to ensure that the instances are ready and stable when the SSM MW period effectively begins. The CloneSquad MW decisions are technically implemented by generating a temporary set of overriding settings (that can be seen by the user through the API GW - <API ref here>). At end of a MW period, these temporary scaling settings are removed and all user settings defined in CloneSquad configuration takes fully effect again. 
+By default, CloneSquad starts instances 15 minutes (see [`ssm.feature.maintenance_window.start_ahead`](CONFIGURATION_REFERENCE.md#ssmfeaturemaintenance_windowstart_ahead)) before the next MW period to ensure that the instances are ready and stable when the SSM MW period effectively begins. The CloneSquad MW decisions are technically implemented by generating a temporary set of overriding settings (that can be seen by the user [through the API GW](INTERACTING.md#api-configuration). At end of a MW period, these temporary scaling settings are removed and all user settings defined in CloneSquad configuration takes fully effect again. 
 
 ### Customizing behaviors during a Maintenance Window
 
