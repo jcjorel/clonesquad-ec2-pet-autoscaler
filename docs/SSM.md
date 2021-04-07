@@ -58,7 +58,7 @@ Example of tag names to set on a MW object:
 
 CloneSquad is able to launch *Event scripts* hosted in managed instances running a SSM agent that sucessfully [registered to AWS SSM](https://docs.aws.amazon.com/systems-manager/latest/userguide/ssm-agent.html).
 
-CloneSquad uses the AWS SSM RunCommand feature to upload in memory the [Linux helper script](../src/resources/cs-ssm-agent.sh) and launch scripts with expected names and location in the instance filesystem.
+CloneSquad uses the [AWS SSM RunCommand](https://docs.aws.amazon.com/systems-manager/latest/userguide/execute-remote-commands.html) feature to upload in memory the [Linux helper script](../src/resources/cs-ssm-agent.sh) and launch scripts with expected names and location in the instance filesystem.
 
 > Note: Sending events to windows instances is currently not supported.
 
