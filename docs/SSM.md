@@ -90,7 +90,7 @@ Scripts called depending on the event type:
 
 ### Probe of shutdown readyness
 
-**Feature toggle:** [`ssm.feature.events.ec2.instance_ready_for_shutdown`](CONFIGURATION_REFERENCE.md#ssm.feature.events.ec2.instance_ready_for_shutdown)
+**Feature toggle:** [`ssm.feature.events.ec2.instance_ready_for_shutdown`](CONFIGURATION_REFERENCE.md#ssmfeatureeventsec2instance_ready_for_shutdown)
 
 This event is sent as soon as an instance enter the 'draining' state. CloneSquad will wait for up to one hour (see [`ssm.feature.events.ec2.instance_ready_for_shutdown.max_shutdown_delay`](CONFIGURATION_REFERENCE.md#ssmfeatureeventsec2instance_ready_for_shutdownmax_shutdown_delay). A zero return code is expected from the user script `/etc/cs-ssm/instance-ready-for-shutdown` as prerequisite to shutdown the instance. After this delay, the instance is forcibly shutdowned.
 
