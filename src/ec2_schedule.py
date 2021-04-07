@@ -570,43 +570,43 @@ By default, the dashboard is enabled.
                     "Name": "SubfleetName",
                     "Value": subfleet}]
                 self.cloudwatch.register_metric([ 
-                        { "MetricName": "Subfleet.EC2.Size",
+                        { "MetricName": "EC2.Size",
                           "Dimensions": dimensions,
                           "Unit": "Count",
                           "StorageResolution": self.metric_time_resolution },
-                        { "MetricName": "Subfleet.EC2.ExcludedInstances",
+                        { "MetricName": "EC2.ExcludedInstances",
                           "Dimensions": dimensions,
                           "Unit": "Count",
                           "StorageResolution": self.metric_time_resolution },
-                        { "MetricName": "Subfleet.EC2.RunningInstances",
+                        { "MetricName": "EC2.RunningInstances",
                           "Dimensions": dimensions,
                           "Unit": "Count",
                           "StorageResolution": self.metric_time_resolution },
-                        { "MetricName": "Subfleet.EC2.DrainingInstances",
+                        { "MetricName": "EC2.DrainingInstances",
                           "Dimensions": dimensions,
                           "Unit": "Count",
                           "StorageResolution": self.metric_time_resolution },
-                        { "MetricName": "Subfleet.EC2.NbOfCPUCreditingInstances",
+                        { "MetricName": "EC2.NbOfCPUCreditingInstances",
                           "Dimensions": dimensions,
                           "Unit": "Count",
                           "StorageResolution": self.metric_time_resolution },
-                        { "MetricName": "Subfleet.EC2.MinInstanceCount",
+                        { "MetricName": "EC2.MinInstanceCount",
                           "Dimensions": dimensions,
                           "Unit": "Count",
                           "StorageResolution": self.metric_time_resolution },
-                        { "MetricName": "Subfleet.EC2.DesiredInstanceCount",
+                        { "MetricName": "EC2.DesiredInstanceCount",
                           "Dimensions": dimensions,
                           "Unit": "Count",
                           "StorageResolution": self.metric_time_resolution },
-                        { "MetricName": "Subfleet.EC2.NbOfInstanceInUnuseableState",
+                        { "MetricName": "EC2.NbOfInstanceInUnuseableState",
                           "Dimensions": dimensions,
                           "Unit": "Count",
                           "StorageResolution": self.metric_time_resolution },
-                        { "MetricName": "Subfleet.EC2.NbOfInstanceInInitialState",
+                        { "MetricName": "EC2.NbOfInstanceInInitialState",
                           "Dimensions": dimensions,
                           "Unit": "Count",
                           "StorageResolution": self.metric_time_resolution },
-                        { "MetricName": "Subfleet.SSM.MaintenanceWindow",
+                        { "MetricName": "SSM.MaintenanceWindow",
                           "Dimensions": dimensions,
                           "Unit": "Count",
                           "StorageResolution": self.metric_time_resolution },
@@ -1341,7 +1341,7 @@ By default, the dashboard is enabled.
             ins                 = subfleet_details[subfleet]["Instances"]
             burstable_instances = [i for i in ins if self.is_instance_cpu_crediting_eligible(i)]
             count               = subfleet_details[subfleet]["max_number_crediting_instances"] - subfleet_details[subfleet]["cpu_credit_counter"] 
-            self.cloudwatch.set_metric("Subfleet.EC2.NbOfCPUCreditingInstances", 
+            self.cloudwatch.set_metric("EC2.NbOfCPUCreditingInstances", 
                     count if len(burstable_instances) else None, dimensions=dimensions)
 
         if len(ids_to_stop) > 0:
@@ -1554,35 +1554,35 @@ By default, the dashboard is enabled.
                 fleet_size             = fleet["size"]
                 fleet_size_wo_excluded = len(fleet["All"]) 
                 excluded_count = len(subfleet_instances_w_excluded) - fleet_size_wo_excluded
-                cw.set_metric("Subfleet.EC2.Size", fleet_size if fleet_size else None, dimensions=dimensions)
-                cw.set_metric("Subfleet.EC2.ExcludedInstances", 
+                cw.set_metric("EC2.Size", fleet_size if fleet_size else None, dimensions=dimensions)
+                cw.set_metric("EC2.ExcludedInstances", 
                         excluded_count if fleet_size else None, dimensions=dimensions)
-                cw.set_metric("Subfleet.EC2.RunningInstances", 
+                cw.set_metric("EC2.RunningInstances", 
                         len(running_instances) if fleet_size else None, dimensions=dimensions)
-                cw.set_metric("Subfleet.EC2.DrainingInstances", 
+                cw.set_metric("EC2.DrainingInstances", 
                         len(draining_instances) if fleet_size else None, dimensions=dimensions)
                 send_metric    = (expected_state == "running") and fleet_size
-                cw.set_metric("Subfleet.EC2.MinInstanceCount", 
+                cw.set_metric("EC2.MinInstanceCount", 
                         min_instance_count if send_metric else None, dimensions=dimensions)
-                cw.set_metric("Subfleet.EC2.DesiredInstanceCount", 
+                cw.set_metric("EC2.DesiredInstanceCount", 
                         desired_instance_count if send_metric else None, dimensions=dimensions)
-                cw.set_metric("Subfleet.EC2.NbOfInstanceInUnuseableState", 
+                cw.set_metric("EC2.NbOfInstanceInUnuseableState", 
                         len(subfleet_faulty_instance_ids_w_excluded) if send_metric else None, dimensions=dimensions)
-                cw.set_metric("Subfleet.EC2.NbOfInstanceInInitialState", 
+                cw.set_metric("EC2.NbOfInstanceInInitialState", 
                         len(initial_instances) if send_metric else None, dimensions=dimensions)
-                cw.set_metric("Subfleet.SSM.MaintenanceWindow", 
+                cw.set_metric("SSM.MaintenanceWindow", 
                         self.ssm.is_maintenance_time(fleet=subfleet) if self.ssm.is_feature_enabled("maintenance_window") else None, 
                         dimensions=dimensions)
             else:
-                cw.set_metric("Subfleet.EC2.Size", None, dimensions=dimensions)
-                cw.set_metric("Subfleet.EC2.ExcludedInstances", None, dimensions=dimensions)
-                cw.set_metric("Subfleet.EC2.RunningInstances", None, dimensions=dimensions)
-                cw.set_metric("Subfleet.EC2.DrainingInstances", None, dimensions=dimensions)
-                cw.set_metric("Subfleet.EC2.MinInstanceCount", None, dimensions=dimensions)
-                cw.set_metric("Subfleet.EC2.DesiredInstanceCount", None, dimensions=dimensions)
-                cw.set_metric("Subfleet.EC2.NbOfInstanceInUnuseableState", None, dimensions=dimensions)
-                cw.set_metric("Subfleet.EC2.NbOfInstanceInInitialState", None, dimensions=dimensions)
-                cw.set_metric("Subfleet.SSM.MaintenanceWindow", None, dimensions=dimensions)
+                cw.set_metric("EC2.Size", None, dimensions=dimensions)
+                cw.set_metric("EC2.ExcludedInstances", None, dimensions=dimensions)
+                cw.set_metric("EC2.RunningInstances", None, dimensions=dimensions)
+                cw.set_metric("EC2.DrainingInstances", None, dimensions=dimensions)
+                cw.set_metric("EC2.MinInstanceCount", None, dimensions=dimensions)
+                cw.set_metric("EC2.DesiredInstanceCount", None, dimensions=dimensions)
+                cw.set_metric("EC2.NbOfInstanceInUnuseableState", None, dimensions=dimensions)
+                cw.set_metric("EC2.NbOfInstanceInInitialState", None, dimensions=dimensions)
+                cw.set_metric("SSM.MaintenanceWindow", None, dimensions=dimensions)
 
     def generate_subfleet_dashboard(self):
         """ Create / Destroy CloudWatch dashboards.
@@ -1606,16 +1606,16 @@ By default, the dashboard is enabled.
                         "view": "timeSeries",
                         "stacked": False,
                         "metrics": [
-                            [ "CloneSquad", "Subfleet.EC2.Size", "GroupName", self.context["GroupName"], "SubfleetName", subfleet_name ],
-                            [ ".", "Subfleet.EC2.ExcludedInstances", ".", ".", ".", "." ],
-                            [ ".", "Subfleet.EC2.MinInstanceCount", ".", ".", ".", "." ],
-                            [ ".", "Subfleet.EC2.DesiredInstanceCount", ".", ".", ".", "." ],
-                            [ ".", "Subfleet.EC2.NbOfCPUCreditingInstances", ".", ".", ".", "." ],
-                            [ ".", "Subfleet.EC2.DrainingInstances", ".", ".", ".", "." ],
-                            [ ".", "Subfleet.EC2.RunningInstances", ".", ".", ".", "." ],
-                            [ ".", "Subfleet.EC2.NbOfInstanceInUnuseableState", ".", ".", ".", "." ],
-                            [ ".", "Subfleet.EC2.NbOfInstanceInInitialState", ".", ".", ".", "." ],
-                            [ ".", "Subfleet.SSM.MaintenanceWindow", ".", ".", ".", "." ]
+                            [ "CloneSquad", "EC2.Size", "GroupName", self.context["GroupName"], "SubfleetName", subfleet_name ],
+                            [ ".", "EC2.ExcludedInstances", ".", ".", ".", "." ],
+                            [ ".", "EC2.MinInstanceCount", ".", ".", ".", "." ],
+                            [ ".", "EC2.DesiredInstanceCount", ".", ".", ".", "." ],
+                            [ ".", "EC2.NbOfCPUCreditingInstances", ".", ".", ".", "." ],
+                            [ ".", "EC2.DrainingInstances", ".", ".", ".", "." ],
+                            [ ".", "EC2.RunningInstances", ".", ".", ".", "." ],
+                            [ ".", "EC2.NbOfInstanceInUnuseableState", ".", ".", ".", "." ],
+                            [ ".", "EC2.NbOfInstanceInInitialState", ".", ".", ".", "." ],
+                            [ ".", "SSM.MaintenanceWindow", ".", ".", ".", "." ]
                         ],
                         "region": self.context["AWS_DEFAULT_REGION"],
                         "title": subfleet_name,
@@ -1626,8 +1626,9 @@ By default, the dashboard is enabled.
             dashboard["widgets"].append(widget)
 
         use_dashboard    =  Cfg.get_int("cloudwatch.subfleet.use_dashboard") if len(dashboard["widgets"]) != 0 else False
-        fingerprint      = "%s : %s : %s " % (fleet_with_details, use_dashboard, 
-                now.minute / 15) # Make the fingerprint change every 15 minutes
+        fingerprint      = misc.sha256(f"{use_dashboard},%s,%s,%s" % 
+                (Dbg.pprint(fleet_with_details), Dbg.pprint(dashboard["widgets"]),
+                now.minute / 15)) # Make the fingerprint change every 15 minutes
         last_fingerprint = self.ec2.get_state("cloudwatch.subfleet.last_fingerprint")
         client = self.context["cloudwatch.client"]
         if fingerprint != last_fingerprint:
