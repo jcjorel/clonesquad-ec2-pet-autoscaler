@@ -1,7 +1,7 @@
 # SSM Support reference
 
-[AWS System Manager](https://aws.amazon.com/systems-manager/) integration brings [Maintenance Window](#maintenancewindow) support
-and [In-instance Event notifications](#ininstanceeventnotifications).
+[AWS System Manager](https://aws.amazon.com/systems-manager/) integration brings [Maintenance Window](#maintenance-window-support) support
+and [In-instance Event notifications](#in-instance-event-notifications).
 
 > **Important: By default, SSM support is disabled and must be explicitly enabled with [`ssm.enabled`](CONFIGURATION_REFERENCE.md#ssmenable).**
 
@@ -13,7 +13,7 @@ Even activated globally with [`ssm.enabled`](CONFIGURATION_REFERENCE.md#ssmenabl
 
 AWS SSM allows definition of up to 50 Maintenance Windows (MW) per account and region. Theses MWs are scheduled periods of time dedicated to perform maintenance actions (Patch management, Backup, etc...) on fleets of EC2 instances. 
 
-CloneSquad extends native SSM Maintenance Window capabilities by looking at them as a source of scaling decisions and fleet behavior triggers. During a maintenance window period, the default behavior is to start all instances (including LightHouse ones) but also forbid any stop actions on instance fleet ensuring full fleet stability. 
+CloneSquad extends native SSM Maintenance Window capabilities by looking at them as a source of scaling decisions and fleet behavior triggers. During a maintenance window period, the default behavior is to start all instances (including LightHouse ones) but also forbids any stop actions on instance fleet ensuring full fleet stability. 
 
 ### Getting started with SSM Maintenance Window and CloneSquad
 
@@ -23,11 +23,11 @@ Default SSM Maintenance Window naming convention:
 
 * `CS-GlobalDefaultMaintenanceWindow`: The MW that will influence all CloneSquad deployments in an account/region,
 	* `CS-{GroupName}`: A MW affecting all instances managed by the CS deployment with `clonesquad:group-name` == `{GroupName}`,
-		* `CS-{GroupName}-MainFleet`: A MW affecting only Main fleet instances,
-	* `CS-{GroupName}-__all__`: A MW afffecting all subfleet instances,
+		* `CS-{GroupName}-Mainfleet`: A MW affecting only Main fleet instances,
+	* `CS-{GroupName}-Subfleet.__all__`: A MW afffecting all subfleet instances,
 		* `CS-{GroupName}-Subfleet.{SubfleetName}`: A MW affecting a specific instance fleet.
 
-> **IMPORTANT: SSM MW objects MUST be tagged with `clonesquad:group-name`: `{GroupName}` to be useable by CloneSquad.**
+> **IMPORTANT: SSM Maintenance Window objects MUST be tagged with `clonesquad:group-name`: `{GroupName}` to be useable by CloneSquad.**
 
 If multiple MW matches, they are cumulative (meaning effective maintenance window periods will be the union of all matching MWs).
 

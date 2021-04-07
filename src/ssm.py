@@ -103,7 +103,7 @@ When [`ssm.feature.events.ec2.instance_ready_for_operation`](#ssmfeatureec2insta
             },
             "ssm.feature.events.ec2.instance_healthcheck": "0",
             "ssm.feature.maintenance_window,Stable": {
-                "DefaultValue": "1",
+                "DefaultValue": "0",
                 "Format": "Bool",
                 "Description": """Defines if SSM maintenance window support is activated.
 
@@ -131,7 +131,7 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
             },
             "ssm.feature.maintenance_window.global_defaults": "CS-GlobalDefaultMaintenanceWindow",
             "ssm.feature.maintenance_window.defaults": "CS-{GroupName}",
-            "ssm.feature.maintenance_window.mainfleet.defaults": "CS-{GroupName}-__main__",
+            "ssm.feature.maintenance_window.mainfleet.defaults": "CS-{GroupName}-Mainfleet",
             "ssm.feature.maintenance_window.mainfleet.ec2.schedule.min_instance_count": {
                     "DefaultValue": "100%",
                     "Format": "IntegerOrPercentage",
