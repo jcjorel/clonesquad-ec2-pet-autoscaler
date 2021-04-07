@@ -67,7 +67,7 @@ These event scripts allow user to react to some critical events to make operatio
 
 > **IMPORTANT: All launched user scripts MUST execute in less than 30 seconds or will be forcibly terminated otherwise by the AWS SSM agent running in the EC2 instance.**  
 
-### Notification of start/end of maintenance window period
+### Notification of maintenance window period start/end
 
 **Feature toggle:** [`ssm.feature.events.ec2.maintenance_window_period`](CONFIGURATION_REFERENCE.md#ssmfeatureeventsec2maintenance_window_period)
 
