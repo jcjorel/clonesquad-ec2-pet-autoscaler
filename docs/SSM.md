@@ -13,14 +13,14 @@ Even activated globally with [`ssm.enabled`](CONFIGURATION_REFERENCE.md#ssmenabl
 
 AWS SSM allows definition of up to 50 Maintenance Windows (MW) per account and region. Theses MWs are scheduled periods of time dedicated to perform maintenance actions (Patch management, Backup, etc...) on fleets of EC2 instances. 
 
-CloneSquad extends native SSM Maintenance Window capabilities by looking at them as a source of scaling decisions and fleet behavior triggers. During a maintenance window period, the default behavior is to start all instances (including LightHouse ones) but also forbids any stop actions on instance fleet ensuring full fleet stability. 
+CloneSquad extends native SSM Maintenance Window capabilities by looking at them as a source of scaling decisions and fleet behavior triggers. 
 
 **During a Maintenance Window period**, the following statements are true:
 
 * No instance can be put in `draining` state or even shutdown by CloneSquad,
 	* As consequence, any instance started during the Maintenance Window period (manually through console or by the auto-scaler) remains up until end of the MW period,
 * Managed EC2 instances MUST run a successfully registered SSM agent or will be considered as unhealthy otherwise,
-* By default, all managed instances (Main fleet or subfleets) are started.
+* By default, all managed instances (Main fleet instances -including LightHouse ones- or subfleet instances) are started. In this default temporary configuration (i.e. with `ec2.schedule.desired_instance_count` set to `100%`), no unhealthy instance replacement is performed leading to full fleet stability.
 
 ### Getting started with SSM Maintenance Window and CloneSquad
 
