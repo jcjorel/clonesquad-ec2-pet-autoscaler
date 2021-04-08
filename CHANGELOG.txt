@@ -1,6 +1,7 @@
 v0.19.0:
 - (Improvment/Major) COMPATIBILITY BREACH: In order to reduce the size on screen and improve subfleet dashboard readability, the subfleet metrics are shortened ("Subfleet." prefix is removed).
 - (Improvment/Major) Added optional SSM subsystem (disabled by default): Brings SSM Maintenance Window support and SSM Event notifications through SSM RunCommands (see https://github.com/jcjorel/clonesquad-ec2-pet-autoscaler/blob/master/docs/SSM.md)
+- (Bug/Minor) Some transient RDS status can rarely happen generating InvalidDBInstanceState exception on start/stop action. We now trap this exception as non-critical and so no more notify the user for a minor transient situation.
 
 v0.18.0:
 - (Improvment/Major) Added fine-grained IAM policy for Lambda functions => No more AdministratorAccess default policy! :-)
