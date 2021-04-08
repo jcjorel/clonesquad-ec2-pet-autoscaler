@@ -18,7 +18,7 @@ CloneSquad extends native SSM Maintenance Window capabilities by looking at them
 **During a Maintenance Window period**, the following statements are true:
 
 * No instance can be put in `draining` state or even shutdown by CloneSquad,
-	* As consequence, any instance started during the Maintenance Window period (manually through console or by the auto-scaler) remains up until end of the MW period,
+	* As consequence, any instance started during the Maintenance Window period (manually through console or by the auto-scaler) remains up until end of the MW period (and Spot Interrupted instances are replaced as usual during a Maintenance Period).
 * Managed EC2 instances MUST run a successfully registered SSM agent or will be considered as unhealthy otherwise (but won't be stopped until end of the Maintenance Window. cf. previous statement),
 * By default, all managed instances (Main fleet instances -including LightHouse ones- or subfleet instances) are started. In this default temporary configuration (i.e. with `ec2.schedule.desired_instance_count` set to `100%`), no unhealthy instance replacement is performed leading to full fleet stability.
 
@@ -67,7 +67,7 @@ CloneSquad is able to launch *Event scripts* hosted in managed instances running
 
 CloneSquad uses the [AWS SSM RunCommand](https://docs.aws.amazon.com/systems-manager/latest/userguide/execute-remote-commands.html) feature to upload in memory the [Linux helper script](../src/resources/cs-ssm-agent.sh) and launch scripts with expected names and location in the instance filesystem.
 
-> Note: Sending events to windows instances is currently not supported.
+> Note: Sending events to Windows instances is currently not supported.
 
 These event scripts allow user to react to some critical events to make operations smooth and reliable.
 **These scripts are not meant to perform long running tasks** but to inform and probe about an event and associated return status if required. As a general rule of thumb, if a user script returns a zero-code, the event is assumed successfully taken into account by the instance. If the user scripts returns a non-zero code, the event will be repeated until event specific timeout or zero status code received.
@@ -96,6 +96,7 @@ This event is sent as soon as an instance enter the 'draining' state. CloneSquad
 
 A typical use-case for this event is to perform house keeping tasks and allow to shutdown instance gracefully. Examples of tasks can range from breaking the lifeline of loadbalancer healthchecks, wait for all active connections to terminate or backup the machine...
 
+> Note: 15 mins before the end of the wait time (so, after 45 mins with default settings), the instance is placed in the 'unuseable' state. When an instance enters the 'unuseable' state, a User Notification of type `new_instances_marked_as_unuseable` is sent: User may log and react to this event to detect instances needing servicing. 
 
 
 ### Probe of operational readiness
@@ -106,10 +107,10 @@ This event is sent to probe if a just started instance is ready and can exit the
 
 When in 'initializing' state, an instance will never be stopped by CloneSquad. As a typical use-case, this event can by leveraged to ensure that an instance is assumed 'ready' only if it has completed its boot sequence. By using this event, you can avoid CloneSquad shutdowning down prematurely an instance with a very long boot time.
 
-By default, CloneSquad waits up to one hour (see [`ssm.feature.events.ec2.instance_ready_for_operation.max_initializing_time`](CONFIGURATION_REFERENCE.md#ssmfeatureeventsec2instance_ready_for_operationmax_initializing_time)) to receive a zero return code. After this delay, the instance is set to 'unuseable' state and will be forcibly shutdown after a delay.
+By default, CloneSquad waits up to one hour (see [`ssm.feature.events.ec2.instance_ready_for_operation.max_initializing_time`](CONFIGURATION_REFERENCE.md#ssmfeatureeventsec2instance_ready_for_operationmax_initializing_time)) to receive a zero return code. After this delay, the instance is set to 'unuseable' state and will be forcibly shutdown after 15 mins.
 
 
-
+> Note: When an instance enters the 'unuseable' state, a User Notification of type `new_instances_marked_as_unuseable` is sent: User may log and react to this event to detect instances needing servicing. 
 
 
 

@@ -462,6 +462,8 @@ without any TargetGroup but another external health instance source exists).
     def get_subfleet_name_for_instance(self, i):
         """ Return the name of subfleet that the instance is part of or None is not part of a subfleet.
         """
+        if isinstance(i, str):
+            i = self.get_instance_by_id(i)
         tags = self.get_instance_tags(i)
         return tags["clonesquad:subfleet-name"] if "clonesquad:subfleet-name" in tags else None
 

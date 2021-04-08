@@ -349,7 +349,7 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
                         warning_msg = list(filter(lambda s: ":WARNING:" in s, stdout))
                         if len(warning_msg):
                             log.warning(f"Got warning while retrieving SSM RunCommand output for {cmd_id}/{instance_id}/{command}: "
-                                    "{warning_msg}/{details_msg}")
+                                    f"{warning_msg}/{details_msg}")
 
                         result = {
                             "SSMInvocationStatus": status,
@@ -649,7 +649,7 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
             instance_ids        = [i["InstanceId"] for i in instances]
             event_name          = "ENTER_MAINTENANCE_WINDOW_PERIOD" if is_maintenance_time else "EXIT_MAINTENANCE_WINDOW_PERIOD"
             self.send_events(instance_ids, "maintenance_window.state_change", event_name, {
-                }, notification_handler=self.ssm_maintenance_window_event)
+                }, notification_handler=self.ssm_maintenance_window_event, pretty_event_name=pretty_event_name)
 
             if not is_maintenance_time:
                 if "NextWindowMessage" in meta:
