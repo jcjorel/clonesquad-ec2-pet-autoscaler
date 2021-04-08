@@ -184,10 +184,11 @@ DEPRECATED. (Now automatic detection of RDS resources is implemented.)
         """
         need_shortterm_record = True
         if ex is not None:
-            # If we received an InvalidDBClusterStateFault exception, we do not create short and long term record (=do not notify
-            #   user) as it could happen when a DB just changed its internal state few seconds ago.
+            # If we received an InvalidDBClusterStateFault/InvalidDBInstanceState exception, we do not create 
+            # short and long term record (=do not notify user) as it could happen when a DB just changed its 
+            # internal state few seconds ago.
             try:
-                if ex.response['Error']['Code'] == 'InvalidDBClusterStateFault':
+                if ex.response['Error']['Code'] in ['InvalidDBClusterStateFault', 'InvalidDBInstanceState']:
                     log.log(log.NOTICE, "Failed to perform action on database due to 'InvalidDBClusterStateFault'. Will try again later...")
                     need_shortterm_record  = False
                     need_longterm_record   = False
