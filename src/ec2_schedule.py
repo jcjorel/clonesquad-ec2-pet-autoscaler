@@ -1350,7 +1350,7 @@ By default, the dashboard is enabled.
                             "Do not assess stop now..." % elapsed_time.total_seconds())
                        continue
 
-           if self.ssm.is_feature_enabled("maintenance_window") and self.is_maintenance_time(fleet=subfleet_name):
+           if self.ssm.is_feature_enabled("maintenance_window") and self.ssm.is_maintenance_time(fleet=subfleet_name):
                log.info(f"Can't stop drained instance {instance_id} while SSM Maintenance window is active.")
                continue
 
