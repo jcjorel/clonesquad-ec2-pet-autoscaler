@@ -407,7 +407,7 @@ without any TargetGroup but another external health instance source exists).
                         o_ssm.send_events(instance_ids, "ec2.scaling_state.change", event_name, args,
                             pretty_event_name=pretty_event_name)
 
-            # Send the BlockNewConnectionsToPort event if needed
+            # Send the BlockNewConnectionsToPorts event if needed
             blocked_ports = Cfg.get_list("ssm.feature.events.ec2.scaling_state_changes."
                     "draining.new_connection_blocked_port_list")
             if len(blocked_ports):
@@ -415,7 +415,7 @@ without any TargetGroup but another external health instance source exists).
                     "BlockedPorts": " ".join(blocked_ports)
                 }
                 o_ssm.send_events(draining_ids, "ec2.scaling_state.change.draining.block_new_connections", 
-                    "INSTANCE_BLOCK_NEW_CONNECTIONS_TO_PORTS", args, pretty_event_name="BlockNewConnectionsToPort")
+                    "INSTANCE_BLOCK_NEW_CONNECTIONS_TO_PORTS", args, pretty_event_name="BlockNewConnectionsToPorts")
         
     def register_state_aggregates(self, aggregates):
         self.o_state.register_aggregates(aggregates)
