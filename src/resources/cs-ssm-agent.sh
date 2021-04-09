@@ -55,7 +55,7 @@ function probe_test()
 	fi
 }
 
-function block_new_connections_to_port()
+function block_new_connections_to_ports()
 {
 	blocked_ports=$*
 	cs_echo "BLOCK_NEW_CONNECTIONS" "PORTS:$blocked_ports"
@@ -67,12 +67,12 @@ function block_new_connections_to_port()
 		return 0
 	fi
 	# Install an IPtable that is blocking any new TCP connection
-	echo "Create CloneSquad agent dedicated chain..."
+	echo "Creating CloneSquad agent dedicated IPtable chain '$chain'..."
 	sudo iptables -N $chain 
 	# Insert the chain in front of all rules
 	sudo iptables -I INPUT -j $chain 
 	for port in $blocked_ports ; do
-		echo "Blocking new connection to TCP port $port..."
+		echo "Blocking new connections to TCP port $port..."
 		sudo iptables -A $chain -p tcp -m tcp --dport $port -m state --state NEW -j REJECT --reject-with icmp-port-unreachable
 	done
 	# Output in logs the changes
@@ -117,13 +117,13 @@ function main()
 		probe_test instance-ready-for-shutdown \
 			"instance $AWS_SSM_INSTANCE_ID is ready for shutdown!" "instance $AWS_SSM_INSTANCE_ID is NOT ready for shutdown!"
 	;;
-	INSTANCE_SCALING_STATE_DRAINING | INSTANCE_SCALING_STATE_BOUNCED | INSTANCE_SCALING_STATE_NONE)
+	INSTANCE_BLOCK_NEW_CONNECTIONS_TO_PORTS)
+		block_new_connections_to_ports ##BlockedPorts##
+	;;
+	INSTANCE_SCALING_STATE_DRAINING | INSTANCE_SCALING_STATE_BOUNCED)
 		new_state="##NewState##"
 		old_state="##OldState##"
 		cs_echo $CMD "$new_state $old_state"
-		if [ "$new_state" == "draining" ] ; then
-			block_new_connections_to_port ##BlockedPorts##
-		fi
 		probe_test instance-scaling-state-change $new_state  $old_state \
 			"instance $AWS_SSM_INSTANCE_ID has acked the '$new_state' state (Previous state was $old_state)." \
 			"instance $AWS_SSM_INSTANCE_ID did not acked the '$new_state' state (Previous state was $old_state). Message will be repeated!"

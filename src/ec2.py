@@ -389,11 +389,14 @@ without any TargetGroup but another external health instance source exists).
                     },
                 }
 
+            draining_ids = []
             for state in ids_per_new_state:
                 if state in event_name_mappings:
                     for previous_state in ids_per_new_state[state]:
                         change            = ids_per_new_state[state][previous_state]
                         instance_ids      = [c["InstanceId"] for c in change]
+                        if state == "draining":
+                            draining_ids.extend(instance_ids)
                         log.log(log.NOTICE, f"Instances {instance_ids} changed their scaling state from '{previous_state}' to '{state}'.")
                         event_name        = event_name_mappings[state]["Name"]
                         pretty_event_name = event_name_mappings[state]["PrettyName"]
@@ -401,11 +404,18 @@ without any TargetGroup but another external health instance source exists).
                             "NewState": state,
                             "OldState": previous_state,
                         }
-                        if state == "draining":
-                            args["BlockedPorts"] = " ".join(Cfg.get_list("ssm.feature.events.ec2.scaling_state_changes."
-                                "draining.new_connection_blocked_port_list"))
                         o_ssm.send_events(instance_ids, "ec2.scaling_state.change", event_name, args,
                             pretty_event_name=pretty_event_name)
+
+            # Send the BlockNewConnectionsToPort event if needed
+            blocked_ports = Cfg.get_list("ssm.feature.events.ec2.scaling_state_changes."
+                    "draining.new_connection_blocked_port_list")
+            if len(blocked_ports):
+                args = {
+                    "BlockedPorts": " ".join(blocked_ports)
+                }
+                o_ssm.send_events(draining_ids, "ec2.scaling_state.change.draining.block_new_connections", 
+                    "INSTANCE_BLOCK_NEW_CONNECTIONS_TO_PORTS", args, pretty_event_name="BlockNewConnectionsToPort")
         
     def register_state_aggregates(self, aggregates):
         self.o_state.register_aggregates(aggregates)
