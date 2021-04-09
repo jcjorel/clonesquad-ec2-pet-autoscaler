@@ -64,6 +64,7 @@ function block_new_connections_to_port()
 	chain="CS-AGENT"
 	if ! [ -z "$(sudo iptables-save | grep $chain)" ] ; then
 		cs_echo "BLOCK_NEW_CONNECTIONS" "ALREADY_DONE:IPtable already modified."
+		return 0
 	fi
 	# Install an IPtable that is blocking any new TCP connection
 	echo "Create CloneSquad agent dedicated chain..."
@@ -77,6 +78,7 @@ function block_new_connections_to_port()
 	# Output in logs the changes
 	cs_echo "BLOCK_NEW_CONNECTIONS" "IPTABLES-OUTPUT"
 	sudo iptables-save
+	return 0
 }
 
 function main()
