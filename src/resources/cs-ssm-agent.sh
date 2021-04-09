@@ -59,11 +59,11 @@ function block_new_connections_to_ports()
 {
 	blocked_ports=$*
 	cs_echo "BLOCK_NEW_CONNECTIONS" "PORTS:$blocked_ports"
-	cs_echo "BLOCK_NEW_CONNECTIONS" "END"
 	# Execute only once
 	chain="CS-AGENT"
 	if ! [ -z "$(sudo iptables-save | grep $chain)" ] ; then
 		cs_echo "BLOCK_NEW_CONNECTIONS" "ALREADY_DONE:IPtable already modified."
+		cs_echo "BLOCK_NEW_CONNECTIONS" "END"
 		return 0
 	fi
 	# Install an IPtable that is blocking any new TCP connection
@@ -78,6 +78,7 @@ function block_new_connections_to_ports()
 	# Output in logs the changes
 	cs_echo "BLOCK_NEW_CONNECTIONS" "IPTABLES-OUTPUT"
 	sudo iptables-save
+	cs_echo "BLOCK_NEW_CONNECTIONS" "END"
 	return 0
 }
 
