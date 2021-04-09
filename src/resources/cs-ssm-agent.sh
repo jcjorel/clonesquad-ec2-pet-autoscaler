@@ -60,14 +60,16 @@ function block_new_connections_to_port()
 	blocked_ports=$*
 	cs_echo "BLOCK_NEW_CONNECTIONS" "PORTS:$blocked_ports"
 	cs_echo "BLOCK_NEW_CONNECTIONS" "END"
-	# Ensure kernel modules loaded
-	sudo iptables-save
+	# Execute only once
+	chain="CS-AGENT"
+	if ! [ -z "$(sudo iptables-save | grep $chain)" ] ; then
+		cs_echo "BLOCK_NEW_CONNECTIONS" "ALREADY_DONE:IPtable already modified."
+	fi
 	# Install an IPtable that is blocking any new TCP connection
 	echo "Create CloneSquad agent dedicated chain..."
-	chain="CS-AGENT"
-	sudo iptables -N $chain 2>/dev/null || echo "Chain $chain already exists..."
+	sudo iptables -N $chain 
 	# Insert the chain in front of all rules
-	sudo iptables -I INPUT -j $chain
+	sudo iptables -I INPUT -j $chain 
 	for port in $blocked_ports ; do
 		echo "Blocking new connection to TCP port $port..."
 		sudo iptables -A $chain -p tcp -m tcp --dport $port -m state --state NEW -j REJECT --reject-with icmp-port-unreachable
