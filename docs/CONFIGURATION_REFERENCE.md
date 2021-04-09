@@ -787,6 +787,40 @@ This enables event notification support of instances when they enter or exit a S
 
 
 
+### ssm.feature.events.ec2.scaling_state_changes
+Default Value: `0`   
+Format       :  [Bool](#Bool)
+
+Call a script in instance when the instance scaling state changes.
+
+When this toggle set, the script `/etc/cs-ssm/instance-scaling-state-change` located into managed instances, is called to notify about a scaling status change. 
+Currently, only `draining` and `bounced` events are sent (`bounced`is sent only if the instance bouncing feature is activated). For example, if an instance enters the `draining` state because CloneSquad wants to shutdown it, this event is called.
+
+* If the script doesn't exists, the event is sent only once,
+* If the script returns a non-zero code, the event will be repeated.
+
+> Note: This event differs from [`ssm.feature.events.ec2.instance_ready_for_shutdown`](#ssmfeatureeventsec2instance_ready_for_shutdown) as it is only meant to inform the instance about a status change. The [`ssm.feature.events.ec2.instance_ready_for_shutdown`](#ssmfeatureeventsec2instance_ready_for_shutdown) is a request to the instance asking an approval for shutdown.
+
+            
+
+
+
+### ssm.feature.events.ec2.scaling_state_changes.draining.new_connection_blocked_port_list
+Default Value: ``   
+Format       :  [StringList](#StringList)
+
+On `draining` state, specified ports are blocked to forbid new TCP connections (i.e. *Connection refused* message).
+
+This features installs, **on `draining` time**, temporary iptables chain and rules denying new TCP connections to the specified port list.
+This is useful, for example, to break a healthcheck life line as soon as an instance enters the `draining` state: It especially useful when non-ELB LoadBalancers are used and CloneSquad does not know how to tell these loadbalancers that no more traffic need to be sent to a drained instance. As it blocks only new TCP connections, currently active connections can terminate gracefully during the draining period.
+
+> When instances are served only by CloneSquad ELB(s), there is no need to use this feature as CloneSquad will unregister the target as soon as placed in `draining`state.
+
+By default, no blocked port list is specified, so no iptables call is performed on the instance.
+            
+
+
+
 ### ssm.feature.maintenance_window
 Default Value: `0`   
 Format       :  [Bool](#Bool)

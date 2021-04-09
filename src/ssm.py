@@ -119,12 +119,14 @@ Currently, only `draining` and `bounced` events are sent (`bounced`is sent only 
             "ssm.feature.events.ec2.scaling_state_changes.draining.new_connection_blocked_port_list,Stable": {
                 "DefaultValue": "",
                 "Format": "StringList",
-                "Description": """On `draining` state, specified ports are blocked to establish new TCP connections.
+                "Description": """On `draining` state, specified ports are blocked to forbid new TCP connections (i.e. *Connection refused* message).
 
-This features installs, **on `draining` time**, a temporary iptables denying new TCP connections to the specified port list.
+This features installs, **on `draining` time**, temporary iptables chain and rules denying new TCP connections to the specified port list.
 This is useful, for example, to break a healthcheck life line as soon as an instance enters the `draining` state: It especially useful when non-ELB LoadBalancers are used and CloneSquad does not know how to tell these loadbalancers that no more traffic need to be sent to a drained instance. As it blocks only new TCP connections, currently active connections can terminate gracefully during the draining period.
 
-By default, no blocked port list is specified, so no iptables call is performed.
+> When instances are served only by CloneSquad ELB(s), there is no need to use this feature as CloneSquad will unregister the target as soon as placed in `draining`state.
+
+By default, no blocked port list is specified, so no iptables call is performed on the instance.
             """
             },
             "ssm.feature.events.ec2.instance_healthcheck": "0",
