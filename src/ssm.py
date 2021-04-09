@@ -101,6 +101,32 @@ This enables support for direct sensing of instance **serving** readiness based 
 When [`ssm.feature.events.ec2.instance_ready_for_operation`](#ssmfeatureec2instance_ready_for_operation) is set, this setting defines the maximum duration that CloneSquas will attempt to get a status 'ready-for-operation' for a specific instance through SSM RunCommand calls and execution of the `/etc/cs-ssm/instance-ready-for-operation` script.
             """
             },
+            "ssm.feature.events.ec2.scaling_state_changes,Stable": {
+                "DefaultValue": "0",
+                "Format": "Bool",
+                "Description": """Call a script in instance when the instance scaling state changes.
+
+When this toggle set, the script `/etc/cs-ssm/instance-scaling-state-change` located into managed instances, is called to notify about a scaling status change. 
+Currently, only `draining` and `bounced` events are sent (`bounced`is sent only if the instance bouncing feature is activated). For example, if an instance enters the `draining` state because CloneSquad wants to shutdown it, this event is called.
+
+* If the script doesn't exists, the event is sent only once,
+* If the script returns a non-zero code, the event will be repeated.
+
+> Note: This event differs from [`ssm.feature.events.ec2.instance_ready_for_shutdown`](#ssmfeatureeventsec2instance_ready_for_shutdown) as it is only meant to inform the instance about a status change. The [`ssm.feature.events.ec2.instance_ready_for_shutdown`](#ssmfeatureeventsec2instance_ready_for_shutdown) is a request to the instance asking an approval for shutdown.
+
+            """
+            },
+            "ssm.feature.events.ec2.scaling_state_changes.draining.new_connection_blocked_port_list,Stable": {
+                "DefaultValue": "",
+                "Format": "StringList",
+                "Description": """On `draining` state, specified ports are blocked to establish new TCP connections.
+
+This features installs, **on `draining` time**, a temporary iptables denying new TCP connections to the specified port list.
+This is useful, for example, to break a healthcheck life line as soon as an instance enters the `draining` state: It especially useful when non-ELB LoadBalancers are used and CloneSquad does not know how to tell these loadbalancers that no more traffic need to be sent to a drained instance. As it blocks only new TCP connections, currently active connections can terminate gracefully during the draining period.
+
+By default, no blocked port list is specified, so no iptables call is performed.
+            """
+            },
             "ssm.feature.events.ec2.instance_healthcheck": "0",
             "ssm.feature.maintenance_window,Stable": {
                 "DefaultValue": "0",
@@ -454,6 +480,16 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
                 i_ids    = pltf["ids"]
                 while len(i_ids):
                     log.log(log.NOTICE, f"SSM SendCommand: {command}({args}) to %s." % i_ids[:50])
+
+                    # Perform string parameter substitutions in the helper script
+                    shell_input = [l.replace("##Cmd##", command) for l in shell]
+                    if isinstance(args, str):
+                        shell_input = [l.replace("##Args##", args) for l in shell_input]
+                    else:
+                        shell_input = [l.replace("##Args##", args["Args"] if "Args" in args else "") for l in shell_input]
+                        for s in args:
+                            shell_input = [l.replace(f"##{s}##", args[s]) for l in shell_input]
+
                     try:
                         response = client.send_command(
                             InstanceIds=i_ids[:50],
@@ -461,7 +497,7 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
                             TimeoutSeconds=cmd["Timeout"],
                             Comment=cmd["Comment"],
                             Parameters={
-                                'commands': [l.replace("##CMD##", command).replace("##ARGS##", args) for l in shell],
+                                'commands': shell_input,
                                 'executionTimeout': [str(cmd["Timeout"])]
                             },
                             MaxConcurrency='100%',
@@ -520,8 +556,7 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
                 if pretty_event_name is None: 
                     pretty_event_name = "SendEvent"
                 comment  = f"CS-{pretty_event_name} (%s)" % self.context["GroupName"]
-                b64_args = str(base64.b64encode(bytes(json.dumps(event_args, sort_keys=True, default=str), "utf-8")), "utf-8")
-                r = self.run_command(ev_ids, event_name, args=b64_args, comment=comment)
+                r = self.run_command(ev_ids, event_name, args=event_args, comment=comment)
                 for i in [i for i in ev_ids if i in r]:
                     if r[i]["Status"] == "SUCCESS":
                         # Keep track that we received a SUCCESS for this instance id to not resend it again later

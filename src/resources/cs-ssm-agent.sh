@@ -55,6 +55,13 @@ function probe_test()
 	fi
 }
 
+function block_new_connections_to_port()
+{
+	blocked_ports=$*
+	cs_echo "BLOCK_NEW_CONNECTIONS" "PORTS:$blocked_ports"
+	cs_echo "BLOCK_NEW_CONNECTIONS" "END"
+}
+
 function main()
 {
 	cs_echo "HELLO" "1.0"
@@ -91,6 +98,16 @@ function main()
 		probe_test instance-ready-for-shutdown \
 			"instance $AWS_SSM_INSTANCE_ID is ready for shutdown!" "instance $AWS_SSM_INSTANCE_ID is NOT ready for shutdown!"
 	;;
+	INSTANCE_SCALING_STATE_DRAINING | INSTANCE_SCALING_STATE_BOUNCED | INSTANCE_SCALING_STATE_NONE)
+		new_state="##NewStates##"
+		old_state="##OldStates##"
+		if [ "$new_state" == "draining" ] ; then
+			block_new_connections_to_port ##BlockedPorts##
+		fi
+		probe_test instance-scaling-state-change $new_state  $old_state \
+			"instance $AWS_SSM_INSTANCE_ID has acked the '$new_state' state (Previous state was $old_state)." \
+			"instance $AWS_SSM_INSTANCE_ID did not acked the '$new_state' state (Previous state was $old_state). Message will be repeated!"
+	;;
 	*)
 		cs_echo "STATUS" "ERROR:UNKOWN_COMMAND"
 	;;
@@ -100,5 +117,5 @@ function main()
 	cs_echo "BIE" ""
 }
 
-main ##CMD## ##ARGS##
+main ##Cmd## ##Args##
 exit 0

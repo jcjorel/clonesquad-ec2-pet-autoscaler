@@ -351,7 +351,62 @@ without any TargetGroup but another external health instance source exists).
         log.debug("compute_scaling_states()")
         self.compute_scaling_states()
 
+        # Take a snapshot of current knwon scaling states to detect changes
+        self.scaling_state_snapshots = {}
+        for i in self.get_instances(State="pending,running"):
+            instance_id = i["InstanceId"]
+            self.scaling_state_snapshots[instance_id] = self.get_scaling_state(instance_id, do_not_return_excluded=True)
+
         self.prereqs_done = True
+
+    def send_events(self):
+        """ Send SSM Events linked to instance state changes.
+        """
+        o_ssm = self.context["o_ssm"]
+        if o_ssm.is_feature_enabled("events.ec2.scaling_state_changes"):
+            ids_per_new_state = defaultdict(list)
+            for instance_id in self.scaling_state_snapshots:
+                previous_state = self.scaling_state_snapshots[instance_id]
+                current_state  = self.get_scaling_state(instance_id, do_not_return_excluded=True)
+                if previous_state != current_state:
+                    ids_per_new_state[current_state].append({
+                        "InstanceId": instance_id, 
+                        "NewState": current_state, 
+                        "OldState": previous_state})
+
+            event_name_mappings = {
+                    None: {
+                        "Name": "INSTANCE_SCALING_STATE_NONE",
+                        "PrettyName": "InstanceScalingState-None"
+                    },
+                    "draining": {
+                        "Name": "INSTANCE_SCALING_STATE_DRAINING",
+                        "PrettyName": "InstanceScalingState-Draining"
+                    },
+                    "bounced": {
+                        "Name": "INSTANCE_SCALING_STATE_BOUNCED",
+                        "PrettyName": "InstanceScalingState-Bounced"
+                    },
+                }
+            for state in ids_per_new_state:
+                if state in event_name_mappings:
+                    change            = ids_per_new_state[state]
+                    instance_ids      = change["InstanceId"]
+                    log.log(log.NOTICE, f"Instances {instance_ids} changed their scaling state to '{current_state}'. Sending SSM events...")
+                    event_name        = event_name_mappings[state]["Name"]
+                    pretty_event_name = event_name_mappings[state]["PrettyName"]
+                    args              = {
+                        "NewState": change["NewState"],
+                        "OldState": change["OldState"],
+                    }
+                    pdb.set_trace()
+                    if state == "draining":
+                        args["BlockedPorts"] = " ".join(Cfg.get_list("ssm.feature.events.ec2.scaling_state_changes."
+                            "draining.new_connection_blocked_port_list"))
+                    self.send_events(instance_ids, "ec2.scaling_state.change", event_name, args,
+                        pretty_event_name=pretty_event_name)
+        
+
 
     def register_state_aggregates(self, aggregates):
         self.o_state.register_aggregates(aggregates)
@@ -980,12 +1035,10 @@ without any TargetGroup but another external health instance source exists).
             r[state].append(instance_id)
         return dict(r)
 
-    def compute_scaling_states(self):
+    def compute_scaling_states(self, instance_id=None):
         """ Compute an optimized lookup structure of scaling instance state.
         """
-        error_instance_ids  = Cfg.get_list("ec2.state.error_instance_ids", default=[]) 
-        self.scaling_states = defaultdict(dict)
-        for i in self.get_instances():
+        def _update_scaling_state(i):
             instance_id  = i["InstanceId"]
             state        = self.scaling_states[instance_id]
             key          = f"ec2.instance.scaling.state.{instance_id}"
@@ -999,10 +1052,17 @@ without any TargetGroup but another external health instance source exists).
                 state["state_no_excluded"] = "error"
                 state["state"]             = "error"
 
-    def get_scaling_state(self, instance_id, default=None, meta=None, default_date=None, do_not_return_excluded=False, raw=False):
-        """ Return the scaling state for  specified instance.
+        error_instance_ids  = Cfg.get_list("ec2.state.error_instance_ids", default=[]) 
+        if instance_id is not None:
+            _update_scaling_state(self.get_instance_by_id(instance_id))
+        else:
+            self.scaling_states = defaultdict(dict)
+            for i in self.get_instances():
+                _update_scaling_state(i)
 
-        TODO: Rewrite with method as it is highly CPU intensive and so inefficient in a Lambda context.
+    def get_scaling_state(self, instance_id, default=None, meta=None, default_date=None, do_not_return_excluded=False, raw=False):
+        """ Return the scaling state for specified instance.
+
         """
         if meta is not None:
             newest_action_date = None
@@ -1037,6 +1097,8 @@ without any TargetGroup but another external health instance source exists).
                 self.set_state(f"ec2.instance.scaling.last_action_date.{instance_id}", "", TTL=ttl)
                 self.set_state(f"ec2.instance.scaling.last_{action}_date.{instance_id}", "", TTL=ttl)
         self.set_state(f"ec2.instance.scaling.state.{instance_id}", value, TTL=ttl)
+        # Update the cache
+        self.compute_scaling_states(instance_id=instance_id)
 
     def list_states(self, prefix="ec2.instance.scaling_state.", not_matching_instances=None):
         r = self.state_table.get_keys(prefix) 

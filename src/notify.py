@@ -393,39 +393,35 @@ improve CloneSquad over time by allowing easy sharing of essential data for remo
         messages = []
         while len(events_r):
 
-            chunk = []
-            m     = None
-            index = 0
+            msg["Events"] = []
+            m             = None
+            index         = 0
             for i in range(0, len(events_r)):
-                index = i
-                if i == 0:
-                    # Sanity check. Check if the first item is too big to fit in the payload
-                    msg["Events"] = [events_r[0]]
-                    msg_size      = len(json.dumps(msg, default=str))
-                    if msg_size > 255*1024:
-                        event_type = events_r[0]["EventType"]
-                        event_date = events_r[0]["EventDate"]
-                        log.error(f"Notification message too big ({msg_size} > 256kB)! Possible cause is too many instances "
-                            "under management... This message {event_date}/{event_type} will be discarded...")
-                        break
-                # Size control. Check if the next message will make the message too big
-                msg["Events"] = chunk.copy()
-                if i < len(events_r)-1:
-                    msg["Events"].append(events_r[i+1])
                 if "Metadata" not in events_r[i]:
                     log.error("Malformed event %s/%s read from DynamoDB! (???) Skipping it..." % 
                             (events_r[i]["EventDate"], events_r[i]["EventType"]))
                     continue
-                meta = events_r[i]["Metadata"]
-                if m == meta:
-                    del events_r[i]["Metadata"]
-                else:
+                # Size control. Check if the next message will make the message too big
+                # Suppress the metadate field when it has the same value that the previous event
+                meta  = events_r[i]["Metadata"]
+                event = events_r[i].copy()
+                if m != meta:
                     m = meta
+                else:
+                    del event["Metadata"]
+                msg["Events"].append(event)
                 if len(json.dumps(msg, default=str)) > 255*1024:
                     # Chunk is going to be too big. Create a new chunk now...
+                    msg["Events"].remove(event)
+                    if i == 0:
+                        event_type = events_r[0]["EventType"]
+                        event_date = events_r[0]["EventDate"]
+                        log.error(f"Notification message too big ({msg_size} > 256kB)! Possible cause is too many instances "
+                            "under management... This message {event_date}/{event_type} will be discarded...")
                     break
-                chunk.append(events_r[i])
-            messages.append(chunk)
+                index = i
+            if len(msg["Events"]):
+                messages.append(msg["Events"])
             events_r = events_r[index+1:]
 
         for m in messages:
@@ -453,15 +449,6 @@ improve CloneSquad over time by allowing easy sharing of essential data for remo
                         self.call_sns(arn, region, account_id, service_path, content_str, event_types)
                 except Exception as e:
                     log.warning("Failed to notify '%s'! Got Exception: %s" % (arn, e))
-
-            #if len(events_r):
-                # To help ordering of messages. Wait wait a few seconds...
-            #    seconds_to_wait = Cfg.get_int("notify.event.seconds_between_sending")
-            #    log.log(log.NOTICE, "Had to split the notification messages as too big to fit in 256kB. "
-            #            f"Wait {seconds_to_wait} seconds before to send the remaining events. "
-            #            "Note: This can happen when no user notification target is acknowledging the event and so they stack for a while. "
-            #            "Please consider acknowledging all events as soon as generated.")
-            #    time.sleep(seconds_to_wait)
 
     @xray_recorder.capture()
     def call_lambda(self, arn, region, account_id, service_path, content, e):

@@ -224,6 +224,8 @@ def main_handler_entrypoint(event, context):
     ctx["o_ec2_schedule"].prepare_metrics()
     log.debug("Main - send_metrics()")
     ctx["o_cloudwatch"].send_metrics()
+    log.debug("Main - send_events()")
+    ctx["o_ec2"].send_events()
 
     log.debug("Main - configure_dashboard()")
     ctx["o_cloudwatch"].configure_dashboard()

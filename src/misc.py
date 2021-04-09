@@ -220,9 +220,7 @@ def get_url(url, throw_exception_on_warning=False):
         bucket, key = [m.group(1), m.group(2)]
         client = boto3.client("s3")
         try:
-            response = client.get_object(
-               Bucket=bucket,
-               Key=key)
+            response = client.get_object(Bucket=bucket, Key=key)
             return response["Body"].read()
         except Exception as e:
             _warning("Failed to fetch S3 url '%s' : %s" % (url, e))
