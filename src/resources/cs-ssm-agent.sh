@@ -60,6 +60,21 @@ function block_new_connections_to_port()
 	blocked_ports=$*
 	cs_echo "BLOCK_NEW_CONNECTIONS" "PORTS:$blocked_ports"
 	cs_echo "BLOCK_NEW_CONNECTIONS" "END"
+	# Ensure kernel modules loaded
+	sudo iptables-save
+	# Install an IPtable that is blocking any new TCP connection
+	echo "Create CloneSquad agent dedicated chain..."
+	chain="CS-AGENT"
+	sudo iptables -N $chain 2>/dev/null || echo "Chain $chain already exists..."
+	# Insert the chain in front of all rules
+	sudo iptables -I INPUT -j $chain
+	for port in $blocked_ports ; do
+		echo "Blocking new connection to TCP port $port..."
+		sudo iptables -A $chain -p tcp -m tcp --dport $port -m state --state NEW -j REJECT --reject-with icmp-port-unreachable
+	done
+	# Output in logs the changes
+	cs_echo "BLOCK_NEW_CONNECTIONS" "IPTABLES-OUTPUT"
+	sudo iptables-save
 }
 
 function main()
@@ -99,8 +114,9 @@ function main()
 			"instance $AWS_SSM_INSTANCE_ID is ready for shutdown!" "instance $AWS_SSM_INSTANCE_ID is NOT ready for shutdown!"
 	;;
 	INSTANCE_SCALING_STATE_DRAINING | INSTANCE_SCALING_STATE_BOUNCED | INSTANCE_SCALING_STATE_NONE)
-		new_state="##NewStates##"
-		old_state="##OldStates##"
+		new_state="##NewState##"
+		old_state="##OldState##"
+		cs_echo $CMD "$new_state $old_state"
 		if [ "$new_state" == "draining" ] ; then
 			block_new_connections_to_port ##BlockedPorts##
 		fi

@@ -728,6 +728,8 @@ By default, the dashboard is enabled.
                         continue
                 meta = {}
                 if instance_ready_for_shutdown and self.ec2.get_scaling_state(instance_id, do_not_return_excluded=True, meta=meta) == "draining":
+                    if meta.get("last_draining_date") is None:
+                        continue
                     if (self.context["now"] - meta["last_draining_date"]).total_seconds() > (max_shutdown_delay - grace_period):
                         instances_with_issue_ids.append(instance_id)
                         continue

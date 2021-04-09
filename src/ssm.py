@@ -488,7 +488,7 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
                     else:
                         shell_input = [l.replace("##Args##", args["Args"] if "Args" in args else "") for l in shell_input]
                         for s in args:
-                            shell_input = [l.replace(f"##{s}##", args[s]) for l in shell_input]
+                            shell_input = [l.replace(f"##{s}##", str(args[s])) for l in shell_input]
 
                     try:
                         response = client.send_command(
