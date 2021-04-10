@@ -61,6 +61,7 @@ class EC2:
         self.ec2_status_override_url = ""
         self.ec2_status_override     = {}
         self.state_table             = None
+        self.scaling_states          = defaultdict(dict)
 
         Cfg.register({
                  "ec2.describe_instances.max_results" : "500",
@@ -410,7 +411,7 @@ without any TargetGroup but another external health instance source exists).
             # Send the BlockNewConnectionsToPorts event if needed
             blocked_ports = Cfg.get_list("ssm.feature.events.ec2.scaling_state_changes."
                     "draining.new_connection_blocked_port_list")
-            if len(blocked_ports):
+            if len(blocked_ports) and len(draining_ids):
                 args = {
                     "BlockedPorts": " ".join(blocked_ports)
                 }
@@ -465,21 +466,23 @@ without any TargetGroup but another external health instance source exists).
         if o_ssm.is_feature_enabled("events.ec2.instance_ready_for_operation"):
             launch_time     = self.get_instance_by_id(instance_id)["LaunchTime"]
             last_ready_date = self.get_state_date(f"ec2.instance.ssm.ready_for_operation_date.{instance_id}", TTL=self.ttl)
+            last_ready_date = last_ready_date if last_ready_date is None or last_ready_date > now else None
+            if last_ready_date is None:
+                # Need status refresh
+                readyness = o_ssm.run_command([instance_id], "INSTANCE_READY_FOR_OPERATION", 
+                        comment="CS-InstanceReadyForOperation (%s)" % self.context["GroupName"], return_former_results=True)
+                status    = readyness.get(instance_id, {}).get("Status")
+                if status == "SUCCESS":
+                    self.set_state(f"ec2.instance.ssm.ready_for_operation_date.{instance_id}", now)
+                    last_ready_date = now
+            if "initializing" in state:
+                if last_ready_date is not None:
+                    state.remove("initializing")
+                    return i["InstanceStatus"]["Status"] in state
             if ("unhealthy" in state and last_ready_date is None and 
                 (now - launch_time) > timedelta(seconds=Cfg.get_duration_secs("ssm.feature.events.ec2.instance_ready_for_operation.max_initializing_time"))):
                     log.warning(f"Instance {instance_id} spent too much time in initializing state. Report it as unhealthy...")
                     return True
-            if "initializing" in state:
-                if last_ready_date is not None and launch_time < last_ready_date:
-                    state.remove("initializing")
-                    return i["InstanceStatus"]["Status"] in state
-                readyness = o_ssm.run_command([instance_id], "INSTANCE_READY_FOR_OPERATION", 
-                        comment="CS-InstanceReadyForOperation (%s)" % self.context["GroupName"], return_former_results=True)
-                status    = readyness.get(instance_id, {}).get("Status")
-                if status != "SUCCESS":
-                    log.log(log.NOTICE, f"Waiting for InstanceReadyForOperation SSM status for {instance_id}...")
-                    return True
-                self.set_state(f"ec2.instance.ssm.ready_for_operation_date.{instance_id}", self.context["now"])
         
         return i["InstanceStatus"]["Status"] in state 
 
@@ -637,7 +640,8 @@ without any TargetGroup but another external health instance source exists).
                         previous_state = r["PreviousState"]
                         current_state  = r["CurrentState"]
                         if current_state["Name"] in ["pending", "running"]:
-                            self.set_state("ec2.instance.last_start_date.%s" % instance_id, now)
+                            self.set_scaling_state(instance_id, "") # Reset scaling state
+                            self.set_state("ec2.instance.last_start_date.%s" % instance_id, now, TTL=self.ttl)
                             max_startable_instances -= 1
                             # Update statuses
                             instance = self.get_instance_by_id(instance_id)
@@ -1075,10 +1079,12 @@ without any TargetGroup but another external health instance source exists).
         """
         if meta is not None:
             newest_action_date = None
+            i                  = self.get_instance_by_id(instance_id)
+            last_start_date    = i["LaunchTime"] if "LaunchTime" in i else None
             for action in ["draining", "error", "bounced"]:
-                date = misc.str2utc(self.get_state(f"ec2.instance.scaling.last_{action}_date.{instance_id}"))
-                meta[f"last_{action}_date"] = date
-                if date and (newest_action_date is None or newest_action_date < date):
+                date = misc.str2utc(self.get_state(f"ec2.instance.scaling.last_{action}_date.{instance_id}", TTL=self.ttl))
+                meta[f"last_{action}_date"] = date if (date is None or last_start_date is None or date >= last_start_date) else None
+                if date is not None and (newest_action_date is None or newest_action_date < date):
                     newest_action_date = date
             meta["last_action_date"] = newest_action_date
 
@@ -1089,14 +1095,16 @@ without any TargetGroup but another external health instance source exists).
             return state["state_no_excluded"] if state["state_no_excluded"] is not None else default
         return state["state"] if state["state"] is not None else default
 
-    def set_scaling_state(self, instance_id, value, ttl=None, meta=None, default_date=None):
+    def set_scaling_state(self, instance_id, value, ttl=None, meta=None, default_date=None, force=False):
         if ttl is None: ttl = self.ttl
         if default_date is None: default_date = self.context["now"]
 
         if value != "":
+            o_ssm = self.context["o_ssm"]
+            if self.get_subfleet_name_for_instance(instance_id) == None and not o_ssm.is_maintenance_time(): pdb.set_trace()
             meta           = {} if meta is None else meta
             previous_value = self.get_scaling_state(instance_id, meta=meta, do_not_return_excluded=True)
-            date           = meta["last_action_date"] if previous_value == value else default_date
+            date           = meta["last_action_date"] if not force and previous_value == value else default_date
             meta[f"last_{value}_date"] = date
             meta[f"last_action_date"] = date
             self.set_state(f"ec2.instance.scaling.last_{value}_date.{instance_id}", date, TTL=ttl)

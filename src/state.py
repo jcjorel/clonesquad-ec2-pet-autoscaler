@@ -82,6 +82,9 @@ class StateManager:
     def get_state_table(self):
         return self.table
 
+    def get_keys(self, prefix=None):
+        return self.table.get_keys(prefix=prefix)
+
     def register_aggregates(self, aggregates):
         self.table_aggregates.append(aggregates)
 

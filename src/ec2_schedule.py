@@ -69,6 +69,7 @@ class EC2_Schedule:
         """
         self.context                  = context
         self.ec2                      = ec2
+        self.o_state                  = self.context["o_state"]
         self.targetgroup              = targetgroup
         self.cloudwatch               = cloudwatch
         self.ssm                      = self.context["o_ssm"]
@@ -118,6 +119,7 @@ at its maximum size in a stable manner (i.e. even if there are impaired/unhealth
                  "ec2.schedule.max_instance_stop_at_a_time" : 5,
                  "ec2.schedule.state_ttl" : "hours=2",
                  "ec2.schedule.base_points" : 1000,
+                 "ec2.schedule.assume_cpu_exhausted_burstable_instances_as_unuseable": "0",
                  "ec2.schedule.disable,Stable": {
                     "DefaultValue" : 0,
                     "Format"        : "Bool",
@@ -271,7 +273,7 @@ is enabled, from an instance type distribution PoV.
                  },
                  "ec2.schedule.bounce_instance_jitter" : 'minutes=10',
                  "ec2.schedule.bounce_instance_cooldown" : 'minutes=10',
-                 "ec2.schedule.bounce.instances_with_issue_grace_period": "minutes=15",
+                 "ec2.schedule.bounce.instances_with_issue_grace_period": "minutes=10",
                  "ec2.schedule.draining.instance_cooldown,Stable": {
                          "DefaultValue": "minutes=2",
                          "Format": "Duration",
@@ -699,17 +701,20 @@ By default, the dashboard is enabled.
             if instance["State"]["Name"] == "running":
                 instances_with_issue_ids.append(i)
 
-        # CPU credit "issues"
-        exhausted_cpu_instances = sorted([ i["InstanceId"] for i in self.cpu_exhausted_instances])
-        all_instances           = self.all_instances
-        max_i                   = len(all_instances)
-        for i in exhausted_cpu_instances:
-            if max_i <= 0:
-                break
-            if i in instances_with_issue_ids:
-                continue
-            instances_with_issue_ids.append(i)
-            max_i -= 1
+        if Cfg.get_int("ec2.schedule.assume_cpu_exhausted_burstable_instances_as_unuseable"):
+            # CPU credit "issues"
+            exhausted_cpu_instances = sorted([ i["InstanceId"] for i in self.cpu_exhausted_instances])
+            all_instances           = self.all_instances
+            max_i                   = len(all_instances)
+            for i in exhausted_cpu_instances:
+                if max_i <= 0:
+                    break
+                if i in instances_with_issue_ids:
+                    continue
+                if self.ssm.is_maintenance_time(fleet=self.o_ec2.get_subfleet_name_for_instance(i)):
+                    continue
+                instances_with_issue_ids.append(i)
+                max_i -= 1
 
         instance_ready_for_operation = self.ssm.is_feature_enabled("events.ec2.instance_ready_for_operation")
         instance_ready_for_shutdown  = self.ssm.is_feature_enabled("events.ec2.instance_ready_for_shutdown")
@@ -722,6 +727,7 @@ By default, the dashboard is enabled.
                 instance_id = i["InstanceId"]
                 if instance_id in instances_with_issue_ids:
                     continue
+                fleet = self.ec2.get_subfleet_name_for_instance(i)
                 if instance_ready_for_operation and self.ec2.is_instance_state(instance_id, ["initializing"]):
                     if (self.context["now"] - i["LaunchTime"]).total_seconds() > (max_initializing_delay - grace_period):
                         instances_with_issue_ids.append(instance_id)
@@ -730,6 +736,17 @@ By default, the dashboard is enabled.
                 if instance_ready_for_shutdown and self.ec2.get_scaling_state(instance_id, do_not_return_excluded=True, meta=meta) == "draining":
                     if meta.get("last_draining_date") is None:
                         continue
+                    if self.ssm.is_maintenance_time(fleet=fleet):
+                        continue
+                    # We need to compensate maintenance window time: As no draining activity is possible during this period, we have not
+                    #   to put long 'draining' instances as instances with issues
+                    #start_date, end_date = self.ssm.get_last_window_dates(fleet=fleet)
+                    #time_offset = 0
+                    #if start_date is not None:
+                    #    end_date = self.context["now"] if end_date is None else end_date
+                    #    if meta["last_draining_date"] < start_date:
+                    #        time_offset += (end_date - start_date).total_seconds()
+
                     if (self.context["now"] - meta["last_draining_date"]).total_seconds() > (max_shutdown_delay - grace_period):
                         instances_with_issue_ids.append(instance_id)
                         continue
@@ -1280,10 +1297,11 @@ By default, the dashboard is enabled.
            instance_id = i["InstanceId"]
            # Refresh the TTL if the 'draining' operation takes a long time
            #   and collect metadata about the instance scaling state.
-           meta = {}
-           self.ec2.set_scaling_state(instance_id, "draining", meta=meta)
-
            subfleet_name = self.ec2.get_subfleet_name_for_instance(i)
+           meta          = {}
+           self.ec2.set_scaling_state(instance_id, "draining", meta=meta, 
+                   force=self.ssm.is_maintenance_time(fleet=subfleet_name)) # Fore update of 'last_draining_time' when in maintenance
+
            if self.ssm.is_feature_enabled("maintenance_window") and self.ssm.is_maintenance_time(fleet=subfleet_name):
                log.info(f"Can't stop drained instance {instance_id} while a SSM Maintenance window is active.")
                continue
@@ -1442,7 +1460,7 @@ By default, the dashboard is enabled.
                         ([i["InstanceId"] for i in vertical_sorted_instances["lh_instances"]]))
             return candidates
         
-        fleet_instances             = self.ec2.get_subfleet_instances(subfleet_name=subfleet, with_excluded_instances=True) 
+        fleet_instances        = self.ec2.get_subfleet_instances(subfleet_name=subfleet, with_excluded_instances=True) 
         min_instance_count     = max(0, get_subfleet_key_abs_or_percent("ec2.schedule.min_instance_count", subfleet,
                                         0, len(fleet_instances)))
         desired_instance_count = max(0, get_subfleet_key_abs_or_percent("ec2.schedule.desired_instance_count", subfleet,
@@ -1561,7 +1579,7 @@ By default, the dashboard is enabled.
                         log.info(f"Scale-in actions disabled during '{subfleet}' subfleet SSM Maintenance Window: "
                             "Should have placed in 'draining' state up to %s instances..." % len(instances_to_stop))
                         continue
-                    log.info("Draining subfleet instance(s) '%s'..." % instance_ids)
+                    log.info(f"Draining instance(s) '{instance_ids}' from 'stopped' fleet '{subfleet}'...")
                 for instance_id in instance_ids:
                     self.ec2.set_scaling_state(instance_id, "draining")
 
@@ -1875,16 +1893,14 @@ By default, the dashboard is enabled.
         instances_with_issues = self.instances_with_issues
         new_unuseable_ids     = []
         for i in instances_with_issues:
-            last_seen_date = self.ec2.get_state_date("ec2.schedule.bounce.instance_with_issues.%s" % i, TTL=grace_period * 2)
+            last_seen_date = self.ec2.get_state_date("ec2.schedule.bounce.instance_with_issues.%s" % i, TTL=grace_period * 1.2)
             if self.ec2.get_scaling_state(i) == "draining":
                 continue
             if last_seen_date is None:
-                self.ec2.set_state("ec2.schedule.bounce.instance_with_issues.%s" % i, now, TTL=grace_period * 2)
-                last_seen_date = now
+                self.ec2.set_state("ec2.schedule.bounce.instance_with_issues.%s" % i, now, TTL=grace_period * 1.2)
                 new_unuseable_ids.append(i)
-            else:
-                self.ec2.set_state("ec2.schedule.bounce.instance_with_issues.%s" % i, last_seen_date, TTL=grace_period * 2)
-            if (now - last_seen_date).total_seconds() > grace_period + (grace_period * random.random()):
+                continue
+            if (now - last_seen_date).total_seconds() > grace_period:
                 subfleet = self.ec2.get_subfleet_name_for_instance(i)
                 if self.ssm.is_feature_enabled("maintenance_window") and self.ssm.is_maintenance_time(fleet=subfleet):
                     log.info(f"Bouncing actions disabled during '{subfleet}' subfleet SSM Maintenance Window: "
@@ -1892,7 +1908,17 @@ By default, the dashboard is enabled.
                     continue
                 self.ec2.set_scaling_state(i, "draining")
                 log.info("Bounced instance '%s' with issues as grace period expired!" % i)
+
+        # Garbage collect outdated keys
+        prefix = "ec2.schedule.bounce.instance_with_issues."
+        for k in self.o_state.get_keys(prefix=prefix):
+            instance_id = k[len(prefix):]
+            if instance_id not in instances_with_issues:
+                self.ec2.set_state(f"ec2.schedule.bounce.instance_with_issues.{instance_id}", "")
+
+        # Send user notification
         if len(new_unuseable_ids):
+            log.log(log.NOTICE, f"Instances seen 'unuseable' for the first time: {new_unuseable_ids}")
             # Notify the user that new instance just became unuseable
             R(None, self.new_instances_marked_as_unuseable, InstanceIds=new_unuseable_ids)
 

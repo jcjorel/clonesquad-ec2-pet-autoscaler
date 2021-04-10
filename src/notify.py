@@ -86,8 +86,9 @@ def record_call_extended(records_args, is_success_func, f, *args, **kwargs):
             log.exception("Failed to persist aggregated date!")
         xray_recorder.end_subsegment()
 
-    if this.notify_mgr is None or this.do_not_notify:
-        log.debug("Do not write Event in event table: notify_mgr=%s, do_not_notify=%s" % (this.notify_mgr, do_not_notify))
+    if (not need_longterm_record and not need_longterm_record) or this.notify_mgr is None or this.do_not_notify:
+        log.debug(f"Do not write Event in event table: need_longterm_record={need_longterm_record}, need_shortterm_record={need_shortterm_record}, "
+                f"notify_mgr=%s, do_not_notify={do_not_notify}" % this.notify_mgr)
         if managed_exception is not None:
             raise managed_exception
         return r
