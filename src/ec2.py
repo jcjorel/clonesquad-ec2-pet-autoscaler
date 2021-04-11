@@ -372,6 +372,8 @@ without any TargetGroup but another external health instance source exists).
         instances                       = self.get_instances(State="pending,running", ScalingState="-draining")
         for i in instances:
             instance_id     = i["InstanceId"]
+            if self.is_instance_excluded(instance_id):
+                continue
             launch_time     = i["LaunchTime"]
             last_start_date = self.get_state_date(f"ec2.instance.ssm.ready_for_operation.start_date.{instance_id}", TTL=self.ttl)
             if last_start_date is None or last_start_date < launch_time:

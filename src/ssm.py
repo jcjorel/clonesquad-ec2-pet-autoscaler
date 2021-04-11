@@ -601,7 +601,8 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
         now         = self.context["now"]
         sa          = max(Cfg.get_duration_secs("ssm.feature.maintenance_window.start_ahead"), 30)
         # We compute a predictive jitter to avoid all subleets starting exactly at the same time
-        jitter_salt = int(misc.sha256(f"{fleet}")[:3], 16) / (16 * 16 * 16) * sa
+        group_name  = self.context["GroupName"]
+        jitter_salt = int(misc.sha256(f"{group_name}:{fleet}")[:3], 16) / (16 * 16 * 16) * sa
         jitter      = Cfg.get_abs_or_percent("ssm.feature.maintenance_window.start_ahead.max_jitter", 0, jitter_salt)
 
         start_ahead = timedelta(seconds=(sa-jitter))
