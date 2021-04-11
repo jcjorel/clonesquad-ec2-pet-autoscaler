@@ -55,12 +55,12 @@ By default, entering a MW period means that `ec2.schedule.min_instance_count` an
 
 Tagging the MW object may be used to change these default settings (but also any possible settings as-well).
 
-Example of tag names to set on a MW object:
+Examples of tags and values to put on a MW object:
 
-	clonesquad:config:ec2.min_instance_count
-	clonesquad:config:ec2.desired_instance_count
-	clonesquad:config:subfleet.__all__.state
-	clonesquad:config:subfleet.ASubfleetName.ec2.schedule.min_instance_count: 50p
+	clonesquad:config:ec2.min_instance_count: 50p
+	clonesquad:config:ec2.desired_instance_count: -1
+	clonesquad:config:subfleet.__all__.state: running
+	clonesquad:config:subfleet.ASubfleetName.ec2.schedule.min_instance_count: 66p
 
 > **IMPORTANT: Due to tag value constraint, you can not use the `%` character to express a pourcentage. Please use the letter `p` as replacement** (Ex: `100p` means `100%`).
 
