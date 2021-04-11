@@ -674,6 +674,10 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
                         min_instance_count = tags[tag]
                         del tags[tag]
                 for t in tags:    
+                    if not Cfg.is_builtin_key_exist(t):
+                        log.warning(f"On SSM MaintenanceWindow objection %s/%s, tag '{config_tag}.{t}' does not refer "
+                            "to an existing configuration key!!" % (mw["WindowId"], mw["Name"]))
+                        continue
                     config[f"override:{t}"] = tags[t]
             return min_instance_count
         config = {}
@@ -689,6 +693,7 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
         self.send_events(instance_ids, "maintenance_window.state_change", event_name, {
             }, notification_handler=self.ssm_maintenance_window_event, pretty_event_name=pretty_event_name)
 
+        # Main fleet Maintenance window management
         if not is_maintenance_time:
             if "NextWindowMessage" in meta:
                 log.log(log.NOTICE, meta["NextWindowMessage"])
@@ -701,6 +706,7 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
             if min_instance_count == "100%":
                 config["override:ec2.schedule.desired_instance_count"] = "100%"
 
+        # Subfleet Maintenance window management
         for subfleet in self.o_ec2.get_subfleet_names():
             meta = {}
             is_maintenance_time = self.is_maintenance_time(fleet=subfleet, meta=meta)
@@ -725,6 +731,8 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
                     config[f"override:subfleet.{subfleet}.ec2.schedule.desired_instance_count"] = "100%"
                 if Cfg.get_int("ssm.feature.maintenance_window.subfleet.{SubfleetName}.force_running"):
                     config[f"override:subfleet.{subfleet}.state"] = "running"
+
+        # Register SSM Maintenance Window configuration override
         Cfg.register(config, layer="SSM Maintenance window override", create_layer_when_needed=True)
 
     def ssm_maintenance_window_event(self, InstanceIds=None, EventClass=None, EventName=None, EventArgs=None):
