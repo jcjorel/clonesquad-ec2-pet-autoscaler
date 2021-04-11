@@ -279,7 +279,7 @@ is enabled, from an instance type distribution PoV.
                          "Format": "Duration",
                          "Description": """Minimum time to spend in the 'draining' state.
 
-If SSM support is enabled with [`ssm.feature.events.ec2.instance_ready_for_shutdown`](#ssmfeatureeventsec2instance_ready_for_shutdown), a script located in the drained instance is executed to ensure that the instance is ready for shutdown even after the specified duration is exhausted. IF this scripts return non-zero code, the shutdown is posponed for a maximum duration defined in [`ssm.feature.events.ec2.instance_ready_for_shutdown.max_shutdown_delay`](#ssmfeatureeventsec2instance_ready_for_shutdownmax_shutdown_delay).
+If SSM support is enabled with [`ssm.feature.events.ec2.instance_ready_for_shutdown`](#ssmfeatureeventsec2instance_ready_for_shutdown), a script located in the drained instance is executed to ensure that the instance is ready for shutdown even after the specified duration is exhausted. If this script returns non-zero code, the shutdown is postponed for a maximum duration defined in [`ssm.feature.events.ec2.instance_ready_for_shutdown.max_shutdown_delay`](#ssmfeatureeventsec2instance_ready_for_shutdownmax_shutdown_delay).
                 """
                 },
                  "ec2.schedule.start.warmup_delay,Stable": {
