@@ -60,6 +60,7 @@ Example of tag names to set on a MW object:
 	clonesquad:config:ec2.min_instance_count
 	clonesquad:config:ec2.desired_instance_count
 	clonesquad:config:subfleet.__all__.state
+	clonesquad:config:subfleet.ASubfleetName.ec2.schedule.min_instance_count: 50p
 
 > **IMPORTANT: Due to tag value constraint, you can not use the `%` character to express a pourcentage. Please use the letter `p` as replacement** (Ex: `100p` means `100%`).
 
