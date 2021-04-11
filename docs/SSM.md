@@ -89,6 +89,22 @@ Scripts called depending on the event type:
 
 > Note: A just started instance **always** receives ASAP this event to inform it what is the period type (i.e. this event is not only sent at the very moment of entering or exiting the maintenance window period).
 
+### Notification of 'DRAINING' event and 'Port Blacklist' advanced subfeature
+
+**Feature toggle:** [`ssm.feature.events.ec2.scaling_state_changes`](CONFIGURATION_REFERENCE.md#ssmfeatureeventsec2scaling_state_changes)
+
+This event is sent when an instance enters the 'draining' state: The event warns that the instance is selected to be shutdown soon. 
+
+If it exists on the instance, the scripts `/etc/cs-ssm/instance-scaling-state-change-draining` is exectued with first argument as the previous state. If this scripts returns a non-zero code, it will be repeated.
+
+#### 'Port Blacklist' advanced subfeature
+
+The prot blacklist subfeature allows to install an IPtables on an instance entering the `draining` state. This IPTables will block new TCP conections defined in [`ssm.feature.events.ec2.scaling_state_changes.draining.new_connection_blocked_port_list`](CONFIGURATION_REFERENCE.md#ssmfeatureeventsec2scaling_state_changesdrainingnew_connection_blocked_port_list). 
+
+This subfeature is especially useful to fail healthchecks of external balancers while allowing currently active connections to finish.
+
+> See [`ssm.feature.events.ec2.instance_ready_for_shutdown`](CONFIGURATION_REFERENCE.md#ssmfeatureeventsec2instance_ready_for_shutdown) to control the amount of time spend in the `draining` time.
+
 
 ### Probe of shutdown readyness
 
@@ -113,6 +129,4 @@ By default, CloneSquad waits up to one hour (see [`ssm.feature.events.ec2.instan
 
 
 > Note: When an instance enters the 'unuseable' state, a User Notification of type `new_instances_marked_as_unuseable` is sent: User may log and react to this event to detect instances needing servicing. 
-
-
 

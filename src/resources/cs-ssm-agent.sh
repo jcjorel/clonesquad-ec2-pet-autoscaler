@@ -125,7 +125,7 @@ function main()
 		new_state="##NewState##"
 		old_state="##OldState##"
 		cs_echo $CMD "$new_state $old_state"
-		probe_test instance-scaling-state-change $new_state  $old_state \
+		probe_test instance-scaling-state-change-$new_state  $old_state \
 			"instance $AWS_SSM_INSTANCE_ID has acked the '$new_state' state (Previous state was $old_state)." \
 			"instance $AWS_SSM_INSTANCE_ID did not acked the '$new_state' state (Previous state was $old_state). Message will be repeated!"
 	;;
