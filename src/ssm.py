@@ -626,7 +626,7 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
                         w["NextExecutionTime"], TTL=self.ttl)
                     self.o_state.set_state(f"ssm.events.maintenance_window.last_next_execution_duration.{window_id}", 
                         w["Duration"], TTL=self.ttl)
-            # SSM maintenance window do not always have a NextExecutionTime field. Restore it from a backuped one
+            # SSM maintenance windows do not always have a NextExecutionTime field. Restore it from a backuped one
             next_execution_time = self.o_state.get_state_date(f"ssm.events.maintenance_window.last_next_execution_time.{window_id}", TTL=self.ttl)
             if next_execution_time is not None:
                 w["NextExecutionTime"] = next_execution_time
@@ -638,8 +638,9 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
         fleetname     = "Main" if fleet is None else fleet
         next_window   = None
         for w in sorted(valid_windows, key=lambda w: w["NextExecutionTime"]):
-            end_time = w["NextExecutionTime"] + timedelta(hours=int(w["Duration"]))
-            if now >= (w["NextExecutionTime"] - start_ahead) and now < end_time:
+            end_time   = w["NextExecutionTime"] + timedelta(hours=int(w["Duration"]))
+            start_time = w["NextExecutionTime"] - start_ahead
+            if now >= start_time and now < end_time:
                 if meta is not None: 
                     meta["MatchingWindow"] = w
                     meta["MatchingWindowMessage"] = f"Found ACTIVE matching window for fleet {fleetname} : {w}"
@@ -647,10 +648,12 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
                     meta["EndTime"] = end_time
                 return True
             if "NextExecutionTime" in w and (next_window is None or w["NextExecutionTime"] < next_window["NextExecutionTime"]):
-                next_window = w
+                next_window     = w
+                next_start_time = start_time
         if next_window is not None and meta is not None:
-            meta["NextWindowMessage"] = f"Next SSM Maintenance Window for {fleetname} fleet is '%s/%s' in %s" % (
-                                            w["WindowId"], w["Name"], (w["NextExecutionTime"] - now))
+            meta["NextWindowMessage"] = (f"Next SSM Maintenance Window for {fleetname} fleet is '%s/%s in %s "
+                                            "(Fleet will start ahead at {next_start_time})." % 
+                                                (w["WindowId"], w["Name"], (w["NextExecutionTime"] - now)))
         return False
 
     def manage_maintenance_windows(self):
