@@ -53,11 +53,11 @@ Temporary MW settings can be modified through tags on the MW objects: All tags s
 
 By default, entering a MW period means that `ec2.schedule.min_instance_count` and `ec2.schedule.desired_instance_count` configuration settings are both temporary overriden with the string value `100%`: This makes all instances start (including LightHouse ones).
 
-Tagging the MW object may be used to change these default settings (but also any possible settings as-well).
+Tagging the MW object may be used to change these default settings (but also any other valid settings as-well).
 
 Examples of tags and values to put on a MW object:
 
-	clonesquad:config:ec2.min_instance_count: 50p
+	clonesquad:config:ec2.min_instance_count: 20
 	clonesquad:config:ec2.desired_instance_count: -1
 	clonesquad:config:subfleet.__all__.state: running
 	clonesquad:config:subfleet.ASubfleetName.ec2.schedule.min_instance_count: 66p
