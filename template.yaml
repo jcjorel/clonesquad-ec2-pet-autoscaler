@@ -696,6 +696,7 @@ Resources:
                   - 'ssm:DescribeMaintenanceWindows'
                   - 'ssm:DescribeInstanceInformation'
                   - 'ssm:ListCommandInvocations'
+                  - 'ssm:ListTagsForResource'
                   - 'ssm:SendCommand'
 
     MainFunction:
