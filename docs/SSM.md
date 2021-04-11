@@ -71,7 +71,7 @@ CloneSquad uses the [AWS SSM RunCommand](https://docs.aws.amazon.com/systems-man
 
 > Note: Sending events to Windows instances is currently not supported.
 
-These event scripts allow user to react to some critical events to make operations smooth and reliable.
+These event scripts allow user to react to some critical CloneSquad events to make operations smooth and reliable.
 **These scripts are not meant to perform long running tasks** but to inform and probe about an event and associated return status if required. As a general rule of thumb, if a user script returns a zero-code, the event is assumed successfully taken into account by the instance. If the user scripts returns a non-zero code, the event will be repeated until event specific timeout or zero status code received.
 
 > **IMPORTANT: All launched user scripts MUST execute in less than 30 seconds or will be forcibly terminated otherwise by the AWS SSM agent running in the EC2 instance.**  
@@ -89,7 +89,7 @@ Scripts called depending on the event type:
 
 > Note: A just started instance **always** receives ASAP this event to inform it what is the period type (i.e. this event is not only sent at the very moment of entering or exiting the maintenance window period).
 
-### Notification of 'DRAINING' event and 'Port Blacklist' advanced subfeature
+### Notification of 'DRAINING' event
 
 **Feature toggle:** [`ssm.feature.events.ec2.scaling_state_changes`](CONFIGURATION_REFERENCE.md#ssmfeatureeventsec2scaling_state_changes)
 
@@ -97,13 +97,13 @@ This event is sent when an instance enters the 'draining' state: The event warns
 
 If it exists on the instance, the scripts `/etc/cs-ssm/instance-scaling-state-change-draining` is exectued with first argument as the previous state. If this scripts returns a non-zero code, it will be repeated.
 
-#### 'Port Blacklist' advanced subfeature
+#### 'TCP Port Blacklist' advanced subfeature
 
-The prot blacklist subfeature allows to install an IPtables on an instance entering the `draining` state. This IPTables will block new TCP conections defined in [`ssm.feature.events.ec2.scaling_state_changes.draining.new_connection_blocked_port_list`](CONFIGURATION_REFERENCE.md#ssmfeatureeventsec2scaling_state_changesdrainingnew_connection_blocked_port_list). 
+The TCP port blacklist subfeature uses the SSM RunCommand to install an in-memory IPtables on an instance entering the `draining` state. This IPTables will generate 'Connection refused' message to new TCP connection attempts targeting ports defined in [`ssm.feature.events.ec2.scaling_state_changes.draining.new_connection_blocked_port_list`](CONFIGURATION_REFERENCE.md#ssmfeatureeventsec2scaling_state_changesdrainingnew_connection_blocked_port_list). 
 
 This subfeature is especially useful to fail healthchecks of external balancers while allowing currently active connections to finish.
 
-> See [`ssm.feature.events.ec2.instance_ready_for_shutdown`](CONFIGURATION_REFERENCE.md#ssmfeatureeventsec2instance_ready_for_shutdown) to control the amount of time spend in the `draining` time.
+> See also [`ssm.feature.events.ec2.instance_ready_for_shutdown`](CONFIGURATION_REFERENCE.md#ssmfeatureeventsec2instance_ready_for_shutdown) to control the amount of time spend in the `draining` time.
 
 
 ### Probe of shutdown readyness
