@@ -34,7 +34,7 @@ Default SSM Maintenance Window naming convention:
 	* `CS-{GroupName}-Subfleet.__all__`: A MW afffecting all subfleet instances,
 		* `CS-{GroupName}-Subfleet.{SubfleetName}`: A MW affecting a specific instance fleet.
 
-> **IMPORTANT: SSM Maintenance Window objects MUST be tagged with `clonesquad:group-name`: `{GroupName}` to be useable by CloneSquad.**
+> **IMPORTANT: SSM Maintenance Window objects MUST be tagged with `clonesquad:group-name`: `{GroupName}` to be useable by CloneSquad.** This constraint does not apply to the Maintenance Window named `CS-GlobalDefaultMaintenanceWindow`.
 
 If multiple MW matches, they are cumulative (meaning effective maintenance window periods will be the union of all matching MWs).
 

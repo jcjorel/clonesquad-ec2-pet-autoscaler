@@ -277,7 +277,14 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
                 mw["Tags"] = tmw["Tags"]
         valid_mws = []
         for mw in mws:
+            mw_id=mw["WindowId"]
             if "Tags" not in mw:
+                try:
+                    response   = client.list_tags_for_resource(ResourceType='MaintenanceWindow', ResourceId=mw_id)
+                    mw["Tags"] = response['TagList'] if 'TagList' in response else []
+                except Exception as e:
+                    log.error(f"Failed to fetch Tags for MaintenanceWindow '{mw_id}'")
+            if ("Tags" not in mw or not len(mw["Tags"])) and mw["Name"] not in mw_names["__globaldefault__"]["Names"]:
                 log.warning(f"Please tag SSM Maintenance Window '%s/%s' with 'clonesquad:group-name': '%s'!" %
                         (mw["Name"], mw["WindowId"], self.context["GroupName"]))
                 continue
