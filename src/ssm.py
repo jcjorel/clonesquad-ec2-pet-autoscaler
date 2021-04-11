@@ -634,9 +634,9 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
             if next_execution_duration is not None:
                 w["Duration"] = next_execution_duration
 
-        valid_windows    = [w for w in windows if "NextExecutionTime" in w and "Duration" in w]
-        fleetname        = "Main" if fleet is None else fleet
-        next_window_time = None
+        valid_windows = [w for w in windows if "NextExecutionTime" in w and "Duration" in w]
+        fleetname     = "Main" if fleet is None else fleet
+        next_window   = None
         for w in sorted(valid_windows, key=lambda w: w["NextExecutionTime"]):
             end_time = w["NextExecutionTime"] + timedelta(hours=int(w["Duration"]))
             if now >= (w["NextExecutionTime"] - start_ahead) and now < end_time:
@@ -646,10 +646,11 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
                     meta["StartTime"] = w["NextExecutionTime"]
                     meta["EndTime"] = end_time
                 return True
-            if next_window_time is None and w["NextExecutionTime"] > now:
-                next_window_time = now
-        if next_window_time is not None and meta is not None:
-            meta["NextWindowMessage"] = f"Next SSM Maintenance Window for {fleetname} fleet in %s" % (next_window_time - now)
+            if "NextExecutionTime" in w and (next_window is None or w["NextExecutionTime"] < next_window["NextExecutionTime"]):
+                next_window = w
+        if next_window is not None and meta is not None:
+            meta["NextWindowMessage"] = f"Next SSM Maintenance Window for {fleetname} fleet is '%s/%s' in %s" % (
+                                            w["WindowId"], w["Name"], (w["NextExecutionTime"] - now))
         return False
 
     def manage_maintenance_windows(self):
