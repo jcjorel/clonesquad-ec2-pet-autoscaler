@@ -470,7 +470,6 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
         # Send commands
         for cmd in self.commands_to_send:
             platforms = {}
-
             for i in cmd["InstanceIds"]:
                 info = self.is_instance_online(i)
                 if info is None:
@@ -481,7 +480,7 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
                     log.warning("Can't run a command on an unsupported platform : %s" % info["PlatformType"])
                     continue # Unsupported platform
                 if platform_type not in platforms:
-                    platforms[platform_type] = pltf.copy()
+                    platforms[platform_type] = copy.deepcopy(pltf)
                 if i not in platforms[platform_type]["ids"]:
                     platforms[platform_type]["ids"].append(i)
 
@@ -490,6 +489,8 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
             for p in platforms:
                 pltf         = platforms[p]
                 instance_ids = pltf["ids"]
+                if not len(instance_ids):
+                    continue
                 document     = pltf["document"]
                 shell        = pltf["shell"]
                 i_ids        = instance_ids
@@ -504,7 +505,7 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
                         shell_input = [l.replace(f"##{s}##", str(args[s])) for l in shell_input]
 
                 while len(i_ids):
-                    log.log(log.NOTICE, f"SSM SendCommand: {command}({args}) to %s." % i_ids[:50])
+                    log.log(log.NOTICE, f"SSM SendCommand({p}): {command}({args}) to %s." % i_ids[:50])
 
                     try:
                         response = client.send_command(
