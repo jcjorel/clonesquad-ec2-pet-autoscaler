@@ -369,7 +369,7 @@ When no argument is specified, it returns the current list of unstoppable instan
 * `instanceids`: URL-encoded coma separated list of instance Ids or the `all` special value,
 * `instancenames`: URL-encoded coma separated list of instance names,
 * `subfleetnames`: URL-encoded coma separated list of instance names (Note: Specifying an empty string matches all Main fleet instances),
-* `excluded`: Mark the matching instances as temporarily excluded from their fleets (Valid values: [`False`, `True`]. Default: `False`). **When user requests to exclude a currently serving instance (either with this API or with the `clonesquad:excluded` tag), the scheduler is going to react by starting a replacement instance immediatly.**,
+* `excluded`: Mark the matching instances as temporarily excluded from their fleets (Valid values: [`False`, `True`]. Default: `False`). **When user requests to exclude a currently serving instance (either with this API or with the `clonesquad:excluded` tag), the scheduler will react by starting a replacement instance immediatly.**,
 * `mode`: Either `add` or `delete`,
 * `ttl`: Nb of seconds or URL-encoded timedelta format (ex: hours=12,days=1). When not specififed, the TTL default to one hour.
 
