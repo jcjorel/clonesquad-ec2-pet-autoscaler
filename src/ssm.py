@@ -643,6 +643,8 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
                 if meta is not None: 
                     meta["MatchingWindow"] = w
                     meta["MatchingWindowMessage"] = f"Found ACTIVE matching window for fleet {fleetname} : {w}"
+                    meta["StartTime"] = w["NextExecutionTime"]
+                    meta["EndTime"] = end_time
                 return True
             if next_window_time is None and w["NextExecutionTime"] > now:
                 next_window_time = now
@@ -698,7 +700,8 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
             if "NextWindowMessage" in meta:
                 log.log(log.NOTICE, meta["NextWindowMessage"])
         else:
-            log.log(log.NOTICE, meta["MatchingWindowMessage"])
+            log.log(log.NOTICE, f"Main fleet under Active Maintenance Window until %s : %s" % 
+                    (meta["EndTime"], meta["MatchingWindow"]))
             min_instance_count = _set_tag(None, config, meta["MatchingWindow"])
             if min_instance_count is None:
                 min_instance_count = Cfg.get("ssm.feature.maintenance_window.mainfleet.ec2.schedule.min_instance_count")
@@ -722,7 +725,8 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
                 if "NextWindowMessage" in meta:
                     log.log(log.NOTICE, meta["NextWindowMessage"])
             else:
-                log.log(log.NOTICE, meta["MatchingWindowMessage"])
+                log.log(log.NOTICE, f"Subflee '{subfleet}' fleet under Active Maintenance Window until %s : %s" % 
+                    (meta["EndTime"], meta["MatchingWindow"]))
                 min_instance_count = _set_tag(subfleet, config, meta["MatchingWindow"])
                 if min_instance_count is None:
                     min_instance_count = Cfg.get(f"ssm.feature.maintenance_window.subfleet.{subfleet}.ec2.schedule.min_instance_count")
