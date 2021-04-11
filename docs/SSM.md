@@ -20,7 +20,8 @@ CloneSquad extends native SSM Maintenance Window capabilities by looking at them
 * No instance can be put in `draining` state or even shutdown by CloneSquad,
 	* As consequence, any instance started during the Maintenance Window period (manually through console or by the auto-scaler) remains up until end of the MW period (and Spot Interrupted instances are replaced as usual during a Maintenance Period).
 * Managed EC2 instances MUST run a successfully registered SSM agent or will be considered as unhealthy otherwise (but won't be stopped until end of the Maintenance Window. cf. previous statement),
-* By default, all managed instances (Main fleet instances -including LightHouse ones- or subfleet instances) are started. In this default temporary configuration (i.e. with `ec2.schedule.desired_instance_count` set to `100%`), no unhealthy instance replacement is performed leading to full fleet stability.
+* By default, all managed instances (Main fleet instances *-including LightHouse ones-* or subfleet instances) are started. In this default temporary configuration (i.e. with `ec2.schedule.min_instance_count`and `ec2.schedule.desired_instance_count` set to `100%`), no unavailable instance replacement is performed leading to full fleet stability.
+	* If user overrides the active Maintenance window settings (see [below](#tagging-ssm-maintenance-objects-to-change-default-behaviors)) with an `ec2.schedule.min_instance_count` different than `100%`, `ec2.desired_instance_count` is left to user setting value meaning that (auto)scalers continue to behave as expected: They are only limited to start instance actions during a MW.
 
 ### Getting started with SSM Maintenance Window and CloneSquad
 
