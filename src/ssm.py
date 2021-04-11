@@ -660,12 +660,13 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
                     meta["StartTime"] = w["NextExecutionTime"]
                     meta["EndTime"] = end_time
                 return True
-            if "NextExecutionTime" in w and (next_window is None or w["NextExecutionTime"] < next_window["NextExecutionTime"]):
+            if ("NextExecutionTime" in w and w["NextExecutionTime"] > now and 
+                    (next_window is None or w["NextExecutionTime"] < next_window["NextExecutionTime"])):
                 next_window     = w
                 next_start_time = start_time
         if next_window is not None and meta is not None:
             meta["NextWindowMessage"] = (f"Next SSM Maintenance Window for {fleetname} fleet is '%s/%s in %s "
-                                            "(Fleet will start ahead at {next_start_time})." % 
+                                            f"(Fleet will start ahead at {next_start_time})." % 
                                                 (w["WindowId"], w["Name"], (w["NextExecutionTime"] - now)))
         return False
 
