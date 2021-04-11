@@ -3,6 +3,7 @@
 # AWS_SSM_INSTANCE_ID
 # SSM_COMMAND_ID
 export CS_SSM_AGENT_SCRIPT_DIR=/etc/cs-ssm/
+export CS_GW_URL="##ApiGwUrl##"
 
 function cs_echo()
 {

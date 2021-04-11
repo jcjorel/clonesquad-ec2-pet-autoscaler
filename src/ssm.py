@@ -495,6 +495,7 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
                 i_ids        = instance_ids
                 # Perform string parameter substitutions in the helper script
                 shell_input = [l.replace("##Cmd##", command) for l in shell]
+                shell_input = [l.replace("##ApiGwUrl##", self.context["InteractAPIGWUrl"]) for l in shell_input]
                 if isinstance(args, str):
                     shell_input = [l.replace("##Args##", args) for l in shell_input]
                 else:
