@@ -77,8 +77,11 @@ function block_new_connections_to_ports()
 	echo "Creating CloneSquad agent dedicated IPtable chain '$chain'..."
 	sudo iptables -N $chain 
 	# Check if we need to use extra iptables parameters
-	if ! [ -e /etc/cs-ssm/blocked-connections/extra-iptables-parameters.txt ] ; then
-		extra_parameters=$(cat /etc/cs-ssm/blocked-connections/extra-iptables-parameters.txt)
+	parameter_file=/etc/cs-ssm/blocked-connections/extra-iptables-parameters.txt
+	if [ -e $parameter_file ] ; then
+		extra_parameters=$(cat $parameter_file)
+	else
+		echo "No extra parameter file $parameter_file on instance..."
 	fi
 	# Insert the chain in front of all rules
 	sudo iptables -I INPUT -j $chain 
