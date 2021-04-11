@@ -352,72 +352,8 @@ without any TargetGroup but another external health instance source exists).
         log.debug("compute_scaling_states()")
         self.compute_scaling_states()
 
-        # Take a snapshot of current knwon scaling states to detect changes
-        self.scaling_state_snapshots = {}
-        for i in self.get_instances(State="pending,running"):
-            instance_id = i["InstanceId"]
-            self.scaling_state_snapshots[instance_id] = self.get_scaling_state(instance_id, do_not_return_excluded=True)
-
         self.prereqs_done = True
 
-    def send_events(self):
-        """ Send SSM Events linked to instance state changes.
-        """
-        o_ssm = self.context["o_ssm"]
-        if o_ssm.is_feature_enabled("events.ec2.scaling_state_changes"):
-            ids_per_new_state = {}
-            for instance_id in self.scaling_state_snapshots:
-                previous_state = self.scaling_state_snapshots[instance_id]
-                current_state  = self.get_scaling_state(instance_id, do_not_return_excluded=True)
-                if previous_state != current_state:
-                    if current_state not in ids_per_new_state:
-                        ids_per_new_state[current_state] = {}
-                    if previous_state not in ids_per_new_state[current_state]:
-                        ids_per_new_state[current_state][previous_state] = []
-                    ids_per_new_state[current_state][previous_state].append({
-                        "InstanceId": instance_id, 
-                        "NewState": current_state, 
-                        "OldState": previous_state})
-
-            event_name_mappings = {
-                    "draining": {
-                        "Name": "INSTANCE_SCALING_STATE_DRAINING",
-                        "PrettyName": "InstanceScalingState-Draining"
-                    },
-                    "bounced": {
-                        "Name": "INSTANCE_SCALING_STATE_BOUNCED",
-                        "PrettyName": "InstanceScalingState-Bounced"
-                    },
-                }
-
-            draining_ids = []
-            for state in ids_per_new_state:
-                if state in event_name_mappings:
-                    for previous_state in ids_per_new_state[state]:
-                        change            = ids_per_new_state[state][previous_state]
-                        instance_ids      = [c["InstanceId"] for c in change]
-                        if state == "draining":
-                            draining_ids.extend(instance_ids)
-                        log.log(log.NOTICE, f"Instances {instance_ids} changed their scaling state from '{previous_state}' to '{state}'.")
-                        event_name        = event_name_mappings[state]["Name"]
-                        pretty_event_name = event_name_mappings[state]["PrettyName"]
-                        args              = {
-                            "NewState": state,
-                            "OldState": previous_state,
-                        }
-                        o_ssm.send_events(instance_ids, "ec2.scaling_state.change", event_name, args,
-                            pretty_event_name=pretty_event_name)
-
-            # Send the BlockNewConnectionsToPorts event if needed
-            blocked_ports = Cfg.get_list("ssm.feature.events.ec2.scaling_state_changes."
-                    "draining.new_connection_blocked_port_list")
-            if len(blocked_ports) and len(draining_ids):
-                args = {
-                    "BlockedPorts": " ".join(blocked_ports)
-                }
-                o_ssm.send_events(draining_ids, "ec2.scaling_state.change.draining.block_new_connections", 
-                    "INSTANCE_BLOCK_NEW_CONNECTIONS_TO_PORTS", args, pretty_event_name="BlockNewConnectionsToPorts")
-        
     def register_state_aggregates(self, aggregates):
         self.o_state.register_aggregates(aggregates)
 
@@ -425,6 +361,43 @@ without any TargetGroup but another external health instance source exists).
         """ Return the result of describe_instance_status()
         """
         return self.instance_statuses
+
+    def update_ssm_initializing_states(self):
+        o_ssm = self.context["o_ssm"]
+        if not o_ssm.is_feature_enabled("events.ec2.instance_ready_for_operation"):
+            return
+
+        now                             = self.context["now"]
+        self.ssm_initializing_instances = {}
+        instances                       = self.get_instances(State="pending,running", ScalingState="-draining")
+        for i in instances:
+            instance_id     = i["InstanceId"]
+            launch_time     = i["LaunchTime"]
+            last_start_date = self.get_state_date(f"ec2.instance.ssm.ready_for_operation.start_date.{instance_id}", TTL=self.ttl)
+            if last_start_date is None or last_start_date < launch_time:
+                self.set_state(f"ec2.instance.ssm.ready_for_operation.start_date.{instance_id}", now)
+                last_start_date = now
+            last_ready_date = self.get_state_date(f"ec2.instance.ssm.ready_for_operation.ok_date.{instance_id}", TTL=self.ttl)
+            last_ready_date = last_ready_date if last_ready_date is None or last_ready_date > last_start_date else None
+            if last_ready_date is not None:
+                continue
+            # Need status refresh
+            readyness = o_ssm.run_command([instance_id], "INSTANCE_READY_FOR_OPERATION", 
+                    comment="CS-InstanceReadyForOperation (%s)" % self.context["GroupName"])
+            status    = readyness.get(instance_id, {}).get("Status")
+            if status == "SUCCESS":
+                self.set_state(f"ec2.instance.ssm.ready_for_operation.ok_date.{instance_id}", now)
+                continue
+
+            unhealthy = False
+            if (now - last_start_date) > timedelta(seconds=Cfg.get_duration_secs("ssm.feature.events.ec2.instance_ready_for_operation.max_initializing_time")):
+                    log.warning(f"Instance {instance_id} spent too much time in initializing state. Report it as unhealthy...")
+                    unhealthy = True
+            self.ssm_initializing_instances[instance_id] = {
+                "LastStartDate": last_start_date,
+                "LastReadyDate": last_ready_date,
+                "Unhealthy": unhealthy
+                }
 
     INSTANCE_STATES = ["ok", "impaired", "insufficient-data", "not-applicable", "initializing", "unhealthy", "az_evicted"]
     def is_instance_state(self, instance_id, state):
@@ -463,25 +436,13 @@ without any TargetGroup but another external health instance source exists).
                     return override_status in state
 
         o_ssm = self.context["o_ssm"]
-        if o_ssm.is_feature_enabled("events.ec2.instance_ready_for_operation"):
-            launch_time     = self.get_instance_by_id(instance_id)["LaunchTime"]
-            last_ready_date = self.get_state_date(f"ec2.instance.ssm.ready_for_operation_date.{instance_id}", TTL=self.ttl)
-            last_ready_date = last_ready_date if last_ready_date is None or last_ready_date > now else None
-            if last_ready_date is None:
-                # Need status refresh
-                readyness = o_ssm.run_command([instance_id], "INSTANCE_READY_FOR_OPERATION", 
-                        comment="CS-InstanceReadyForOperation (%s)" % self.context["GroupName"], return_former_results=True)
-                status    = readyness.get(instance_id, {}).get("Status")
-                if status == "SUCCESS":
-                    self.set_state(f"ec2.instance.ssm.ready_for_operation_date.{instance_id}", now)
-                    last_ready_date = now
+        if o_ssm.is_feature_enabled("events.ec2.instance_ready_for_operation") and instance_id in self.ssm_initializing_instances:
+            status = self.ssm_initializing_instances[instance_id]
             if "initializing" in state:
-                if last_ready_date is not None:
+                if status["LastReadyDate"] is not None:
                     state.remove("initializing")
                     return i["InstanceStatus"]["Status"] in state
-            if ("unhealthy" in state and last_ready_date is None and 
-                (now - launch_time) > timedelta(seconds=Cfg.get_duration_secs("ssm.feature.events.ec2.instance_ready_for_operation.max_initializing_time"))):
-                    log.warning(f"Instance {instance_id} spent too much time in initializing state. Report it as unhealthy...")
+            if "unhealthy" in state and status["Unhealthy"]:
                     return True
         
         return i["InstanceStatus"]["Status"] in state 
@@ -1100,8 +1061,6 @@ without any TargetGroup but another external health instance source exists).
         if default_date is None: default_date = self.context["now"]
 
         if value != "":
-            o_ssm = self.context["o_ssm"]
-            if self.get_subfleet_name_for_instance(instance_id) == None and not o_ssm.is_maintenance_time(): pdb.set_trace()
             meta           = {} if meta is None else meta
             previous_value = self.get_scaling_state(instance_id, meta=meta, do_not_return_excluded=True)
             date           = meta["last_action_date"] if not force and previous_value == value else default_date
@@ -1111,7 +1070,6 @@ without any TargetGroup but another external health instance source exists).
         else:
             # Remove all state keys
             for action in ["action", "draining", "error", "bounced"]:
-                self.set_state(f"ec2.instance.scaling.last_action_date.{instance_id}", "", TTL=ttl)
                 self.set_state(f"ec2.instance.scaling.last_{action}_date.{instance_id}", "", TTL=ttl)
         self.set_state(f"ec2.instance.scaling.state.{instance_id}", value, TTL=ttl)
         # Update the cache

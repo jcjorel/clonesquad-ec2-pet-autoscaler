@@ -225,7 +225,7 @@ def main_handler_entrypoint(event, context):
     log.debug("Main - send_metrics()")
     ctx["o_cloudwatch"].send_metrics()
     log.debug("Main - send_events()")
-    ctx["o_ec2"].send_events()
+    ctx["o_ec2_schedule"].send_events()
 
     log.debug("Main - configure_dashboard()")
     ctx["o_cloudwatch"].configure_dashboard()
@@ -242,6 +242,15 @@ def main_handler_entrypoint(event, context):
 
     # Call me back if needed
     sqs.call_me_back_send()
+
+    # DEBUG (Stop immedialty all faulty instances)
+    #issues = ctx["o_ec2_schedule"].get_instances_with_issues()
+    #if False and len(issues):
+    #    do_stop = False
+    #    pdb.set_trace()
+    #    issues = ctx["o_ec2_schedule"].get_instances_with_issues()
+    #    if do_stop:
+    #        ctx["o_ec2"].stop_instances(issues)
 
 
 def sns_handler(event, context):

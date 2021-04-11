@@ -157,6 +157,7 @@ By default, all the subfleets is woken up by a maintenance window ([`subfleet.{S
 In order to ensure that instances are up and ready when a SSM Maintenance Window starts, they are started in advance of the 'NextExecutionTime' defined in the maintenance window.
             """
             },
+            "ssm.feature.maintenance_window.start_ahead.max_jitter": "66%",
             "ssm.feature.maintenance_window.global_defaults": "CS-GlobalDefaultMaintenanceWindow",
             "ssm.feature.maintenance_window.defaults": "CS-{GroupName}",
             "ssm.feature.maintenance_window.mainfleet.defaults": "CS-{GroupName}-Mainfleet",
@@ -294,7 +295,9 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
         self.manage_maintenance_windows()
         if len(mws):
             log.log(log.NOTICE, f"Found matching SSM maintenance windows: %s" % self.maintenance_windows["Windows"])
-        
+       
+        # Hard dependency toward EC2 module. We update the SSM instance initializing states
+        self.o_ec2.update_ssm_initializing_states()
 
     def prepare_ssm(self):
         if not Cfg.get_int("ssm.enable"):
@@ -405,27 +408,27 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
             pending_cmd = next(filter(lambda c: c["Command"] == command and c["CommandArgs"] == args 
                 and i in c["InstanceIds"], self.run_cmd_states["Commands"]), None) 
             former_result_status = former_results.get(i,{}).get(command,{}).get("Status")
-            if pending_cmd is None and i not in former_results:
+            if pending_cmd is None:
                 non_pending_ids.append(i)
                 if not return_former_results or not isinstance(former_result_status, str):
                     continue
             if former_results.get(i,{}).get(f"{command};{args}"):
                 r[i] = former_results[i][f"{command};{args}"]
         # Coalesce run reqs with similar command
-        for i in non_pending_ids:
-            cmd_to_send = next(filter(lambda c: c["Command"] == command and c["CommandArgs"] == args, self.commands_to_send), None)
-            if cmd_to_send:
+        cmd_to_send = next(filter(lambda c: c["Command"] == command and c["CommandArgs"] == args, self.commands_to_send), None)
+        if cmd_to_send:
+            for i in non_pending_ids:
                 if i in cmd_to_send["InstanceIds"]:
                     continue
                 cmd_to_send["InstanceIds"].append(i)
-            else:
-                self.commands_to_send.append({
-                    "InstanceIds": non_pending_ids,
-                    "Command": command,
-                    "CommandArgs": args,
-                    "Comment": comment,
-                    "Timeout": timeout,
-                    })
+        else:
+            self.commands_to_send.append({
+                "InstanceIds": non_pending_ids,
+                "Command": command,
+                "CommandArgs": args,
+                "Comment": comment,
+                "Timeout": timeout,
+                })
         return r
 
     @xray_recorder.capture()
@@ -439,7 +442,6 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
                 "document": "AWS-RunShellScript",
                 "shell": [s.rstrip() for s in io.StringIO(str(misc.get_url("internal:cs-ssm-agent.sh"), "utf-8")).readlines()],
                 "ids": [],
-                "responses": []
             }
         }
         # Purge already replied results
@@ -460,37 +462,41 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
 
         # Send commands
         for cmd in self.commands_to_send:
+            platforms = {}
+
             for i in cmd["InstanceIds"]:
                 info = self.is_instance_online(i)
                 if info is None:
                     continue
-                pltf = refs.get(info["PlatformType"])
+                platform_type = info["PlatformType"]
+                pltf          = refs.get(platform_type)
                 if pltf is None:
                     log.warning("Can't run a command on an unsupported platform : %s" % info["PlatformType"])
                     continue # Unsupported platform
-                if i not in pltf["ids"]:
-                    pltf["ids"].append(i)
+                if platform_type not in platforms:
+                    platforms[platform_type] = pltf.copy()
+                if i not in platforms[platform_type]["ids"]:
+                    platforms[platform_type]["ids"].append(i)
 
-            for pltf_name in refs:
-                pltf     = refs[pltf_name]
-                if len(pltf["ids"]) == 0:
-                    continue
-                command  = cmd["Command"]
-                args     = cmd["CommandArgs"]
-                document = pltf["document"]
-                shell    = pltf["shell"]
-                i_ids    = pltf["ids"]
+            command = cmd["Command"]
+            args    = cmd["CommandArgs"]
+            for p in platforms:
+                pltf         = platforms[p]
+                instance_ids = pltf["ids"]
+                document     = pltf["document"]
+                shell        = pltf["shell"]
+                i_ids        = instance_ids
+                # Perform string parameter substitutions in the helper script
+                shell_input = [l.replace("##Cmd##", command) for l in shell]
+                if isinstance(args, str):
+                    shell_input = [l.replace("##Args##", args) for l in shell_input]
+                else:
+                    shell_input = [l.replace("##Args##", args["Args"] if "Args" in args else "") for l in shell_input]
+                    for s in args:
+                        shell_input = [l.replace(f"##{s}##", str(args[s])) for l in shell_input]
+
                 while len(i_ids):
                     log.log(log.NOTICE, f"SSM SendCommand: {command}({args}) to %s." % i_ids[:50])
-
-                    # Perform string parameter substitutions in the helper script
-                    shell_input = [l.replace("##Cmd##", command) for l in shell]
-                    if isinstance(args, str):
-                        shell_input = [l.replace("##Args##", args) for l in shell_input]
-                    else:
-                        shell_input = [l.replace("##Args##", args["Args"] if "Args" in args else "") for l in shell_input]
-                        for s in args:
-                            shell_input = [l.replace(f"##{s}##", str(args[s])) for l in shell_input]
 
                     try:
                         response = client.send_command(
@@ -526,7 +532,7 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
         self.o_state.set_state_json("ssm.events.run_commands", self.run_cmd_states, compress=True, TTL=self.ttl)
 
     def send_events(self, instance_ids, event_class, event_name, event_args, pretty_event_name=None, notification_handler=None):
-        if not self.is_feature_enabled("maintenance_window"):
+        if not Cfg.get_int("ssm.enable"):
             return False
 
         now            = self.context["now"]
@@ -593,7 +599,12 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
         if not self.is_feature_enabled("maintenance_window"):
             return False
         now         = self.context["now"]
-        start_ahead = timedelta(seconds=max(Cfg.get_duration_secs("ssm.feature.maintenance_window.start_ahead"), 30))
+        sa          = max(Cfg.get_duration_secs("ssm.feature.maintenance_window.start_ahead"), 30)
+        # We compute a predictive jitter to avoid all subleets starting exactly at the same time
+        jitter_salt = int(misc.sha256(f"{fleet}")[:3], 16) / (16 * 16 * 16) * sa
+        jitter      = Cfg.get_abs_or_percent("ssm.feature.maintenance_window.start_ahead.max_jitter", 0, jitter_salt)
+
+        start_ahead = timedelta(seconds=(sa-jitter))
         windows     = copy.deepcopy(self._get_maintenance_windows_for_fleet(fleet=fleet))
         for w in windows:
             window_id= w["WindowId"]

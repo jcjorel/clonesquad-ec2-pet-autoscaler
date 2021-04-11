@@ -510,6 +510,7 @@ By default, the dashboard is enabled.
         self.compute_spot_exclusion_lists()
         self.initializing_instances                 = self.get_initial_instances()
         self.cpu_exhausted_instances                = self.get_cpu_exhausted_instances()
+        self.unhealthy_instances_in_targetgroups    = self.targetgroup.get_registered_instance_ids(state="unavail,unhealthy")
         self.instances_with_issues                  = self.get_instances_with_issues()
         self.useable_instances                      = self.get_useable_instances()
         self.useable_instance_count                 = self.get_useable_instance_count()
@@ -555,6 +556,13 @@ By default, the dashboard is enabled.
         for state in self.ec2.list_states(not_matching_instances=instances):
             log.debug("Garbage collect key '%s'..." % state)
             self.ec2.set_state(state, "", TTL=1)
+
+        # Take a snapshot of current knwon scaling states to detect changes
+        self.scaling_state_snapshots = {}
+        for i in self.ec2.get_instances(State="pending,running"):
+            instance_id = i["InstanceId"]
+            self.scaling_state_snapshots[instance_id] = self.ec2.get_scaling_state(instance_id, do_not_return_excluded=True)
+
 
         # Display a warning if some AZ are manually disabled
         disabled_azs = self.get_disabled_azs()
@@ -688,7 +696,7 @@ By default, the dashboard is enabled.
         instances_with_issue_ids= []
 
         # TargetGroup related issues
-        instances_with_issue_ids.extend(self.targetgroup.get_registered_instance_ids(state="unavail,unhealthy"))
+        instances_with_issue_ids.extend(self.unhealthy_instances_in_targetgroups)
 
         # EC2 related issues
         impaired_instances      = [i["InstanceId"] for i in active_instances 
@@ -729,7 +737,7 @@ By default, the dashboard is enabled.
                     continue
                 fleet = self.ec2.get_subfleet_name_for_instance(i)
                 if instance_ready_for_operation and self.ec2.is_instance_state(instance_id, ["initializing"]):
-                    if (self.context["now"] - i["LaunchTime"]).total_seconds() > (max_initializing_delay - grace_period):
+                    if self.ec2.is_instance_state(instance_id, ["unhealthy"]):
                         instances_with_issue_ids.append(instance_id)
                         continue
                 meta = {}
@@ -738,15 +746,6 @@ By default, the dashboard is enabled.
                         continue
                     if self.ssm.is_maintenance_time(fleet=fleet):
                         continue
-                    # We need to compensate maintenance window time: As no draining activity is possible during this period, we have not
-                    #   to put long 'draining' instances as instances with issues
-                    #start_date, end_date = self.ssm.get_last_window_dates(fleet=fleet)
-                    #time_offset = 0
-                    #if start_date is not None:
-                    #    end_date = self.context["now"] if end_date is None else end_date
-                    #    if meta["last_draining_date"] < start_date:
-                    #        time_offset += (end_date - start_date).total_seconds()
-
                     if (self.context["now"] - meta["last_draining_date"]).total_seconds() > (max_shutdown_delay - grace_period):
                         instances_with_issue_ids.append(instance_id)
                         continue
@@ -899,6 +898,61 @@ By default, the dashboard is enabled.
         self.generate_subfleet_dashboard()
 
     @xray_recorder.capture()
+    def send_events(self):
+        """ Send SSM Events linked to instance state changes.
+        """
+        o_ssm = self.context["o_ssm"]
+        if o_ssm.is_feature_enabled("events.ec2.scaling_state_changes"):
+            ids_per_new_state = {}
+            for instance_id in self.scaling_state_snapshots:
+                previous_state = self.scaling_state_snapshots[instance_id]
+                current_state  = self.ec2.get_scaling_state(instance_id, do_not_return_excluded=True)
+                if previous_state != current_state:
+                    if current_state not in ids_per_new_state:
+                        ids_per_new_state[current_state] = {}
+                    if previous_state not in ids_per_new_state[current_state]:
+                        ids_per_new_state[current_state][previous_state] = []
+                    ids_per_new_state[current_state][previous_state].append({"InstanceId": instance_id}) 
+
+            event_name_mappings = {
+                    "draining": {
+                        "Name": "INSTANCE_SCALING_STATE_DRAINING",
+                        "PrettyName": "InstanceScalingState-Draining"
+                    },
+                    "bounced": {
+                        "Name": "INSTANCE_SCALING_STATE_BOUNCED",
+                        "PrettyName": "InstanceScalingState-Bounced"
+                    },
+                }
+
+            draining_ids = []
+            for state in ids_per_new_state:
+                if state in event_name_mappings:
+                    for previous_state in ids_per_new_state[state]:
+                        change            = ids_per_new_state[state][previous_state]
+                        instance_ids      = [c["InstanceId"] for c in change]
+                        if state == "draining":
+                            draining_ids.extend(instance_ids)
+                        log.log(log.NOTICE, f"Instances {instance_ids} changed their scaling state from '{previous_state}' to '{state}'.")
+                        event_name        = event_name_mappings[state]["Name"]
+                        pretty_event_name = event_name_mappings[state]["PrettyName"]
+                        args              = {
+                            "NewState": state,
+                            "OldState": previous_state,
+                        }
+                        o_ssm.send_events(instance_ids, "ec2.scaling_state.change", event_name, args, pretty_event_name=pretty_event_name)
+
+            # Send the BlockNewConnectionsToPorts event if needed
+            blocked_ports = Cfg.get_list("ssm.feature.events.ec2.scaling_state_changes."
+                    "draining.new_connection_blocked_port_list")
+            if len(blocked_ports) and len(draining_ids):
+                args = {
+                    "BlockedPorts": " ".join(blocked_ports)
+                }
+                o_ssm.send_events(draining_ids, "ec2.scaling_state.change.draining.block_new_connections", 
+                    "INSTANCE_BLOCK_NEW_CONNECTIONS_TO_PORTS", args, pretty_event_name="BlockNewConnectionsToPorts")
+        
+    @xray_recorder.capture()
     def prepare_metrics(self):
         """ Compute all module CloudWatch metrics and Synthetic metrics available through the API Gateway.
         """
@@ -966,6 +1020,8 @@ By default, the dashboard is enabled.
 
         if len(error_instances):
             log.info("These instances are in 'ERROR' state: %s" % [i["InstanceId"] for i in error_instances])
+        if len(self.unhealthy_instances_in_targetgroups):
+            log.info(f"These instances are reported 'unhealthy' in at least one targetgroup: %s" % self.unhealthy_instances_in_targetgroups)
         if len(instances_with_issues): 
             log.info("These instances are 'unuseable' (unavail/unhealthy/impaired/spotinterrupted/lackofcpucredit...) : %s" % instances_with_issues)
 
@@ -1903,7 +1959,8 @@ By default, the dashboard is enabled.
             if (now - last_seen_date).total_seconds() > grace_period:
                 subfleet = self.ec2.get_subfleet_name_for_instance(i)
                 if self.ssm.is_feature_enabled("maintenance_window") and self.ssm.is_maintenance_time(fleet=subfleet):
-                    log.info(f"Bouncing actions disabled during '{subfleet}' subfleet SSM Maintenance Window: "
+                    fleet_name = "Main" if subfleet is None else f"Subfleet.{subfleet}" 
+                    log.info(f"Bouncing actions disabled during '{fleet_name}' fleet SSM Maintenance Window: "
                         f"Should have placed in 'draining' state instance {i}...")
                     continue
                 self.ec2.set_scaling_state(i, "draining")
