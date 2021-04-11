@@ -4,6 +4,7 @@
 # SSM_COMMAND_ID
 export CS_SSM_AGENT_SCRIPT_DIR=/etc/cs-ssm/
 export CS_GW_URL="##ApiGwUrl##"
+echo "Info: CloneSquad API GW Url is $CS_GW_URL."
 
 function cs_echo()
 {
