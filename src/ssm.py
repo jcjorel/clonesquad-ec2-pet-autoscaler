@@ -116,18 +116,27 @@ Currently, only `draining` and `bounced` events are sent (`bounced`is sent only 
 
             """
             },
-            "ssm.feature.events.ec2.scaling_state_changes.draining.new_connection_blocked_port_list,Stable": {
+            "ssm.feature.events.ec2.scaling_state_changes.draining.connection_refused_tcp_ports,Stable": {
                 "DefaultValue": "",
                 "Format": "StringList",
-                "Description": """On `draining` state, specified ports are blocked to forbid new TCP connections (i.e. *Connection refused* message).
+                "Description": """On `draining` state, specified ports are blocked and so forbid new TCP connections (i.e. *Connection refused* message).
 
 This features installs, **on `draining` time**, temporary iptables chain and rules denying new TCP connections to the specified port list.
-This is useful, for example, to break a healthcheck life line as soon as an instance enters the `draining` state: It especially useful when non-ELB LoadBalancers are used and CloneSquad does not know how to tell these loadbalancers that no more traffic need to be sent to a drained instance. As it blocks only new TCP connections, currently active connections can terminate gracefully during the draining period.
+This is useful, for example, to break a healthcheck life line as soon as an instance enters the `draining` state: It is especially useful when non-ELB LoadBalancers are used and CloneSquad does not know how to tell these loadbalancers that no more traffic needs to be sent to a drained instance. As it blocks only new TCP connections, currently active connections can terminate gracefully during the draining period.
 
-> When instances are served only by CloneSquad ELB(s), there is no need to use this feature as CloneSquad will unregister the target as soon as placed in `draining`state.
+> When instances are served only by CloneSquad managed ELB(s), there is no need to use this feature as CloneSquad will unregister the targets as soon as placed in `draining`state.
 
 By default, no blocked port list is specified, so no iptables call is performed on the instance.
             """
+            },
+            "ssm.feature.events.ec2.scaling_state_changes.draining.{SubfleeName}.connection_refused_tcp_ports,Stable": {
+                "DefaultValue": "",
+                "Format": "StringList",
+                "Description": """Defines the blocked TCP port list for the specified fleet.
+
+This setting overrides the value defined in [`ssm.feature.events.ec2.scaling_state_changes.draining.connection_refused_tcp_ports`](#ssmfeatureeventsec2scaling_state_changesdrainingconnection_refused_tcp_ports) for the specified fleet.
+
+> Use '__main__' to designate the main fleet."""
             },
             "ssm.feature.events.ec2.instance_healthcheck": "0",
             "ssm.feature.maintenance_window,Stable": {
@@ -225,7 +234,9 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
 
         Cfg.register({
                 f"ssm.feature.maintenance_window.subfleet.__all__.force_running":
-                    Cfg.get("ssm.feature.maintenance_window.subfleet.{SubfleetName}.force_running")
+                    Cfg.get("ssm.feature.maintenance_window.subfleet.{SubfleetName}.force_running"),
+                f"ssm.feature.events.ec2.scaling_state_changes.draining.__main__.connection_refused_tcp_ports": 
+                    Cfg.get("ssm.feature.events.ec2.scaling_state_changes.draining.connection_refused_tcp_ports")
             })
 
         for SubfleetName in self.o_ec2.get_subfleet_names():
@@ -237,6 +248,8 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
                     Cfg.get("ssm.feature.maintenance_window.subfleet.{SubfleetName}.ec2.schedule.min_instance_count"),
                 f"ssm.feature.maintenance_window.subfleet.{SubfleetName}.force_running":
                     Cfg.get("ssm.feature.maintenance_window.subfleet.{SubfleetName}.force_running"),
+                f"ssm.feature.events.ec2.scaling_state_changes.draining.{SubfleetName}.connection_refused_tcp_ports": 
+                    Cfg.get("ssm.feature.events.ec2.scaling_state_changes.draining.connection_refused_tcp_ports")
             })
             mw_names[f"Subfleet.{SubfleetName}"]["Names"] = Cfg.get_list(f"ssm.feature.maintenance_window.subfleet.{SubfleetName}.defaults", fmt=fmt)
             all_mw_names.extend([ n for n in mw_names[f"Subfleet.{SubfleetName}"]["Names"] if n not in all_mw_names])

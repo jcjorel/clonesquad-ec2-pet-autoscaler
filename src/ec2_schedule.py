@@ -943,13 +943,22 @@ By default, the dashboard is enabled.
                         o_ssm.send_events(instance_ids, "ec2.scaling_state.change", event_name, args, pretty_event_name=pretty_event_name)
 
             # Send the BlockNewConnectionsToPorts event if needed
-            blocked_ports = Cfg.get_list("ssm.feature.events.ec2.scaling_state_changes."
-                    "draining.new_connection_blocked_port_list")
-            if len(blocked_ports) and len(draining_ids):
+            ids_per_fleet = defaultdict(list)
+            for i in draining_ids:
+                ids_per_fleet[self.ec2.get_subfleet_name_for_instance(i)].append(i)
+
+            for fleet in ids_per_fleet:
+                ids = ids_per_fleet[fleet]
+                if fleet is None: fleet = "__main__"
+                blocked_ports = Cfg.get_list("ssm.feature.events.ec2.scaling_state_changes."
+                        f"draining.{fleet}.connection_refused_tcp_ports")
+                if not len(blocked_ports):
+                    continue
                 args = {
                     "BlockedPorts": " ".join(blocked_ports)
                 }
-                o_ssm.send_events(draining_ids, "ec2.scaling_state.change.draining.block_new_connections", 
+                log.info(f"Sending BlockNewConnectionsToPorts SSM Event to '{fleet}' fleet instances (BlockedPorts={blocked_ports})...")
+                o_ssm.send_events(ids, "ec2.scaling_state.change.draining.block_new_connections", 
                     "INSTANCE_BLOCK_NEW_CONNECTIONS_TO_PORTS", args, pretty_event_name="BlockNewConnectionsToPorts")
         
     @xray_recorder.capture()

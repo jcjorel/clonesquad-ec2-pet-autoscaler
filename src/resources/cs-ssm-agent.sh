@@ -76,11 +76,17 @@ function block_new_connections_to_ports()
 	# Install an IPtable that is blocking any new TCP connection
 	echo "Creating CloneSquad agent dedicated IPtable chain '$chain'..."
 	sudo iptables -N $chain 
+	# Check if we need to use extra iptables parameters
+	if ! [ -e /etc/cs-ssm/blocked-connections/extra-iptables-parameters.txt ] ; then
+		extra_parameters=$(cat /etc/cs-ssm/blocked-connections/extra-iptables-parameters.txt)
+	fi
 	# Insert the chain in front of all rules
 	sudo iptables -I INPUT -j $chain 
 	for port in $blocked_ports ; do
 		echo "Blocking new connections to TCP port $port..."
-		sudo iptables -A $chain -p tcp -m tcp --dport $port -m state --state NEW -j REJECT --reject-with icmp-port-unreachable
+		sudo iptables -A $chain -p tcp -m tcp --dport $port -m state $extra_parameters \
+			--state NEW -j REJECT --reject-with icmp-port-unreachable ||
+			cs_echo "BLOCK_NEW_CONNECTIONS" "WARNING:Failed to install IPTable rule for port '$port'!"
 	done
 	# Output in logs the changes
 	cs_echo "BLOCK_NEW_CONNECTIONS" "IPTABLES-OUTPUT"

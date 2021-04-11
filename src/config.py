@@ -402,7 +402,7 @@ def get_float(key, fmt=None):
 def get_list(key, separator=";", default=None, fmt=None):
     v = get(key, fmt=fmt)
     if v is None or v == "": return default
-    return v.split(separator)
+    return [i for i in v.split(separator) if i != ""]
 
 def get_duration_secs(key, fmt=None):
     try:

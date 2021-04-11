@@ -805,19 +805,31 @@ Currently, only `draining` and `bounced` events are sent (`bounced`is sent only 
 
 
 
-### ssm.feature.events.ec2.scaling_state_changes.draining.new_connection_blocked_port_list
+### ssm.feature.events.ec2.scaling_state_changes.draining.connection_refused_tcp_ports
 Default Value: ``   
 Format       :  [StringList](#StringList)
 
-On `draining` state, specified ports are blocked to forbid new TCP connections (i.e. *Connection refused* message).
+On `draining` state, specified ports are blocked and so forbid new TCP connections (i.e. *Connection refused* message).
 
 This features installs, **on `draining` time**, temporary iptables chain and rules denying new TCP connections to the specified port list.
-This is useful, for example, to break a healthcheck life line as soon as an instance enters the `draining` state: It especially useful when non-ELB LoadBalancers are used and CloneSquad does not know how to tell these loadbalancers that no more traffic need to be sent to a drained instance. As it blocks only new TCP connections, currently active connections can terminate gracefully during the draining period.
+This is useful, for example, to break a healthcheck life line as soon as an instance enters the `draining` state: It is especially useful when non-ELB LoadBalancers are used and CloneSquad does not know how to tell these loadbalancers that no more traffic needs to be sent to a drained instance. As it blocks only new TCP connections, currently active connections can terminate gracefully during the draining period.
 
-> When instances are served only by CloneSquad ELB(s), there is no need to use this feature as CloneSquad will unregister the target as soon as placed in `draining`state.
+> When instances are served only by CloneSquad managed ELB(s), there is no need to use this feature as CloneSquad will unregister the targets as soon as placed in `draining`state.
 
 By default, no blocked port list is specified, so no iptables call is performed on the instance.
             
+
+
+
+### ssm.feature.events.ec2.scaling_state_changes.draining.{SubfleeName}.connection_refused_tcp_ports
+Default Value: ``   
+Format       :  [StringList](#StringList)
+
+Defines the blocked TCP port list for the specified fleet.
+
+This setting overrides the value defined in [`ssm.feature.events.ec2.scaling_state_changes.draining.connection_refused_tcp_ports`](#ssmfeatureeventsec2scaling_state_changesdrainingconnection_refused_tcp_ports) for the specified fleet.
+
+> Use '__main__' to designate the main fleet.
 
 
 

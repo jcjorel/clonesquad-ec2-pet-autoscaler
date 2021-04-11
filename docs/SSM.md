@@ -97,13 +97,15 @@ Scripts called depending on the event type:
 
 This event is sent when an instance enters the 'draining' state: The event warns that the instance is selected to be shutdown soon. 
 
-If it exists on the instance, the scripts `/etc/cs-ssm/instance-scaling-state-change-draining` is exectued with first argument as the previous state. If this scripts returns a non-zero code, it will be repeated.
+If it exists on the instance, the scripts `/etc/cs-ssm/instance-scaling-state-change-draining` is executed with first argument as the previous state. If this scripts returns a non-zero code, it will be repeated.
 
-#### 'TCP Port Blacklist' advanced subfeature
+#### 'TCP Port Blocked list' advanced subfeature
 
-The TCP port blacklist subfeature uses the SSM RunCommand to install an in-memory IPtables on an instance entering the `draining` state. This IPTables will generate 'Connection refused' message to new TCP connection attempts targeting ports defined in [`ssm.feature.events.ec2.scaling_state_changes.draining.new_connection_blocked_port_list`](CONFIGURATION_REFERENCE.md#ssmfeatureeventsec2scaling_state_changesdrainingnew_connection_blocked_port_list). 
+The TCP port blocked list subfeature uses the SSM RunCommand to install an in-memory IPtables on an instance entering the `draining` state. This IPTables will generate 'Connection refused' messages to new TCP connection attempts targeting ports defined in [`ssm.feature.events.ec2.scaling_state_changes.draining.connection_refused_tcp_ports`](CONFIGURATION_REFERENCE.md#ssmfeatureeventsec2scaling_state_changesdrainingconnection_refused_tcp_ports). 
 
-This subfeature is especially useful to fail healthchecks of external balancers while allowing currently active connections to finish.
+This subfeature is especially useful to fail healthchecks of external balancers while allowing currently active connections to finish. This feature is not useful if managed instances are served by ELB(s) under CloneSquad management (i.e. CloneSquad unregisters automatically drained instances for ELB(s)).
+
+If the file `/etc/cs-ssm/blocked-connections/extra-iptables-parameters.txt` exists on the drained instance, it is read and content will be added to the iptables command line. Especially, it can be used to restrict the rule to some instance network interfaces (ex: `-i eth0`). See [Linux helper script](../src/resources/cs-ssm-agent.sh) for implementation details.
 
 > See also [`ssm.feature.events.ec2.instance_ready_for_shutdown`](CONFIGURATION_REFERENCE.md#ssmfeatureeventsec2instance_ready_for_shutdown) to control the amount of time spend in the `draining` time.
 
