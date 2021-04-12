@@ -80,6 +80,7 @@ function block_new_connections_to_ports()
 	parameter_file=/etc/cs-ssm/blocked-connections/extra-iptables-parameters.txt
 	if [ -e $parameter_file ] ; then
 		extra_parameters=$(cat $parameter_file)
+		echo "Found IPTables extra parameters in $parameter_file : $extra_parameters"
 	else
 		echo "No extra parameter file $parameter_file on instance..."
 	fi
