@@ -136,7 +136,7 @@ By default, no blocked port list is specified, so no iptables call is performed 
 
 This setting overrides the value defined in [`ssm.feature.events.ec2.scaling_state_changes.draining.connection_refused_tcp_ports`](#ssmfeatureeventsec2scaling_state_changesdrainingconnection_refused_tcp_ports) for the specified fleet.
 
-> Use '__main__' to designate the main fleet."""
+> Use `__main__` to designate the main fleet."""
             },
             "ssm.feature.events.ec2.instance_healthcheck": "0",
             "ssm.feature.maintenance_window,Stable": {

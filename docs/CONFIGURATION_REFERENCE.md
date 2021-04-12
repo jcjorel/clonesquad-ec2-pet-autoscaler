@@ -829,7 +829,7 @@ Defines the blocked TCP port list for the specified fleet.
 
 This setting overrides the value defined in [`ssm.feature.events.ec2.scaling_state_changes.draining.connection_refused_tcp_ports`](#ssmfeatureeventsec2scaling_state_changesdrainingconnection_refused_tcp_ports) for the specified fleet.
 
-> Use '__main__' to designate the main fleet.
+> Use `__main__` to designate the main fleet.
 
 
 
