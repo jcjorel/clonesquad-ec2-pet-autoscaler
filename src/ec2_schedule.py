@@ -704,9 +704,9 @@ By default, the dashboard is enabled.
         max_shutdown_delay = Cfg.get_duration_secs("ssm.feature.events.ec2.instance_ready_for_shutdown.max_shutdown_delay")
         grace_period       = Cfg.get_duration_secs("ec2.schedule.bounce.instances_with_issue_grace_period")
         ids                = []
-        meta               = {}
         for i in self.pending_running_instances:
             instance_id = i["InstanceId"]
+            meta        = {}
             if self.ec2.get_scaling_state(instance_id, do_not_return_excluded=True, meta=meta) == "draining":
                 if meta.get("last_draining_date") is None:
                     continue
