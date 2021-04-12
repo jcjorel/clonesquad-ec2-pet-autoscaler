@@ -511,6 +511,8 @@ By default, the dashboard is enabled.
         self.initializing_instances                 = self.get_initial_instances()
         self.cpu_exhausted_instances                = self.get_cpu_exhausted_instances()
         self.unhealthy_instances_in_targetgroups    = self.targetgroup.get_registered_instance_ids(state="unavail,unhealthy")
+        self.ready_for_operation_timeouted_instances = self.get_ready_for_operation_timeouted_instances()
+        self.ready_for_shutdown_timeouted_instances = self.get_ready_for_shutdown_timeouted_instances()
         self.instances_with_issues                  = self.get_instances_with_issues()
         self.useable_instances                      = self.get_useable_instances()
         self.useable_instance_count                 = self.get_useable_instance_count()
@@ -681,6 +683,40 @@ By default, the dashboard is enabled.
         instances = self.all_main_fleet_instances 
         return Cfg.get_abs_or_percent("ec2.schedule.desired_instance_count", -1, len(instances))
 
+    def get_ready_for_operation_timeouted_instances(self):
+        """ Return a list of instance ids that spent too much time in 'initializing' time.
+        """
+        if not self.ssm.is_feature_enabled("events.ec2.instance_ready_for_operation"):
+            return []
+        ids = []
+        max_initializing_delay = Cfg.get_duration_secs("ssm.feature.events.ec2.instance_ready_for_operation.max_initializing_time")
+        for i in self.pending_running_instances:
+            instance_id = i["InstanceId"]
+            if self.ec2.is_instance_state(instance_id, ["initializing"]) and self.ec2.is_instance_state(instance_id, ["unhealthy"]):
+                ids.append(instance_id)
+        return ids
+
+    def get_ready_for_shutdown_timeouted_instances(self):
+        """ Return a list of instance ids that spent too much time in 'draining' time.
+        """
+        if not self.ssm.is_feature_enabled("events.ec2.instance_ready_for_shutdown"):
+            return []
+        max_shutdown_delay = Cfg.get_duration_secs("ssm.feature.events.ec2.instance_ready_for_shutdown.max_shutdown_delay")
+        grace_period       = Cfg.get_duration_secs("ec2.schedule.bounce.instances_with_issue_grace_period")
+        ids                = []
+        meta               = {}
+        for i in self.pending_running_instances:
+            instance_id = i["InstanceId"]
+            if self.ec2.get_scaling_state(instance_id, do_not_return_excluded=True, meta=meta) == "draining":
+                if meta.get("last_draining_date") is None:
+                    continue
+                fleet = self.ec2.get_subfleet_name_for_instance(i)
+                if self.ssm.is_maintenance_time(fleet=fleet):
+                    continue
+                if (self.context["now"] - meta["last_draining_date"]).total_seconds() > (max_shutdown_delay - grace_period):
+                    ids.append(instance_id)
+        return ids
+
     def get_instances_with_issues(self):
         """ Return a list of Instance Id of faulty instances.
 
@@ -706,7 +742,7 @@ By default, the dashboard is enabled.
         # Interrupted spot instances are 'unhealthy' too
         for i in self.spot_excluded_instance_ids:
             instance = self.ec2.get_instance_by_id(i)
-            if instance["State"]["Name"] == "running":
+            if instance["State"]["Name"] == "running" and i not in instances_with_issue_ids:
                 instances_with_issue_ids.append(i)
 
         if Cfg.get_int("ec2.schedule.assume_cpu_exhausted_burstable_instances_as_unuseable"):
@@ -724,31 +760,9 @@ By default, the dashboard is enabled.
                 instances_with_issue_ids.append(i)
                 max_i -= 1
 
-        instance_ready_for_operation = self.ssm.is_feature_enabled("events.ec2.instance_ready_for_operation")
-        instance_ready_for_shutdown  = self.ssm.is_feature_enabled("events.ec2.instance_ready_for_shutdown")
-        if instance_ready_for_shutdown or instance_ready_for_operation:
-            #  If SSM feature is enabled, we place any long running 'initializing' or 'draining' instance as unhealthy
-            grace_period           = Cfg.get_duration_secs("ec2.schedule.bounce.instances_with_issue_grace_period")
-            max_initializing_delay = Cfg.get_duration_secs("ssm.feature.events.ec2.instance_ready_for_operation.max_initializing_time")
-            max_shutdown_delay     = Cfg.get_duration_secs("ssm.feature.events.ec2.instance_ready_for_shutdown.max_shutdown_delay")
-            for i in active_instances:
-                instance_id = i["InstanceId"]
-                if instance_id in instances_with_issue_ids:
-                    continue
-                fleet = self.ec2.get_subfleet_name_for_instance(i)
-                if instance_ready_for_operation and self.ec2.is_instance_state(instance_id, ["initializing"]):
-                    if self.ec2.is_instance_state(instance_id, ["unhealthy"]):
-                        instances_with_issue_ids.append(instance_id)
-                        continue
-                meta = {}
-                if instance_ready_for_shutdown and self.ec2.get_scaling_state(instance_id, do_not_return_excluded=True, meta=meta) == "draining":
-                    if meta.get("last_draining_date") is None:
-                        continue
-                    if self.ssm.is_maintenance_time(fleet=fleet):
-                        continue
-                    if (self.context["now"] - meta["last_draining_date"]).total_seconds() > (max_shutdown_delay - grace_period):
-                        instances_with_issue_ids.append(instance_id)
-                        continue
+        # Add faulty instances that go beyond their time for 'ready_for_operation' and 'ready_for_shutdown' event
+        instances_with_issue_ids.extend([i for i in self.ready_for_operation_timeouted_instances if i not in instances_with_issue_ids])
+        instances_with_issue_ids.extend([i for i in self.ready_for_shutdown_timeouted_instances  if i not in instances_with_issue_ids])
 
         return instances_with_issue_ids
 
@@ -1031,8 +1045,17 @@ By default, the dashboard is enabled.
             log.info("These instances are in 'ERROR' state: %s" % [i["InstanceId"] for i in error_instances])
         if len(self.unhealthy_instances_in_targetgroups):
             log.info(f"These instances are reported 'unhealthy' in at least one targetgroup: %s" % self.unhealthy_instances_in_targetgroups)
-        if len(instances_with_issues): 
-            log.info("These instances are 'unuseable' (unavail/unhealthy/impaired/spotinterrupted/lackofcpucredit...) : %s" % instances_with_issues)
+        if len(self.spot_rebalance_recommanded_ids):
+            log.info(f"These Spot instances in 'rebalance recommanded' state: %s" % self.spot_rebalance_recommanded_ids)
+        if len(self.spot_interrupted_ids):
+            log.info(f"These Spot instances in 'interrupted' state: %s" % self.spot_interrupted_ids)
+        if len(self.ready_for_operation_timeouted_instances):
+            log.info(f"These instances waited too long to send 'ready-for-operation' SSM status: %s" % self.ready_for_operation_timeouted_instances)
+        if len(self.ready_for_shutdown_timeouted_instances):
+            log.info(f"These instances waited too long to send 'ready-for-shutdown' SSM status: %s" % self.ready_for_shutdown_timeouted_instances)
+        if len(self.instances_with_issues): 
+            log.info("These instances are 'unuseable' (all causes: unavail/unhealthy/impaired/spotinterrupted/lackofcpucredit...) : %s" % 
+                self.instances_with_issues)
 
         # Compute higher level synthethic metrics
         running_fleet_size       = len(running_instances)
@@ -2921,5 +2944,4 @@ By default, the dashboard is enabled.
 
         # Persist that we managed Spot events
         self.ec2.set_state_json("ec2.schedule.instance.spot.known_spot_advisories", known_spot_advisories, TTL=self.state_ttl)
-
 
