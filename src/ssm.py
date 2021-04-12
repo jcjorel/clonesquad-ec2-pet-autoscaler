@@ -640,12 +640,14 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
                     self.o_state.set_state(f"ssm.events.maintenance_window.last_next_execution_duration.{window_id}", 
                         w["Duration"], TTL=self.ttl)
             # SSM maintenance windows do not always have a NextExecutionTime field. Restore it from a backuped one
-            next_execution_time = self.o_state.get_state_date(f"ssm.events.maintenance_window.last_next_execution_time.{window_id}", TTL=self.ttl)
-            if next_execution_time is not None:
-                w["NextExecutionTime"] = next_execution_time
-            next_execution_duration = self.o_state.get_state(f"ssm.events.maintenance_window.last_next_execution_duration.{window_id}", TTL=self.ttl)
-            if next_execution_duration is not None:
-                w["Duration"] = next_execution_duration
+            else:
+                next_execution_time = self.o_state.get_state_date(f"ssm.events.maintenance_window.last_next_execution_time.{window_id}", TTL=self.ttl)
+                if next_execution_time is not None:
+                    w["NextExecutionTime"] = next_execution_time
+            if "Duration" not in w:
+                next_execution_duration = self.o_state.get_state(f"ssm.events.maintenance_window.last_next_execution_duration.{window_id}", TTL=self.ttl)
+                if next_execution_duration is not None:
+                    w["Duration"] = next_execution_duration
 
         valid_windows = [w for w in windows if "NextExecutionTime" in w and "Duration" in w]
         fleetname     = "Main" if fleet is None else fleet
