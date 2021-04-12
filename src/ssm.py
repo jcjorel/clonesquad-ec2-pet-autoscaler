@@ -388,7 +388,7 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
                                 if s.startswith("CLONESQUAD-SSM-AGENT-")]
                         bie_msg     = next(filter(lambda s: s.startswith("CLONESQUAD-SSM-AGENT-BIE:"), stdout), None)
                         if not bie_msg:
-                            log.warning(f"Truncated reply from SSM Command Invocation ({cmd_id}/{instance_id}). "
+                            log.log(log.NOTICE, f"Truncated reply from SSM Command Invocation ({cmd_id}/{instance_id}). "
                                 "*Cause: SSM exec error? started shell command too verbose? (please limit to 24kBytes max!)")
                         agent_status = "CLONESQUAD-SSM-AGENT-STATUS:"
                         status_msg  = next(filter(lambda s: s.startswith(agent_status), stdout), None)
