@@ -295,17 +295,17 @@ This delay is meant to let new instances to succeed their initialization.
 If an application takes a long time to be ready, it can be useful to increase this value.
                  """
                  },
-                 "ec2.schedule.burstable_instance.max_cpu_credit_unhealthy_instances,Stable" : {
-                     "DefaultValue" : "1",
-                     "Format"       : "IntegerOrPercentage",
-                     "Description"  : """Maximum number of instances that could be considered, at a given time, as unhealthy because their CPU credit is exhausted.
+                 #"ec2.schedule.burstable_instance.max_cpu_credit_unhealthy_instances,Stable" : {
+                 #    "DefaultValue" : "1",
+                 #    "Format"       : "IntegerOrPercentage",
+                 #    "Description"  : """Maximum number of instances that could be considered, at a given time, as unhealthy because their CPU credit is exhausted.
+                 #
+                 # * Setting this parameter to `100%` will indicate that all burstable instances could marked as unhealthy at the same time.
+                 # * Setting this parameter to `0` will completely disable the ability to consider burstable instances as unhealthy. 
 
-* Setting this parameter to `100%` will indicate that all burstable instances could marked as unhealthy at the same time.
-* Setting this parameter to `0` will completely disable the ability to consider burstable instances as unhealthy. 
-
-> To prevent a DDoS, burstable instances with exhausted CPU Credit balance are NOT marked as unhealthy when len(stopped_instance) - (ec2.scheduler.min_instance_count) <= 0.
-                     """
-                 },
+                 # > To prevent a DDoS, burstable instances with exhausted CPU Credit balance are NOT marked as unhealthy when len(stopped_instance) - (ec2.scheduler.min_instance_count) <= 0.
+                 #    """
+                 #},
                  "ec2.schedule.burstable_instance.max_cpu_crediting_instances,Stable" : {
                      "DefaultValue" : "50%",
                      "Format"       : "IntegerOrPercentage",
@@ -750,20 +750,20 @@ By default, the dashboard is enabled.
             if instance["State"]["Name"] == "running" and i not in instances_with_issue_ids:
                 instances_with_issue_ids.append(i)
 
-        if Cfg.get_int("ec2.schedule.assume_cpu_exhausted_burstable_instances_as_unuseable"):
+        #if Cfg.get_int("ec2.schedule.assume_cpu_exhausted_burstable_instances_as_unuseable"):
             # CPU credit "issues"
-            exhausted_cpu_instances = sorted([ i["InstanceId"] for i in self.cpu_exhausted_instances])
-            all_instances           = self.all_instances
-            max_i                   = len(all_instances)
-            for i in exhausted_cpu_instances:
-                if max_i <= 0:
-                    break
-                if i in instances_with_issue_ids:
-                    continue
-                if self.ssm.is_maintenance_time(fleet=self.o_ec2.get_subfleet_name_for_instance(i)):
-                    continue
-                instances_with_issue_ids.append(i)
-                max_i -= 1
+        #    exhausted_cpu_instances = sorted([ i["InstanceId"] for i in self.cpu_exhausted_instances])
+        #    all_instances           = self.all_instances
+        #    max_i                   = len(all_instances)
+        #    for i in exhausted_cpu_instances:
+        #        if max_i <= 0:
+        #            break
+        #        if i in instances_with_issue_ids:
+        #            continue
+        #        if self.ssm.is_maintenance_time(fleet=self.o_ec2.get_subfleet_name_for_instance(i)):
+        #            continue
+        #        instances_with_issue_ids.append(i)
+        #        max_i -= 1
 
         # Add faulty instances that go beyond their time for 'ready_for_operation' and 'ready_for_shutdown' event
         instances_with_issue_ids.extend([i for i in self.ready_for_operation_timeouted_instances if i not in instances_with_issue_ids])
@@ -817,34 +817,22 @@ By default, the dashboard is enabled.
                 exclude_bounced_instances=exclude_bounced_instances, exclude_initializing_instances=exclude_initializing_instances,
                 initializing_only=initializing_only))
 
-    def get_cpu_exhausted_instances(self, threshold=1):
+    def get_cpu_exhausted_instances(self, threshold=5):
         """ Return list of instances that have their CPU exhausted below the specified threshold
 
         :param threshold: A pourcentage of CPU Credit to consider the minimum required
         :return A list of instance structures
         """
-        max_cpu_credit_unhealthy      = Cfg.get_int("ec2.schedule.burstable_instance.max_cpu_credit_unhealthy_instances")
-        # When not enough stopped instances are available, we do not mark unhealthy burstable instances to avoid fleet size exhaustion and a DDoS
-        stopped_instance_margin       = max(0, len(self.stopped_instances_wo_excluded_error) - self.get_min_instance_count())
-        max_issues                    = min(max_cpu_credit_unhealthy, stopped_instance_margin)
-        instances_unhealthy           = []
-        instances_should_be_unhealthy = []
-        for i in self.pending_running_instances_wo_excluded_draining_error: 
+        #max_cpu_credit_unhealthy      = Cfg.get_int("ec2.schedule.burstable_instance.max_cpu_credit_unhealthy_instances")
+        instances_exhausted = []
+        for i in self.pending_running_instances: 
+            if self.ec2.is_instance_excluded(i):
+                continue # Ignore instances marked as excluded
             instance_type           = i["InstanceType"]
             cpu_credit = self.ec2.get_cpu_creditbalance(i)
             if cpu_credit >= 0 and cpu_credit <= threshold:
-                if len(instances_unhealthy) < max_issues:
-                    instances_unhealthy.append(i)
-                else:
-                    instances_should_be_unhealthy.append(i)
-        if len(instances_unhealthy) + len(instances_should_be_unhealthy):
-            info = ("Instances %s should also be set unhealthy but max unhealthy instance count is shapped to '%s' "
-                    "[=min(ec2.schedule.burstable_instance.max_cpu_credit_unhealthy_instances=%s, stopped_instance_count-min_instance_count=%s)]"
-                    % (self.ec2.get_instance_ids(instances_should_be_unhealthy), max_issues, 
-                        max_cpu_credit_unhealthy, stopped_instance_margin))
-            log.info("Burstable instances %s considered as unhealthy due to CPU Credit Balance exhausted. %s" %
-                (self.ec2.get_instance_ids(instances_unhealthy), info if len(instances_should_be_unhealthy) else "")) 
-        return instances_unhealthy
+                instances_exhausted.append(i)
+        return instances_exhausted
 
     def get_young_instance_ids(self, instances=None):
         """ Return a list of instance that are considered young based on their running time.
@@ -1018,7 +1006,7 @@ By default, the dashboard is enabled.
         cw.set_metric("NbOfInstanceInInitialState", len(self.get_initial_instances()) if fl_size > 0 else None)
         cw.set_metric("NbOfInstanceInUnuseableState", len(instances_with_issues) if fl_size > 0 else None)
         cw.set_metric("NbOfCPUCreditExhaustedInstances", len(exhausted_cpu_credits) if fl_size > 0 else None)
-        if self.ssm.is_feature_enabled("maintenance_window"):
+        if self.ssm.is_feature_enabled("maintenance_window") and fl_size > 0:
             cw.set_metric("SSM.MaintenanceWindow", self.ssm.is_maintenance_time(fleet=None))
         else:
             cw.set_metric("SSM.MaintenanceWindow", None)
@@ -1065,6 +1053,9 @@ By default, the dashboard is enabled.
         if len(self.need_cpu_crediting_instance_ids):
             log.info(f"InstanceConditions > These instances are CPU Crediting (long draining time to win burstable CPU credits): %s" % 
                     self.need_cpu_crediting_instance_ids)
+        if len(self.cpu_exhausted_instances):
+            log.warning(f"These burstable instances have exhausted their CPU credits (i.e. incur over-cost): %s" % (
+                [i["InstanceId"] for i in self.cpu_exhausted_instances]))
         if len(self.instances_with_issues): 
             log.info("InstanceConditions > These instances are 'unuseable' (all causes: unavail/unhealthy/impaired/spotinterrupted/lackofcpucredit...) : %s" % 
                 self.instances_with_issues)
