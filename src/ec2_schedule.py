@@ -80,7 +80,7 @@ class EC2_Schedule:
         self.integrated_raw_instance_scale_score = 0.0
         self.would_like_to_scalein    = False
         self.would_like_to_scaleout   = False
-        self.spot_rebalance_recommanded   = []
+        self.spot_rebalance_recommended   = []
         self.spot_interrupted         = []
         self.excluded_spot_instance_types = []
         self.spot_excluded_instance_ids = []
@@ -1052,10 +1052,10 @@ By default, the dashboard is enabled.
         if len(self.unhealthy_instances_in_targetgroups):
             log.info(f"InstanceConditions > These instances are reported 'unhealthy' in at least one targetgroup: %s" % 
                     self.unhealthy_instances_in_targetgroups)
-        if len(self.spot_rebalance_recommanded_ids):
-            log.info(f"InstanceConditions > These Spot instances in 'rebalance recommanded' state: %s" % self.spot_rebalance_recommanded_ids)
+        if len(self.spot_rebalance_recommended_ids):
+            log.info(f"InstanceConditions > These Spot instances are in 'rebalance recommended' state: %s" % self.spot_rebalance_recommended_ids)
         if len(self.spot_interrupted_ids):
-            log.info(f"InstanceConditions > These Spot instances in 'interrupted' state: %s" % self.spot_interrupted_ids)
+            log.info(f"InstanceConditions > These Spot instances are in 'interrupted' state: %s" % self.spot_interrupted_ids)
         if len(self.ready_for_operation_timeouted_instances):
             log.info(f"InstanceConditions > These instances waited too long to send 'ready-for-operation' SSM status: %s" % 
                     self.ready_for_operation_timeouted_instances)
@@ -2872,17 +2872,17 @@ By default, the dashboard is enabled.
         The method builds list of Spot interrupted and rebalance recommended used by scaling algorithms.
         """
         # Collect all Spot instances events
-        self.spot_rebalance_recommanded     = self.ec2.filter_spot_instances(self.all_instances, EventType="+rebalance_recommended")
-        self.spot_rebalance_recommanded_ids = [ i["InstanceId"] for i in self.spot_rebalance_recommanded ]
+        self.spot_rebalance_recommended     = self.ec2.filter_spot_instances(self.all_instances, EventType="+rebalance_recommended")
+        self.spot_rebalance_recommended_ids = [ i["InstanceId"] for i in self.spot_rebalance_recommended ]
         self.spot_interrupted               = self.ec2.filter_spot_instances(self.all_instances, EventType="+interrupted")
         self.spot_interrupted_ids           = [ i["InstanceId"] for i in self.spot_interrupted ]
-        self.spot_excluded_instance_ids.extend(self.spot_rebalance_recommanded_ids)
+        self.spot_excluded_instance_ids.extend(self.spot_rebalance_recommended_ids)
         self.spot_excluded_instance_ids.extend(self.spot_interrupted_ids)
 
         # Uncomment this to enable blacklisting of all instances sharing the same type and AZ than the ones that received a Spot message.
         #    TODO: Clarify if this strategy could render useful in real life and propose a toggle to activate it.
         #
-        #for event_type in [self.spot_rebalance_recommanded, self.spot_interrupted]:
+        #for event_type in [self.spot_rebalance_recommended, self.spot_interrupted]:
         #    for i in event_type:
         #        instance_type  = i["InstanceType"]
         #        instance_az    = i["Placement"]["AvailabilityZone"]
@@ -2910,8 +2910,8 @@ By default, the dashboard is enabled.
         This method marks Spot instance in 'interrupted' state as 'draining'. It also reacts to Spot events but launching replacement
         instances immediatly after EC2 Spot message receipt.
         """
-        if len(self.spot_rebalance_recommanded_ids):
-            log.info("EC2 Spot instances with 'rebalance_recommended' status: %s" % self.spot_rebalance_recommanded_ids)
+        if len(self.spot_rebalance_recommended_ids):
+            log.info("EC2 Spot instances with 'rebalance_recommended' status: %s" % self.spot_rebalance_recommended_ids)
         if len(self.spot_interrupted_ids):
             log.info("EC2 Spot instances with 'interrupted' status: %s" % self.spot_interrupted_ids)
 
@@ -2931,7 +2931,7 @@ By default, the dashboard is enabled.
 
         subfleet_deltas          = defaultdict(int)
         instance_count_to_launch = 0
-        for i in self.spot_rebalance_recommanded:
+        for i in self.spot_rebalance_recommended:
             instance_id = i["InstanceId"]
             if instance_id not in known_spot_advisories and instance_id not in self.spot_interrupted_ids:
                 log.info(f"Instance '{instance_id}' just got 'Spot rebalance recommended' message. Launch immediatly "
@@ -2962,7 +2962,7 @@ By default, the dashboard is enabled.
 
         # Garbage collect old instance notifications
         for i in list(known_spot_advisories.keys()):
-            if i not in self.spot_rebalance_recommanded_ids and i not in self.spot_interrupted_ids:
+            if i not in self.spot_rebalance_recommended_ids and i not in self.spot_interrupted_ids:
                 del known_spot_advisories[i]
 
         # Persist that we managed Spot events

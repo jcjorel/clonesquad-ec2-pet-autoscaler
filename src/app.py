@@ -85,7 +85,7 @@ log.debug("End of preambule.")
 
 @xray_recorder.capture(name="app.init")
 def init(with_kvtable=True, with_predefined_configuration=True):
-    log.log(log.NOTICE, "Function Init (version=%s)" % (ctx.get("CloneSquadVersion")))
+    log.info("Function Init (version=%s)" % (ctx.get("CloneSquadVersion")))
     config.init(ctx, with_kvtable=with_kvtable, with_predefined_configuration=with_predefined_configuration)
     Cfg.register({
            "app.run_period,Stable" : {
