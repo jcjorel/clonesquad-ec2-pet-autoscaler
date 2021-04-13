@@ -85,7 +85,6 @@ log.debug("End of preambule.")
 
 @xray_recorder.capture(name="app.init")
 def init(with_kvtable=True, with_predefined_configuration=True):
-    log.info("Function Init (version=%s)" % (ctx.get("CloneSquadVersion")))
     config.init(ctx, with_kvtable=with_kvtable, with_predefined_configuration=with_predefined_configuration)
     Cfg.register({
            "app.run_period,Stable" : {
@@ -166,6 +165,7 @@ def main_handler_entrypoint(event, context):
     ctx["now"] = misc.utc_now()
     ctx["FunctionName"] = "Main"
 
+    log.info("New instance scheduling period (version=%s)." % (ctx.get("CloneSquadVersion")))
     init()
 
     if Cfg.get_int("app.disable") != 0 and not misc.is_sam_local():
@@ -271,6 +271,7 @@ def sns_handler(event, context):
     log.log(log.NOTICE, "Handler start.")
     ctx["FunctionName"] = "SNS"
 
+    log.info("Processing start (version=%s)" % (ctx.get("CloneSquadVersion")))
     init()
     misc.load_prerequisites(ctx, ["o_state", "o_notify", "o_targetgroup"])
 
@@ -308,6 +309,7 @@ def discovery_handler(event, context):
     global ctx
     ctx["now"]          = misc.utc_now()
     ctx["FunctionName"] = "Discovery"
+    log.info("Processing start (version=%s)" % (ctx.get("CloneSquadVersion")))
     discovery = misc.discovery(ctx)
     log.debug(discovery)
     return discovery
@@ -341,6 +343,7 @@ def interact_handler_entrypoint(event, context):
     ctx["now"]           = misc.utc_now()
     ctx["FunctionName"]  = "Interact"
 
+    log.info("Processing start (version=%s)" % (ctx.get("CloneSquadVersion")))
     init()
     notify.do_not_notify = True # We do not want notification and event management in the Interact function
 
