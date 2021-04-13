@@ -476,6 +476,13 @@ By default, the dashboard is enabled.
         self.ec2_alarmstate_table = kvtable.KVTable(self.context, self.context["AlarmStateEC2Table"])
         self.ec2_alarmstate_table.reread_table()
 
+        # Garbage collect incorrect/unsync statuses (can happen when user stop the instance 
+        #   directly on the AWS console)
+        for i in self.ec2.get_instances(State="stopped", ScalingState="bounced,draining"):
+            instance_id = i["InstanceId"]
+            log.debug("Garbage collect instance '%s' with improper 'draining/bounced' status..." % instance_id)
+            self.ec2.set_scaling_state(instance_id, "")
+
         # Read instance control state
         self.instance_control     = self.ec2.get_instance_control_state()
         self.unstoppable_ids      = list(self.instance_control["unstoppable"].keys())
@@ -547,14 +554,6 @@ By default, the dashboard is enabled.
         log.debug("End of instance list computation.")
         xray_recorder.end_subsegment()
 
-
-        # Garbage collect incorrect/unsync statuses (can happen when user stop the instance 
-        #   directly on the AWS console)
-        instances = self.stopped_instances_bounced_draining 
-        for i in instances:
-            instance_id = i["InstanceId"]
-            log.debug("Garbage collect instance '%s' with improper 'draining' status..." % instance_id)
-            self.ec2.set_scaling_state(instance_id, "")
 
         # Garbage collect zombie states (i.e. instances do not exist anymore but have still states in state table)
         instances = self.ec2.get_instances() 
@@ -1307,20 +1306,16 @@ By default, the dashboard is enabled.
        if not self.is_instance_cpu_crediting_eligible(i):
            return False 
 
-       # This instance to stop is a burstable one
-       stopped_instances    = self.stopped_instances_wo_excluded_error
-
        # Burstable machine needs to run enough time to get their CPU Credit balance updated
        draining_date = meta["last_draining_date"]
-       draining_time = misc.seconds_from_epoch_utc()
-       if draining_date is not None:
-           draining_time     = (now - draining_date).total_seconds()
-       running_time          = (now - i["LaunchTime"]).total_seconds()
+       if draining_date is None:
+           log.warning(f"Bug missing 'last_draining_date' Bug??")
+           return False
+       draining_time     = (now - draining_date).total_seconds()
 
-       assessment_time       = min(draining_time, running_time)
        maximum_draining_time = Cfg.get_duration_secs("ec2.schedule.burstable_instance.max_cpucrediting_time")
-       if assessment_time > maximum_draining_time:
-           log.warning("Instance '%s' is CPU crediting for a too long time. Timeout..." % instance_id)
+       if draining_time > maximum_draining_time:
+           log.info("Instance '%s' is CPU crediting for a too long time. Timeout..." % instance_id)
            return False
 
        max_earned_credits      = self.cpu_credits[instance_type][1]
@@ -1345,9 +1340,8 @@ By default, the dashboard is enabled.
     def compute_cpu_crediting_instances(self, mainfleet_crediting_instance_ids, subfleet_crediting_instances):
         instances                      = self.pending_running_instances_draining
         # Variable for autoscale fleet management
-        non_burstable_instances        = self.non_burstable_instances
-        max_number_crediting_instances = Cfg.get_abs_or_percent("ec2.schedule.burstable_instance.max_cpu_crediting_instances", -1, 
-                len(self.instances_wo_excluded))
+        max_number_crediting_instances = Cfg.get_abs_or_percent("ec2.schedule.burstable_instance.max_cpu_crediting_instances", 
+                -1, len(self.instances_wo_excluded))
 
         subfleet_details = defaultdict(dict)
         for subfleet in self.ec2.get_subfleet_names():
