@@ -165,12 +165,12 @@ def main_handler_entrypoint(event, context):
     ctx["now"] = misc.utc_now()
     ctx["FunctionName"] = "Main"
 
-    log.info("New instance scheduling period (version=%s)." % (ctx.get("CloneSquadVersion")))
     init()
 
     if Cfg.get_int("app.disable") != 0 and not misc.is_sam_local():
         log.warning("Application disabled due to 'app.disable' key")
         return
+    log.info("New instance scheduling period (version=%s)." % (ctx.get("CloneSquadVersion")))
 
     no_is_called_too_early = False
     # Manage Spot interruption as fast as we can
