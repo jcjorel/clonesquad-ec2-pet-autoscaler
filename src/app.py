@@ -68,6 +68,7 @@ def fix_sam_bugs():
         ctx["InteractLambdaArn"]  = "arn:aws:lambda:%s:%s:function:CloneSquad-Interact-%s" % (ctx["AWS_DEFAULT_REGION"], account_id, ctx["GroupName"])
         ctx["AWS_LAMBDA_LOG_GROUP_NAME"] = "/aws/lambda/CloneSquad-Main-%s" % ctx["GroupName"]
         ctx["SSMLogGroup"] = "/aws/lambda/CloneSquad-SSM-%s" % ctx["GroupName"]
+        ctx["CloneSquadVersion"] = "--Development--"
 
 
 # Special treatment while started from SMA invoke loval
@@ -84,7 +85,7 @@ log.debug("End of preambule.")
 
 @xray_recorder.capture(name="app.init")
 def init(with_kvtable=True, with_predefined_configuration=True):
-    log.debug("Init.")
+    log.log(log.NOTICE, "Function Init (version=%s)" % (ctx.get("CloneSquadVersion")))
     config.init(ctx, with_kvtable=with_kvtable, with_predefined_configuration=with_predefined_configuration)
     Cfg.register({
            "app.run_period,Stable" : {
@@ -165,8 +166,6 @@ def main_handler_entrypoint(event, context):
     ctx["now"] = misc.utc_now()
     ctx["FunctionName"] = "Main"
 
-    misc.initialize_clients(["ec2", "cloudwatch", "events", "sqs", "sns", "dynamodb", 
-        "elbv2", "rds", "resourcegroupstaggingapi", "transfer"], ctx)
     init()
 
     if Cfg.get_int("app.disable") != 0 and not misc.is_sam_local():
@@ -212,8 +211,6 @@ def main_handler_entrypoint(event, context):
     ctx["o_targetgroup"].manage_targetgroup()
     log.debug("Main - schedule_instances()")
     ctx["o_ec2_schedule"].schedule_instances()
-    log.debug("Main - stop_drained_instances()")
-    ctx["o_ec2_schedule"].stop_drained_instances()
     log.debug("Main - configure_alarms()")
     ctx["o_cloudwatch"].configure_alarms()
     log.debug("Main - RDS - manage_subfleet()")
@@ -274,7 +271,6 @@ def sns_handler(event, context):
     log.log(log.NOTICE, "Handler start.")
     ctx["FunctionName"] = "SNS"
 
-    misc.initialize_clients(["ec2", "elbv2", "sqs", "dynamodb"], ctx)
     init()
     misc.load_prerequisites(ctx, ["o_state", "o_notify", "o_targetgroup"])
 

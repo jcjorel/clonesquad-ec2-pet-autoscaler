@@ -629,6 +629,10 @@ without any TargetGroup but another external health instance source exists).
                                 f"start {instance_ids_to_start}. It could happen when a Spot has been recently stopped. Will try again next time...")
                         need_shortterm_record  = False
                         need_longterm_record   = False
+                    if ex.response['Error']['Code'] == 'InsufficientInstanceCapacity':
+                        log.warning(f"Failed to start instance due to 'InsufficientInstanceCapacity' error: {ex}")
+                        need_shortterm_record  = False
+                        need_longterm_record   = False
                 except:
                     pass
 

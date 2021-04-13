@@ -68,5 +68,10 @@ with open(args.template_file[0]) as f:
                             "Bucket": select_customization_parameter(0, args.s3_bucket),
                             "Key": select_customization_parameter(1, prefix_and_key)
                         }
+        # Patch Lambda Environment variable with version
+        if "Environment" in properties and "Variables" in properties["Environment"]:
+            envs = properties["Environment"]["Variables"]
+            if "CloneSquadVersion" in envs:
+                properties["CloneSquadVersion"] = args.version
 
 print(yaml.dump(content))

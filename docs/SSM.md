@@ -3,7 +3,7 @@
 [AWS System Manager](https://aws.amazon.com/systems-manager/) integration brings [Maintenance Window](#maintenance-window-support) support
 and [In-instance Event notifications](#in-instance-event-notifications).
 
-> **Important: By default, SSM support is disabled and must be explicitly enabled with [`ssm.enabled`](CONFIGURATION_REFERENCE.md#ssmenable).**
+> **Important: By default, SSM support is disabled and must be explicitly enabled with [`ssm.enable`](CONFIGURATION_REFERENCE.md#ssmenable).**
 
 Even activated globally with [`ssm.enable`](CONFIGURATION_REFERENCE.md#ssmenable), all features of the CloneSquad SSM module are disabled by default. One need to activate each feature explicitly with appropriate feature toggle.
 

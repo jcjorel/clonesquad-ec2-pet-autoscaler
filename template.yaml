@@ -527,7 +527,8 @@ Resources:
                   - AmazonS3ReadOnlyAccess
               Environment:
                 Variables:
-                  PYTHONPATH:                                 "/opt:/opt/site-packages"
+                  PYTHONPATH:           "/opt:/opt/site-packages"
+                  CloneSquadVersion:    "--Development--"
 
     ApiGWParameters:
             Type: "Custom::CustomResourceFunction"
@@ -745,6 +746,7 @@ Resources:
                   AWS_XRAY_SDK_ENABLED:                       !Ref XRayDiagnosis
                   CLONESQUAD_LOGLEVELS:                       !Ref LogLevels
                   ACCOUNT_ID:                                 !Ref "AWS::AccountId"
+                  CloneSquadVersion:                          "--Development--"
               Events:
                 Schedule:
                   Type: Schedule
@@ -801,6 +803,7 @@ Resources:
                   TimeZone:                                   !Ref TimeZone
                   CLONESQUAD_LOGLEVELS:                       !Ref LogLevels
                   ACCOUNT_ID:                                 !Ref "AWS::AccountId"
+                  CloneSquadVersion:                          "--Development--"
               Events:
                 ScaleUpTopic:
                   Type: SNS
@@ -856,6 +859,7 @@ Resources:
                   TimeZone:                                   !Ref TimeZone
                   CLONESQUAD_LOGLEVELS:                       !Ref LogLevels
                   ACCOUNT_ID:                                 !Ref "AWS::AccountId"
+                  CloneSquadVersion:                          "--Development--"
                   ApiGwVpcEndpointDNSEntry: !If 
                         - HasApiGWEndpointConfiguration 
                         - !Select [ 1, !Split [ ":", !Select [ 0, !GetAtt ApiGWVpcEndpoints.DnsEntries]]]
@@ -899,6 +903,7 @@ Resources:
                   TimeZone:                                   !Ref TimeZone
                   CLONESQUAD_LOGLEVELS:                       !Ref LogLevels
                   ACCOUNT_ID:                                 !Ref "AWS::AccountId"
+                  CloneSquadVersion:                          "--Development--"
               Events:
                 SQS:
                   Type: SQS

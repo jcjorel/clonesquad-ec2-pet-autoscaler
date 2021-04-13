@@ -4,6 +4,7 @@ v0.19.0:
 - (Improvment/Major) Added User Notification event 'new_instances_marked_as_unuseable' sent when an instance is detected unuseable (Spot interrupted, Not responding on-time to SSM Event requests...)
 - (Bug/Major) Fixed a case where user notifications failed to be sent due to messages too big. 
 - (Bug/Minor) Some transient RDS status can rarely happen generating InvalidDBInstanceState exception on start/stop action. We now trap this exception as non-critical and so no more notify the user for a minor transient situation.
+- (Improvment/Minor) API GW /v1/discovery and CloneSquad-{GroupName}-Discovery Lambda function now return also the deployed CloneSquad version.
 
 
 v0.18.0:
