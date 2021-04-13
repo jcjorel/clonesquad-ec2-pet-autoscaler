@@ -170,7 +170,6 @@ def main_handler_entrypoint(event, context):
     if Cfg.get_int("app.disable") != 0 and not misc.is_sam_local():
         log.warning("Application disabled due to 'app.disable' key")
         return
-    log.info("New instance scheduling period (version=%s)." % (ctx.get("CloneSquadVersion")))
 
     no_is_called_too_early = False
     # Manage Spot interruption as fast as we can
@@ -193,6 +192,7 @@ def main_handler_entrypoint(event, context):
         sqs.process_sqs_records(ctx, event)
         sqs.call_me_back_send()
         return
+    log.info("New instance scheduling period (version=%s)." % (ctx.get("CloneSquadVersion")))
 
     log.debug("Load prerequisites.")
     misc.load_prerequisites(ctx, ["o_state", "o_ec2", "o_notify", "o_ssm", "o_cloudwatch", "o_targetgroup", 
