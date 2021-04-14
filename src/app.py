@@ -14,6 +14,7 @@ import config
 import misc
 import sqs
 import ec2
+import ssm
 import ec2_schedule
 import sns
 import cloudwatch
@@ -60,12 +61,14 @@ def fix_sam_bugs():
         ctx["MainSQSQueue"]       = "https://sqs.%s.amazonaws.com/%s/CloneSquad-Main-%s" % (ctx["AWS_DEFAULT_REGION"], account_id, ctx["GroupName"])
         ctx["InteractSQSUrl"]     = "https://sqs.%s.amazonaws.com/%s/CloneSquad-Interact-%s" % (ctx["AWS_DEFAULT_REGION"], account_id, ctx["GroupName"])
         ctx["InteractAPIGWUrl"]   = "https://dummy-apigw-url"
-        ctx["CloudWatchEventRoleArn"] = "arn:aws:iam::%s:role/CloneSquad-%s-CWRole" % (account_id, ctx["GroupName"])
+        ctx["CloudWatchEventRoleArn"] = "arn:aws:iam::%s:role/CloneSquad-%s-CWRole-%s" % (account_id, ctx["GroupName"], ctx["AWS_DEFAULT_REGION"])
         ctx["GenericInsufficientDataActions_SNSTopicArn"] = "arn:aws:sns:%s:%s:CloneSquad-CloudWatchAlarm-InsufficientData-%s" % (ctx["AWS_DEFAULT_REGION"], account_id, ctx["GroupName"])
         ctx["GenericOkActions_SNSTopicArn"] = "arn:aws:sns:%s:%s:CloneSquad-CloudWatchAlarm-Ok-%s"  % (ctx["AWS_DEFAULT_REGION"], account_id, ctx["GroupName"])
         ctx["ScaleUp_SNSTopicArn"] =  "arn:aws:sns:%s:%s:CloneSquad-CloudWatchAlarm-ScaleUp-%s" % (ctx["AWS_DEFAULT_REGION"], account_id, ctx["GroupName"])
         ctx["InteractLambdaArn"]  = "arn:aws:lambda:%s:%s:function:CloneSquad-Interact-%s" % (ctx["AWS_DEFAULT_REGION"], account_id, ctx["GroupName"])
         ctx["AWS_LAMBDA_LOG_GROUP_NAME"] = "/aws/lambda/CloneSquad-Main-%s" % ctx["GroupName"]
+        ctx["SSMLogGroup"] = "/aws/lambda/CloneSquad-SSM-%s" % ctx["GroupName"]
+        ctx["CloneSquadVersion"] = "--Development--"
 
 
 # Special treatment while started from SMA invoke loval
@@ -75,11 +78,13 @@ if misc.is_sam_local() or __name__ == '__main__':
     for env in os.environ:
         print("%s=%s" % (env, os.environ[env]))
 
+# Avoid client initialization time during event processsing
+misc.initialize_clients(["ec2", "cloudwatch", "events", "sqs", "sns", "dynamodb",  "ssm", "lambda",
+    "elbv2", "rds", "resourcegroupstaggingapi", "transfer"], ctx)
 log.debug("End of preambule.")
 
 @xray_recorder.capture(name="app.init")
 def init(with_kvtable=True, with_predefined_configuration=True):
-    log.debug("Init.")
     config.init(ctx, with_kvtable=with_kvtable, with_predefined_configuration=with_predefined_configuration)
     Cfg.register({
            "app.run_period,Stable" : {
@@ -108,6 +113,8 @@ if this flag changed its status and allow normal operation again."""
     ctx["o_state"]           = state.StateManager(ctx)
     log.debug("o_ec2 setup...")
     ctx["o_ec2"]             = ec2.EC2(ctx, ctx["o_state"])
+    log.debug("o_ssm setup...")
+    ctx["o_ssm"]             = ssm.SSM(ctx)
     log.debug("o_targetgroup setup...")
     ctx["o_targetgroup"]     = targetgroup.ManagedTargetGroup(ctx, ctx["o_ec2"])
     log.debug("o_cloudwatch setup...")
@@ -158,8 +165,6 @@ def main_handler_entrypoint(event, context):
     ctx["now"] = misc.utc_now()
     ctx["FunctionName"] = "Main"
 
-    misc.initialize_clients(["ec2", "cloudwatch", "events", "sqs", "sns", "dynamodb", 
-        "elbv2", "rds", "resourcegroupstaggingapi", "transfer"], ctx)
     init()
 
     if Cfg.get_int("app.disable") != 0 and not misc.is_sam_local():
@@ -187,9 +192,10 @@ def main_handler_entrypoint(event, context):
         sqs.process_sqs_records(ctx, event)
         sqs.call_me_back_send()
         return
+    log.info("New instance scheduling period (version=%s)." % (ctx.get("CloneSquadVersion")))
 
     log.debug("Load prerequisites.")
-    misc.load_prerequisites(ctx, ["o_state", "o_ec2", "o_notify", "o_cloudwatch", "o_targetgroup", 
+    misc.load_prerequisites(ctx, ["o_state", "o_ec2", "o_notify", "o_ssm", "o_cloudwatch", "o_targetgroup", 
         "o_ec2_schedule", "o_scheduler", "o_rds", "o_transferfamily"])
 
     # Remember 'now' as the last execution date
@@ -199,12 +205,12 @@ def main_handler_entrypoint(event, context):
 
     # Perform actions:
     log.debug("Main processing.")
+    log.debug("Main - prepare_ssm()")
+    ctx["o_ssm"].prepare_ssm()
     log.debug("Main - manage_targetgroup()")
     ctx["o_targetgroup"].manage_targetgroup()
     log.debug("Main - schedule_instances()")
     ctx["o_ec2_schedule"].schedule_instances()
-    log.debug("Main - stop_drained_instances()")
-    ctx["o_ec2_schedule"].stop_drained_instances()
     log.debug("Main - configure_alarms()")
     ctx["o_cloudwatch"].configure_alarms()
     log.debug("Main - RDS - manage_subfleet()")
@@ -215,6 +221,8 @@ def main_handler_entrypoint(event, context):
     ctx["o_ec2_schedule"].prepare_metrics()
     log.debug("Main - send_metrics()")
     ctx["o_cloudwatch"].send_metrics()
+    log.debug("Main - send_events()")
+    ctx["o_ec2_schedule"].send_events()
 
     log.debug("Main - configure_dashboard()")
     ctx["o_cloudwatch"].configure_dashboard()
@@ -226,8 +234,20 @@ def main_handler_entrypoint(event, context):
 
     ctx["o_notify"].notify_user_arn_resources()
 
+    # Send all pending SSM commands
+    ctx["o_ssm"].send_commands()
+
     # Call me back if needed
     sqs.call_me_back_send()
+
+    # DEBUG (Stop immedialty all faulty instances)
+    #issues = ctx["o_ec2_schedule"].get_instances_with_issues()
+    #if False and len(issues):
+    #    do_stop = False
+    #    pdb.set_trace()
+    #    issues = ctx["o_ec2_schedule"].get_instances_with_issues()
+    #    if do_stop:
+    #        ctx["o_ec2"].stop_instances(issues)
 
 
 def sns_handler(event, context):
@@ -251,7 +271,7 @@ def sns_handler(event, context):
     log.log(log.NOTICE, "Handler start.")
     ctx["FunctionName"] = "SNS"
 
-    misc.initialize_clients(["ec2", "elbv2", "sqs", "dynamodb"], ctx)
+    log.info("Processing start (version=%s)" % (ctx.get("CloneSquadVersion")))
     init()
     misc.load_prerequisites(ctx, ["o_state", "o_notify", "o_targetgroup"])
 
@@ -289,6 +309,7 @@ def discovery_handler(event, context):
     global ctx
     ctx["now"]          = misc.utc_now()
     ctx["FunctionName"] = "Discovery"
+    log.info("Processing start (version=%s)" % (ctx.get("CloneSquadVersion")))
     discovery = misc.discovery(ctx)
     log.debug(discovery)
     return discovery
@@ -322,6 +343,7 @@ def interact_handler_entrypoint(event, context):
     ctx["now"]           = misc.utc_now()
     ctx["FunctionName"]  = "Interact"
 
+    log.info("Processing start (version=%s)" % (ctx.get("CloneSquadVersion")))
     init()
     notify.do_not_notify = True # We do not want notification and event management in the Interact function
 

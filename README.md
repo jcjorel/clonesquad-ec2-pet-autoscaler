@@ -7,7 +7,7 @@ Per design, CloneSquad only starts and stops existing EC2 instances (i.e. it nev
 
 > CloneSquad is designed to be used when [AWS Auto Scaling](https://aws.amazon.com/autoscaling/) cannot be: The EC2 instances in the **main autoscaled fleet** can leverage standard AWS [ALB/NLBs](https://aws.amazon.com/elasticloadbalancing/), target groups and health checks mechanisms.
 
-CloneSquad is a ServerLess solution relying on CloudFormation, Lambda, SQS, SNS and DynamoDB AWS services: *It can be deployed as many times as needed **per acccount** 
+CloneSquad is a ServerLess solution relying on CloudFormation, Lambda, SQS, SNS and DynamoDB AWS services: *It can be deployed as many times as needed **per AWS account** 
 and **per region** depending on your autoscaling needs.*
 
 ## Features and Benefits (Please also read the [FAQ](docs/FAQ.md))
@@ -33,6 +33,7 @@ and **per region** depending on your autoscaling needs.*
 	- **Always-on Availability Zone instance balancing algorithm**,
 		* Ex: If multiple instances need to be running in a given fleet, CloneSquad will try to select instances evenly spread in different AZs.
 	- Automatic replacement of unhealthy/unavail/impaired instances,
+	- Support for [Maintenance Window and In-instance Event notifications with SSM (AWS System Manager)](docs/SSM.md)
 	- Support for 'persistent' [Spot instances](https://aws.amazon.com/ec2/spot/) aside of On-Demand ones in the same fleet with **configurable priorities and Spot Rebalance recommendation/interruption handling**,
 	- [Manual](docs/CONFIGURATION_REFERENCE.md#ec2azunavailable_list) or automatic instance eviction in case of an AWS Region outage affecting one or more AZs,
 	- (Optional) **Instance bouncing**: Frictionless fleet rebalancing and [AWS hypervisor maintenance](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/monitoring-instances-status-check_sched.html) by performing a permanent rolling state cycle (periodic start/stop of instances),
@@ -105,7 +106,7 @@ Below, some rough key figures to build an estimate:
 	- Alarms: *((five_permanent_alarms) + (nb_of_serving_instances_at_a_given_time)) * 0.10$* per month
 	- Dashboard: 2 x 3$ per month ([can be disabled](docs/CONFIGURATION_REFERENCE.md#cloudwatchdashboarduse_default))
 	- Metrics: 
-		* Up to 25 x CloudWatch metrics (0.10$ each) ~2.5$ per month (Metrics can be disabled individually with [`cloudwatch.metrics.excluded`](docs/CONFIGURATION_REFERENCE.md#cloudwatchmetricsexcluded) to save costs. Metrics are also disabled if not applicable).
+		* Up to 28 x CloudWatch metrics (0.10$ each) ~2.8$ per month (Metrics can be disabled individually with [`cloudwatch.metrics.excluded`](docs/CONFIGURATION_REFERENCE.md#cloudwatchmetricsexcluded) to save costs. Metrics are also disabled if not applicable). Additional metrics are created when using the subfleet feature.
 		* GetMetricData API call cost highly depends on number of running EC2 instances at a given time (as a rule of thumb, assume 500 requests per hour (=~3$ per month) when Squad is small/medium; assume more on large Squad and/or with intense and frequent scale out activities.
 * Lambda
 	- The 'Main' Lambda function runs every 20 seconds by default for <4 seconds (~5$ per month)

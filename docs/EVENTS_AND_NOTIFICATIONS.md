@@ -11,7 +11,9 @@ Users can react to CloneSquad events:
 * target_transitions,
 * drain_instances,
 * excluded_instance_transitions,
+* new_instances_marked_as_unuseable,
 * spot_interruption_request,
+* ssm_maintenance_window_event,
 * start_db_cluster/stop_db_cluster,
 * start_db_instance/stop_db_instance.
 

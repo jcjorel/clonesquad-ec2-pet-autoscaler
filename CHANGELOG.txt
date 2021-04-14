@@ -1,3 +1,14 @@
+v0.19.0:
+- (Improvment/Major) COMPATIBILITY BREACH: In order to reduce the size on screen and improve subfleet dashboard readability, the subfleet metrics are shortened ("Subfleet." prefix is removed).
+- (Improvment/Major) Added optional SSM subsystem (disabled by default): Brings SSM Maintenance Window support and SSM Event notifications through SSM RunCommands (see https://github.com/jcjorel/clonesquad-ec2-pet-autoscaler/blob/master/docs/SSM.md)
+- (Improvment/Major) Added User Notification event 'ssm_maintenance_window_event' sent when an instance is entering/exiting a maintenance window period.
+- (Improvment/Major) Added User Notification event 'new_instances_marked_as_unuseable' sent when an instance is detected unuseable (Spot interrupted, Not responding on-time to SSM Event requests, failed ELB healthchecks, EC2 impaired status...)
+- (Improvment/Minor) API GW /v1/discovery and CloneSquad-{GroupName}-Discovery Lambda function now return also the currently deployed CloneSquad version.
+- (Bug/Major) Fixed a case where user notifications failed to be sent due to messages too big. 
+- (Bug/Minor) Some transient RDS status can rarely happen generating InvalidDBInstanceState exception on start/stop action. We now trap this exception as non-critical and so no more notify the user for a minor transient situation.
+- (Bug/minor) Renamed the deployed CW-Role to contain the region name and so allow deployment of CloneSquad in multiple regions into the same account.
+
+
 v0.18.0:
 - (Improvment/Major) Added fine-grained IAM policy for Lambda functions => No more AdministratorAccess default policy! :-)
 - (Bug/Major) Fixed improprer management of notification events when, for any reason, a large amount is pending for processing.

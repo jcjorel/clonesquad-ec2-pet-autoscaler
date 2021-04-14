@@ -8,6 +8,9 @@ import kvtable
 import misc
 import re
 import itertools
+from datetime import datetime
+from datetime import timedelta
+import config as Cfg
 
 from aws_xray_sdk.core import xray_recorder
 from aws_xray_sdk.core import patch_all
@@ -22,10 +25,14 @@ class StateManager:
         self.table                 = None
         self.table_aggregates      = []
         self.clonesquad_resources = []
+        Cfg.register({
+            "statemanager.cache.max_age" : "minutes=5",
+            }, ignore_double_definition=True)
 
     def get_prerequisites(self):
         ctx        = self.context
-        self.table = kvtable.KVTable.create(self.context, self.context["StateTable"], use_cache=ctx["FunctionName"] == "Main")
+        self.table = kvtable.KVTable.create(self.context, self.context["StateTable"], 
+                cache_max_age=Cfg.get_duration_secs("statemanager.cache.max_age"))
         for a in self.table_aggregates:
             self.table.register_aggregates(a)
         self.table.reread_table()
@@ -47,7 +54,7 @@ class StateManager:
         self.clonesquad_resources = list(tag_mappings)
 
     def get_resource_services(self):
-        """ Return the list of services with clonesquuad:group-name tags
+        """ Return the list of services with clonesquad:group-name tags
         """
         services = []
         for r in self.get_resources():
@@ -75,25 +82,56 @@ class StateManager:
     def get_state_table(self):
         return self.table
 
+    def get_keys(self, prefix=None):
+        return self.table.get_keys(prefix=prefix)
+
     def register_aggregates(self, aggregates):
         self.table_aggregates.append(aggregates)
 
-    def get_metastring_list(self, key, default=None):
-        value = self.table.get_kv(key)
+    def get_metastring_list(self, key, default=None, TTL=None):
+        value = self.get_state(key, default=default, TTL=TTL)
         return misc.parse_line_as_list_of_dict(value, default=default)
 
-    def get_metastring(self, key, default=None):
-        value = get_metastring_list(key)
+    def get_metastring(self, key, default=None, TTL=None):
+        value = get_metastring_list(key, default=default, TTL=TTL)
         if value is None or len(value) == 0:
             return default
         return value[0]
 
-    def set_state(self, key, value, TTL=0):
-        self.table.set_kv(key, value, TTL=TTL)
-
-    def get_state(self, key, direct=False):
+    def set_state(self, key, value, direct=False, TTL=0):
         if direct:
-            return kvtable.KVTable.get_kv_direct(key, self.context["StateTable"])
+            kvtable.KVTable.set_kv_direct(key, value, self.context["StateTable"], TTL=TTL)
         else:
-            return self.table.get_kv(key)
+            self.table.set_kv(key, value, TTL=TTL)
 
+    def get_state(self, key, default=None, direct=False, TTL=None):
+        if direct:
+            return kvtable.KVTable.get_kv_direct(key, self.context["StateTable"], default=default, TTL=TTL)
+        else:
+            return self.table.get_kv(key, default=default, TTL=TTL)
+
+    def get_state_date(self, key, default=None, direct=False, TTL=None):
+        d = self.get_state(key, default=default, direct=direct, TTL=TTL)
+        if d is None or d == "": return default
+        try:
+            date = datetime.fromisoformat(d)
+        except:
+            return default
+        return date
+
+    def get_state_int(self, key, default=0, direct=False, TTL=None):
+        try:
+            return int(self.get_state(key, direct=direct, TTL=None))
+        except:
+            return default
+
+
+    def get_state_json(self, key, default=None, direct=False, TTL=None):
+        try:
+            v = misc.decode_json(self.get_state(key, direct=direct, TTL=TTL))
+            return v if v is not None else default
+        except:
+            return default
+
+    def set_state_json(self, key, value, compress=True, TTL=0):
+        self.set_state(key, misc.encode_json(value, compress=compress), TTL=TTL)

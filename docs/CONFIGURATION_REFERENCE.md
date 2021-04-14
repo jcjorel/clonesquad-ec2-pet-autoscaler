@@ -384,20 +384,6 @@ is enabled, from an instance type distribution PoV.
 
 
 
-### ec2.schedule.burstable_instance.max_cpu_credit_unhealthy_instances
-Default Value: `1`   
-Format       :  [IntegerOrPercentage](#IntegerOrPercentage)
-
-Maximum number of instances that could be considered, at a given time, as unhealthy because their CPU credit is exhausted.
-
-* Setting this parameter to `100%` will indicate that all burstable instances could marked as unhealthy at the same time.
-* Setting this parameter to `0` will completely disable the ability to consider burstable instances as unhealthy. 
-
-> To prevent a DDoS, burstable instances with exhausted CPU Credit balance are NOT marked as unhealthy when len(stopped_instance) - (ec2.scheduler.min_instance_count) &lt;= 0.
-                     
-
-
-
 ### ec2.schedule.burstable_instance.max_cpu_crediting_instances
 Default Value: `50%`   
 Format       :  [IntegerOrPercentage](#IntegerOrPercentage)
@@ -459,7 +445,8 @@ Format       :  [IntegerOrPercentage](#IntegerOrPercentage)
 
 If set to -1, the autoscaler controls freely the number of running instances. Set to a value different than -1,
 the autoscaler is disabled and this value defines the number of serving (=running & healthy) instances to maintain at all time.
-The [`ec2.schedule.min_instance_count`](#ec2schedulemin_instance_count) is still authoritative and the `ec2.schedule.desired_instance_count` parameter cannot bring
+The [`ec2.schedule.min_instance_count`](#ec2schedulemin_instance_count) is still authoritative and the 
+[`ec2.schedule.desired_instance_count`](#ec2scheduledesired_instance_count) parameter cannot bring
 the serving fleet size below this hard lower limit. 
 
 A typical usage for this key is to set it to `100%` to temporarily force all the instances to run at the same time to perform mutable maintenance
@@ -467,6 +454,8 @@ A typical usage for this key is to set it to `100%` to temporarily force all the
 
 > Tip: Setting this key to the special `100%` value has also the side effect to disable all instance health check management and so ensure the whole fleet running 
 at its maximum size in a stable manner (i.e. even if there are impaired/unhealthy instances in the fleet, they won't be restarted automatically).
+
+> **Important tip related to LightHouse instances**:  In a maintenance use-case, users may require to have all instances **including LightHouse ones** up and running; setting both [`ec2.schedule.desired_instance_count`](#ec2scheduledesired_instance_count) and [`ec2.schedule.min_instance_count`](#ec2schedulemin_instance_count) to the string value `100%` will start ALL instances.
                      
 
 
@@ -480,8 +469,19 @@ Disable all scale or automations algorithm in the Main fleet.
 Setting this parameter to '1' disables all scaling and automation algorithms in the Main fleet. While set, all Main fleet instances can be freely started 
 and stopped by the users without CloneSquad trying to manage them. 
 
-Note: It is semantically similar to the value `undefined` in subfleet configuration key [`subfleet.&lt;subfleet_name&gt;.state`](#subfleetsubfleetnamestate).
+Note: It is semantically similar to the value `undefined` in subfleet configuration key [`subfleet.{SubfleetName}.state`](#subfleetsubfleetnamestate).
                     
+
+
+
+### ec2.schedule.draining.instance_cooldown
+Default Value: `minutes=2`   
+Format       :  [Duration](#Duration)
+
+Minimum time to spend in the 'draining' state.
+
+If SSM support is enabled with [`ssm.feature.events.ec2.instance_ready_for_shutdown`](#ssmfeatureeventsec2instance_ready_for_shutdown), a script located in the drained instance is executed to ensure that the instance is ready for shutdown even after the specified duration is exhausted. If this script returns non-zero code, the shutdown is postponed for a maximum duration defined in [`ssm.feature.events.ec2.instance_ready_for_shutdown.max_shutdown_delay`](#ssmfeatureeventsec2instance_ready_for_shutdownmax_shutdown_delay).
+                
 
 
 
@@ -494,6 +494,8 @@ Minimum number of healthy serving instances.
 CloneSquad will ensure that at least this number of instances
 are runnning at a given time. A serving instance has passed all the health checks (if part of Target group) and is not detected with
 system issues.
+
+                 
 
 
 
@@ -609,7 +611,7 @@ the associated CloudWatch metrics can't react fast enough to inform the algorith
 
 
 ### ec2.schedule.start.warmup_delay
-Default Value: `minutes=2`   
+Default Value: `minutes=3`   
 Format       :  [Duration](#Duration)
 
 Minimum delay for node readiness.
@@ -693,7 +695,164 @@ DEPRECATED. (Now automatic detection of RDS resources is implemented.)
 
 
 
-### subfleet.&lt;subfleetname&gt;.ec2.schedule.burstable_instance.max_cpu_crediting_instances
+### ssm.enable
+Default Value: `0`   
+Format       :  [Bool](#Bool)
+
+Enable globally support for AWS System Manager by CloneSquad.
+
+CloneSquad can leverage AWS SSM to take into account Maintenance Windows and use SSM RunCommand to execute status probe scripts located in managed instances.
+            
+
+
+
+### ssm.feature.events.ec2.instance_ready_for_operation
+Default Value: `0`   
+Format       :  [Bool](#Bool)
+
+Ensure an instance go out from 'initializing' state based on an instance script returns code.
+
+This enables support for direct sensing of instance **serving** readiness based on the return code of a script located in each EC2 instances. CloneSquad never stops an instance in the 'initializing' state. This state is normally automatically left after [`ec2.schedule.start.warmup_delay`](#ec2schedulestartwarmup_delay) seconds: When this setting is set, an SSM command is sent to each instance and call a script to get a direct ack that an instance can left the 'initializing' state.
+
+* If `/etc/cs-ssm/instance-ready-for-operation` is present, it is executed with the SSM agent daemon user rights: If the script returns a NON-zero code, Clonesquad will postpone the instance go-out from 'initializing' state and will call this script again after 2 * [ `app.run_period`](#apprun_period) seconds...
+* If `/etc/cs-ssm/instance-ready-for-operation` is NOT present, the instance leaves the 'initializing' state immediatly after 'warmup delay'..
+
+> This setting is taken into account only if [`ssm.enable`](#ssmenable) is set to 1.
+            
+
+
+
+### ssm.feature.events.ec2.instance_ready_for_operation.max_initializing_time
+Default Value: `hours=1`   
+Format       :  [Duration](#Duration)
+
+Max time that an instance can spend in 'initializing' state.
+
+When [`ssm.feature.events.ec2.instance_ready_for_operation`](#ssmfeatureec2instance_ready_for_operation) is set, this setting defines the maximum duration that CloneSquas will attempt to get a status 'ready-for-operation' for a specific instance through SSM RunCommand calls and execution of the `/etc/cs-ssm/instance-ready-for-operation` script.
+            
+
+
+
+### ssm.feature.events.ec2.instance_ready_for_shutdown
+Default Value: `0`   
+Format       :  [Bool](#Bool)
+
+Ensure instance shutdown readiness with /etc/cs-ssm/instance-ready-for-shutdown script on SSM managed instances."
+
+This enables support for direct sensing of instance shutdown readiness based on the return code of a script located in each EC2 instances. When set to 1, CloneSquad sends a SSM RunCommand to a managed instance candidate prior to shutdown: 
+* If `/etc/cs-ssm/instance-ready-for-shutdown` is present, it is executed with the SSM agent daemon user rights: If the script returns a NON-zero code, Clonesquad will postpone the instance shutdown and will call this script again after 2 * [ `app.run_period`](#apprun_period) seconds...
+* If `/etc/cs-ssm/instance-ready-for-shutdown` is NOT present, immediate shutdown readyness is assumed.
+
+> This setting is taken into account only if [`ssm.enable`](#ssmenable) is set to 1.
+            
+
+
+
+### ssm.feature.events.ec2.instance_ready_for_shutdown.max_shutdown_delay
+Default Value: `hours=1`   
+Format       :  [Duration](#Duration)
+
+ Maximum time to spend waiting for SSM based ready-for-shutdown status.
+
+When SSM support is enabled with [`ssm.feature.events.ec2.instance_ready_for_operation`](#ssmfeatureec2instance_ready_for_operation), instances may notify CloneSquad when they are ready for shutdown. This setting defines
+the maximum time spent by CloneSquad to receive this signal before to forcibly shutdown the instance.
+                
+
+
+
+### ssm.feature.events.ec2.maintenance_window_period
+Default Value: `0`   
+Format       :  [Bool](#Bool)
+
+Enable/Disable sending Enter/Exit Maintenance Window period events to instances.
+
+This enables event notification support of instances when they enter or exit a SSM Maintenance Window. When set to 1, CloneSquad sends a SSM RunCommand to run the script `/etc/cs-ssm/(enter|exit)-maintenance-window-period` script located in each instances. The event is repeasted until the script returns a zero-code. If the script doesn't exist on an instance, the event is sent only once.
+
+> This setting is taken into account only if [`ssm.enable`](#ssmenable) is set to 1.
+            
+
+
+
+### ssm.feature.events.ec2.scaling_state_changes
+Default Value: `0`   
+Format       :  [Bool](#Bool)
+
+Call a script in instance when the instance scaling state changes.
+
+When this toggle set, the script `/etc/cs-ssm/instance-scaling-state-change` located into managed instances, is called to notify about a scaling status change. 
+Currently, only `draining` and `bounced` events are sent (`bounced`is sent only if the instance bouncing feature is activated). For example, if an instance enters the `draining` state because CloneSquad wants to shutdown it, this event is called.
+
+* If the script doesn't exists, the event is sent only once,
+* If the script returns a non-zero code, the event will be repeated.
+
+> Note: This event differs from [`ssm.feature.events.ec2.instance_ready_for_shutdown`](#ssmfeatureeventsec2instance_ready_for_shutdown) one as it is only meant to inform the instance about a status change. The [`ssm.feature.events.ec2.instance_ready_for_shutdown`](#ssmfeatureeventsec2instance_ready_for_shutdown) event is a request toward the instance asking for an approval to shutdown.
+
+            
+
+
+
+### ssm.feature.events.ec2.scaling_state_changes.draining.connection_refused_tcp_ports
+Default Value: ``   
+Format       :  [StringList](#StringList)
+
+On `draining` state, specified ports are blocked and so forbid new TCP connections (i.e. *Connection refused* message).
+
+This features installs, **on `draining` time**, temporary iptables chain and rules denying new TCP connections to the specified port list.
+This is useful, for example, to break a healthcheck life line as soon as an instance enters the `draining` state: It is especially useful when non-ELB LoadBalancers are used and CloneSquad does not know how to tell these loadbalancers that no more traffic needs to be sent to a drained instance. As it blocks only new TCP connections, currently active connections can terminate gracefully during the draining period.
+
+> When instances are served only by CloneSquad managed ELB(s), there is no need to use this feature as CloneSquad will unregister the targets as soon as placed in `draining`state.
+
+By default, no blocked port list is specified, so no iptables call is performed on the instance.
+            
+
+
+
+### ssm.feature.events.ec2.scaling_state_changes.draining.{SubfleeName}.connection_refused_tcp_ports
+Default Value: ``   
+Format       :  [StringList](#StringList)
+
+Defines the blocked TCP port list for the specified fleet.
+
+This setting overrides the value defined in [`ssm.feature.events.ec2.scaling_state_changes.draining.connection_refused_tcp_ports`](#ssmfeatureeventsec2scaling_state_changesdrainingconnection_refused_tcp_ports) for the specified fleet.
+
+> Use `__main__` to designate the main fleet.
+
+
+
+### ssm.feature.maintenance_window
+Default Value: `0`   
+Format       :  [Bool](#Bool)
+
+Defines if SSM maintenance window support is activated.
+
+> This setting is taken into account only if [`ssm.enable`](#ssmenable) is set to 1.
+            
+
+
+
+### ssm.feature.maintenance_window.start_ahead
+Default Value: `minutes=15`   
+Format       :  [Duration](#Duration)
+
+Start instances this specified time ahead of the next Maintenance Window.
+
+In order to ensure that instances are up and ready when a SSM Maintenance Window starts, they are started in advance of the 'NextExecutionTime' defined in the SSM maintenance window object.
+            
+
+
+
+### ssm.feature.maintenance_window.subfleet.{SubfleetName}.force_running
+Default Value: `1`   
+Format       :  [Bool](#Bool)
+
+Defines if a subfleet is forcibly set to 'running' when a maintenance window is actice.
+        
+By default, all the subfleets is woken up by a maintenance window ([`subfleet.{SubfleetName}.state`](#subfleetsubfleetnamestate) is temprarily forced to `running`).
+            
+
+
+
+### subfleet.{SubfleetName}.ec2.schedule.burstable_instance.max_cpu_crediting_instances
 Default Value: `0%`   
 Format       :  [IntegerOrPercentage](#IntegerOrPercentage)
 
@@ -704,7 +863,7 @@ Follow the same semantic and usage than [`ec2.schedule.burstable_instance.max_cp
 
 
 
-### subfleet.&lt;subfleetname&gt;.ec2.schedule.desired_instance_count
+### subfleet.{SubfleetName}.ec2.schedule.desired_instance_count
 Default Value: `100%`   
 Format       :  [IntegerOrPercentage](#IntegerOrPercentage)
 
@@ -717,11 +876,11 @@ Define the number of EC2 instances to start when a subfleet is in a 'running' st
 
 
 
-### subfleet.&lt;subfleetname&gt;.ec2.schedule.metrics.enable
+### subfleet.{SubfleetName}.ec2.schedule.metrics.enable
 Default Value: `1`   
 Format       :  [Bool](#Bool)
 
-Enable detailed metrics for the subfleet &lt;subfleetname&gt;.
+Enable detailed metrics for the subfleet {SubfleetName}.
 
 The following additional metrics are generated:
 * Subfleet.EC2.Size,
@@ -735,7 +894,7 @@ the autoscaled fleet.
 
 
 
-### subfleet.&lt;subfleetname&gt;.ec2.schedule.min_instance_count
+### subfleet.{SubfleetName}.ec2.schedule.min_instance_count
 Default Value: `0`   
 Format       :  [IntegerOrPercentage](#IntegerOrPercentage)
 
@@ -746,7 +905,7 @@ Define the minimum number of EC2 instances to keep up when a subfleet is in a 'r
 
 
 
-### subfleet.&lt;subfleetname&gt;.ec2.schedule.verticalscale.instance_type_distribution
+### subfleet.{SubfleetName}.ec2.schedule.verticalscale.instance_type_distribution
 Default Value: `.*,spot;.*`   
 Format       :  [MetaStringList](#MetaStringList)
 
@@ -762,11 +921,11 @@ that it does not support LightHouse instance specifications.
 
 
 
-### subfleet.&lt;subfleetname&gt;.state
+### subfleet.{SubfleetName}.state
 Default Value: `undefined`   
 Format       :  [String](#String)
 
-Define the status of the subfleet named &lt;subfleetname&gt;.
+Define the status of the subfleet named {SubfleetName}.
 
 Can be one the following values ['`stopped`', '`undefined`', '`running`'].
 

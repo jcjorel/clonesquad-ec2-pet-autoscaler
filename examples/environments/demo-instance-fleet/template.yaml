@@ -181,6 +181,52 @@ Resources:
                   }
               - owner: root:root
                 permissions: "755"
+                path: /etc/cs-ssm/enter-maintenance-window-period
+                content: |
+                  #!/bin/bash
+                  echo "Succesfully launched demo-instance-fleet $0 script! (args=$*)"
+                  echo "Demo script executed as $(id)"
+                  echo "Demo script environment variables:"
+                  env
+                  exit 0
+              - owner: root:root
+                permissions: "755"
+                path: /etc/cs-ssm/exit-maintenance-window-period
+                content: |
+                  #!/bin/bash
+                  echo "Succesfully launched demo-instance-fleet $0 script! (args=$*)"
+                  echo "Demo script executed as $(id)"
+                  echo "Demo script environment variables:"
+                  env
+                  exit 0
+              - owner: root:root
+                permissions: "755"
+                path: /etc/cs-ssm/instance-ready-for-shutdown
+                content: |
+                  #!/bin/bash
+                  echo "Succesfully launched demo-instance-fleet $0 script! (args=$*)"
+                  echo "Demo script executed as $(id)"
+                  echo "Demo script environment variables:"
+                  env
+                  exit 0
+              - owner: root:root
+                permissions: "755"
+                path: /etc/cs-ssm/instance-scaling-state-change-draining
+                content: |
+                  #!/bin/bash
+                  echo "Succesfully launched demo-instance-fleet $0 script! (args=$*)"
+                  echo "Demo script executed as $(id)"
+                  echo "Demo script environment variables:"
+                  env
+                  exit 0
+              - owner: root:root
+                permissions: "644"
+                path: /etc/cs-ssm/blocked-connections/extra-iptables-parameters.txt
+                # We restrict TCP port blacklist to eth0 interface
+                content: |
+                  -i eth0
+              - owner: root:root
+                permissions: "755"
                 path: /var/www/cgi-bin/cpu
                 content: |
                   #!/bin/python3
@@ -212,9 +258,11 @@ Resources:
                 - curl https://raw.githubusercontent.com/jcjorel/clonesquad-ec2-pet-autoscaler/master/tools/cs-instance-watcher -o /root/cs-instance-watcher
                 - chmod a+x /root/cs-instance-watcher
                 # Start the instance watcher ready to block ports 80 and 443 if the instance is placed in draining state
-                - /root/cs-instance-watcher --on-draining-block-new-connections-to-ports 80 443 --log-file /var/log/cs-instance-watcher.log --log-file-rotate d,1,10 --generate-systemd /etc/systemd/system/cs-instance-watcher.service
+                - /root/cs-instance-watcher --on-draining-block-new-connections-to-ports 80 443 --log-file /var/log/cs-instance-watcher.log --log-file-rotate h,1,24 --generate-systemd /etc/systemd/system/cs-instance-watcher.service
                 - systemctl enable cs-instance-watcher
                 - systemctl start cs-instance-watcher
+                # Avoid warning that CloneSquad SSM dir doesn't exist on EC2 instance
+                - mkdir -p /etc/cs-ssm
 
     {% endblock %}
         InstanceMarketOptions:

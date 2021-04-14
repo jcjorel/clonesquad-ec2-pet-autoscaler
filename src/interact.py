@@ -30,12 +30,19 @@ class QueryCache:
         self.invalidated = False
 
     def check_invalidation(self):
-        date = self.context["o_ec2"].get_state("main.last_call_date", direct=True)
+        date = self.context["o_ec2"].get_state("cache.last_write_index", direct=True)
         if date is None or date != self.last_call_date:
             log.info(f"Invalidating cache ({date} != %s)." % self.last_call_date)
             self.cache          = {}
             self.last_call_date = date
             self.interact_precomputed_data = None
+            self.invalidated    = True
+            return True
+        self.invalidated = False
+        return False
+
+    def is_invalidated(self):
+        return self.invalidated
 
     def get(self, url, variant=None, default=None):
         key = "%s_%s" % (url, variant)
@@ -106,14 +113,14 @@ class Interact:
                     "interface": ["apigw"],
                     "clients": ["dynamodb"],
                     "cache": "none",
-                    "prerequisites": ["o_ec2"],
+                    "prerequisites": ["o_state"],
                     "func": self.configuration_dump,
                 },
                 "configuration/(.*)"       : {
                     "interface": ["apigw"],
                     "clients": ["dynamodb"],
                     "cache": "none",
-                    "prerequisites": [],
+                    "prerequisites": ["o_state"],
                     "func": self.configuration,
                 },
                 "scheduler"       : {
@@ -306,9 +313,14 @@ class Interact:
             response["statusCode"] = 400
             response["body"]       = "No information for instance id '%s'!" % instance_id
             return False
-        # Read ultra-fresh state of the instance directly from DynamodDB
-        state = self.context["o_ec2"].get_state(f"ec2.instance.scaling.state.{instance_id}", direct=True)
+        cache = query_cache.get(f"metadata:ec2.instance.scaling.state.{instance_id}")
+        if cache is not None:
+            state = cache["body"]
+        else:
+            # Read ultra-fresh state of the instance directly from DynamodDB
+            state = self.context["o_ec2"].get_state(f"ec2.instance.scaling.state.{instance_id}", direct=True)
         if state is not None and state != "":
+            query_cache.put(f"metadata:ec2.instance.scaling.state.{instance_id}", {"body":state, "statusCode": 200})
             log.info(f"Read instance state for {instance_id} directly for state table ({state})")
             d["State"] = state
         response["statusCode"] = 200
@@ -344,7 +356,12 @@ class Interact:
 
     def configuration_dump(self, context, event, response, cacheddata):
         response["statusCode"] = 200
-        is_yaml = "format" in event and event["format"].lower() == "yaml"
+        is_yaml                 = "format" in event and event["format"].lower() == "yaml"
+        with_maintenance_window = "with_maintenance_window" in event and event["with_maintenance_window"].lower() == "true"
+        if with_maintenance_window:
+            # We load the EC2 and SSM modules to inherit their override parameters if a SSM Maintenance Window is active
+            misc.load_prerequisites(self.context, ["o_ec2", "o_ssm"])
+
         if "httpMethod" in event and event["httpMethod"] == "POST":
             try:
                 c = yaml.safe_load(event["body"]) if is_yaml else json.loads(event["body"])
@@ -370,6 +387,10 @@ class Interact:
             response["body"]       = "Missing config key path."
             return False
         config_key = m.group(1)
+        with_maintenance_window = "with_maintenance_window" in event and event["with_maintenance_window"].lower() == "true"
+        if with_maintenance_window:
+            # We load the EC2 and SSM modules to inherit their override parameters if a SSM Maintenance Window is active
+            misc.load_prerequisites(self.context, ["o_ec2", "o_ssm"])
         if "httpMethod" in event and event["httpMethod"] == "POST":
             value = event["body"].partition('\n')[0]
             log.info(f"TTL=%s" % event.get("ttl"))

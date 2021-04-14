@@ -295,6 +295,7 @@ Resources:
     CloudWatchEventRole:
       Type: 'AWS::IAM::Role'
       Properties:
+        RoleName: !Sub "CloneSquad-${GroupName}-CWRole-${AWS::Region}"
         PermissionsBoundary: !If [HasPermissionsBoundary, !Ref PermissionsBoundary, !Ref "AWS::NoValue"]
         AssumeRolePolicyDocument:
           Version: 2012-10-17
@@ -476,6 +477,12 @@ Resources:
                   - python3.7
               LicenseInfo: 'MIT'
 
+    SSMLogGroup:
+            Type: "AWS::Logs::LogGroup"
+            Properties:
+              LogGroupName: !Sub "/aws/lambda/CloneSquad-SSM-${GroupName}"
+              RetentionInDays: !Ref LogRetentionDuration
+
     MainFunctionLogGroup:
             Type: "AWS::Logs::LogGroup"
             Properties:
@@ -520,7 +527,8 @@ Resources:
                   - AmazonS3ReadOnlyAccess
               Environment:
                 Variables:
-                  PYTHONPATH:                                 "/opt:/opt/site-packages"
+                  PYTHONPATH:           "/opt:/opt/site-packages"
+                  CloneSquadVersion:    "--Development--"
 
     ApiGWParameters:
             Type: "Custom::CustomResourceFunction"
@@ -686,6 +694,11 @@ Resources:
                   - 'rds:DescribeDBInstances'
                   - 'transfer:ListServers'
                   - 'tag:GetResources'
+                  - 'ssm:DescribeMaintenanceWindows'
+                  - 'ssm:DescribeInstanceInformation'
+                  - 'ssm:ListCommandInvocations'
+                  - 'ssm:ListTagsForResource'
+                  - 'ssm:SendCommand'
 
     MainFunction:
             Type: AWS::Serverless::Function 
@@ -729,9 +742,11 @@ Resources:
                   ConfigurationURLs:                          !Ref ConfigurationURLs
                   LoggingS3Path:                              !Ref LoggingS3Path
                   TimeZone:                                   !Ref TimeZone
+                  SSMLogGroup:                                !Sub "/aws/lambda/CloneSquad-SSM-${GroupName}"
                   AWS_XRAY_SDK_ENABLED:                       !Ref XRayDiagnosis
                   CLONESQUAD_LOGLEVELS:                       !Ref LogLevels
                   ACCOUNT_ID:                                 !Ref "AWS::AccountId"
+                  CloneSquadVersion:                          "--Development--"
               Events:
                 Schedule:
                   Type: Schedule
@@ -788,6 +803,7 @@ Resources:
                   TimeZone:                                   !Ref TimeZone
                   CLONESQUAD_LOGLEVELS:                       !Ref LogLevels
                   ACCOUNT_ID:                                 !Ref "AWS::AccountId"
+                  CloneSquadVersion:                          "--Development--"
               Events:
                 ScaleUpTopic:
                   Type: SNS
@@ -843,6 +859,7 @@ Resources:
                   TimeZone:                                   !Ref TimeZone
                   CLONESQUAD_LOGLEVELS:                       !Ref LogLevels
                   ACCOUNT_ID:                                 !Ref "AWS::AccountId"
+                  CloneSquadVersion:                          "--Development--"
                   ApiGwVpcEndpointDNSEntry: !If 
                         - HasApiGWEndpointConfiguration 
                         - !Select [ 1, !Split [ ":", !Select [ 0, !GetAtt ApiGWVpcEndpoints.DnsEntries]]]
@@ -886,6 +903,7 @@ Resources:
                   TimeZone:                                   !Ref TimeZone
                   CLONESQUAD_LOGLEVELS:                       !Ref LogLevels
                   ACCOUNT_ID:                                 !Ref "AWS::AccountId"
+                  CloneSquadVersion:                          "--Development--"
               Events:
                 SQS:
                   Type: SQS

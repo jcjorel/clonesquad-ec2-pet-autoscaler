@@ -110,7 +110,11 @@ def seconds2utc(seconds):
     return datetime.utcfromtimestamp(int(seconds)).replace(tzinfo=timezone.utc)
 
 def str2utc(s, default=None):
+    if isinstance(s, datetime):
+        return s
     try:
+        if s.endswith("Z"):
+            s = s[:-1] + "+00:00"
         return datetime.fromisoformat(s)
     except:
         return default
@@ -126,7 +130,7 @@ def sha256(s):
 def abs_or_percent(value, default, max_value):
     v = default
     try: 
-        if value.endswith("%"):
+        if value.endswith("%") or value.endswith("p") or value.endswith("P"):
             v = math.ceil(float(value[:-1])/100.0 * max_value)
         else:
             v = int(value)
@@ -216,9 +220,7 @@ def get_url(url, throw_exception_on_warning=False):
         bucket, key = [m.group(1), m.group(2)]
         client = boto3.client("s3")
         try:
-            response = client.get_object(
-               Bucket=bucket,
-               Key=key)
+            response = client.get_object(Bucket=bucket, Key=key)
             return response["Body"].read()
         except Exception as e:
             _warning("Failed to fetch S3 url '%s' : %s" % (url, e))
@@ -259,38 +261,37 @@ def parse_line_as_list_of_dict(string, with_leading_string=True, leading_keyname
         return default
     def _remove_escapes(s):
         return s.replace("\\;", ";").replace("\\,", ",").replace("\\=", "=")
-    l = []
-    for d in re.split("(?<!\\\\);", string):
-        if d == "": continue
+    try:
+        l = []
+        for d in re.split("(?<!\\\\);", string):
+            if d == "": continue
 
-        dct       = defaultdict(str)
-        el        = re.split("(?<!\\\\),", d)
-        idx_start = 0
-        if with_leading_string:
-            key = el[0]
-            if key == "": continue
-            dct[leading_keyname] = _remove_escapes(key) #.replace("\\,", ",")
-            idx_start = 1
-        for item in el[idx_start:]:
-            i_el = re.split("(?<!\\\\)=", item, maxsplit=1)
-            dct[i_el[0]] = _remove_escapes(i_el[1]) if len(i_el) > 1 else True
-        l.append(dct)
-    return l
+            dct       = defaultdict(str)
+            el        = re.split("(?<!\\\\),", d)
+            idx_start = 0
+            if with_leading_string:
+                key = el[0]
+                if key == "": continue
+                dct[leading_keyname] = _remove_escapes(key) #.replace("\\,", ",")
+                idx_start = 1
+            for item in el[idx_start:]:
+                i_el = re.split("(?<!\\\\)=", item, maxsplit=1)
+                dct[i_el[0]] = _remove_escapes(i_el[1]) if len(i_el) > 1 else True
+            l.append(dct)
+        return l
+    except:
+        return default
 
 def dynamodb_table_scan(client, table_name, max_size=32*1024*1024):
     xray_recorder.begin_subsegment("misc.dynamodb_table_scan")
-    items = []
+    items      = []
+    items_size = []
 
     size     = 0 
     response = None
-    while response is None or "LastEvaluatedKey" in response:
-        query = {
-                "TableName": table_name,
-                "ConsistentRead": True
-           }
-        if response is not None and "LastEvaluatedKey" in response: query["ExclusiveStartKey"] = response["LastEvaluatedKey"]
-        response = client.scan(**query)
-
+    paginator = client.get_paginator('scan')
+    response_iterator = paginator.paginate(TableName=table_name, ConsistentRead=True)
+    for response in response_iterator:
         if "Items" not in response: raise Exception("Failed to scan table '%s'!" % self.table_name)
 
         # Flatten the structure to make it more useable 
@@ -298,6 +299,8 @@ def dynamodb_table_scan(client, table_name, max_size=32*1024*1024):
             item = {}
             for k in i:
                 item[k] = i[k][list(i[k].keys())[0]]
+            if "Key" in item and "Value" in item:
+                items_size.append({"Key": item["Key"], "Size": len(item["Value"])})
             # Do not manage expired records
             if "ExpirationTime" in item:
                 expiration_time = int(item["ExpirationTime"])
@@ -305,13 +308,19 @@ def dynamodb_table_scan(client, table_name, max_size=32*1024*1024):
                     continue
             if max_size != -1:
                 item_size = 0
-                for k in item: item_size += len(item[k])
+                for k in item: 
+                    item_size += len(item[k])
                 if size + item_size > max_size:
                     break # Truncate too big DynamoDB table
                 else:
                     size += item_size
             items.append(item)
-    log.debug("Table scan of '%s' returned %d items." % (table_name, len(items)))
+    log.log(log.NOTICE, f"DynamoDB: Table scan of '{table_name}' returned %d items (bytes={size})." % len(items))
+    if log.getEffectiveLevel() == log.DEBUG:
+        log.debug(f"Biggest items for table {table_name}:")
+        sorted_items = sorted(items_size, key=lambda item: item["Size"], reverse=True)
+        for i in sorted_items[:10]:
+            log.debug(f"   Item: {i}")
     xray_recorder.end_subsegment()
     return items
 
@@ -319,8 +328,10 @@ def dynamodb_table_scan(client, table_name, max_size=32*1024*1024):
 def load_prerequisites(ctx, object_list):
     for o in object_list:
         xray_recorder.begin_subsegment("prereq:%s" % o)
+        log.debug(f"Loading prerequisite '{o}'...")
         ctx[o].get_prerequisites()
         xray_recorder.end_subsegment()
+    log.debug(f"End prerequisite loading...")
 
 def initialize_clients(clients, ctx):
     config = Config(

@@ -25,13 +25,9 @@ def init(context, with_kvtable=True, with_predefined_configuration=True):
         "config": {},
         "metas" : {}
         }]
+    _init["dynamic_config"] = []
     _init["active_parameter_set"]    = None
     _init["with_kvtable"]            = False
-    if with_kvtable:
-        _init["configuration_table"] = kvtable.KVTable(context, context["ConfigurationTable"])
-        _init["configuration_table"].reread_table()
-        _init["with_kvtable"]        = True
-
     register({
              "config.dump_configuration,Stable" : {
                  "DefaultValue": "0",
@@ -65,8 +61,15 @@ YAML files.
 See [Parameter sets](#parameter-sets) documentation.
                  """
              },
-             "config.default_ttl": 0
+             "config.default_ttl": 0,
+             "config.cache.max_age": 60
     })
+    if with_kvtable:
+        _init["configuration_table"] = kvtable.KVTable.create(context, context["ConfigurationTable"],
+                cache_max_age=get_duration_secs("config.cache.max_age"))
+        _init["configuration_table"].reread_table()
+        _init["with_kvtable"]        = True
+
 
     # Load extra configuration from specified URLs
     xray_recorder.begin_subsegment("config.init:load_files")
@@ -114,16 +117,6 @@ See [Parameter sets](#parameter-sets) documentation.
     _init["loaded_files"] = loaded_files
     xray_recorder.end_subsegment()
 
-    builtin_config = _init["all_configs"][0]["config"]
-    for cfg in _get_config_layers(reverse=True):
-        c = cfg["config"]
-        if "config.active_parameter_set" in c:
-            if c == builtin_config and isinstance(c, dict):
-                _init["active_parameter_set"] = c["config.active_parameter_set"]["DefaultValue"]
-            else:
-                _init["active_parameter_set"] = c["config.active_parameter_set"]
-            break
-    _parameterset_sanity_check()
 
     register({
         "config.ignored_warning_keys,Stable" : {
@@ -156,36 +149,60 @@ def _parameterset_sanity_check():
         if not found:
             log.warning("Active parameter set is '%s' but no parameter set with this name exists!" % _init["active_parameter_set"])
     
-
-def register(config, ignore_double_definition=False):
+def register(config, ignore_double_definition=False, layer="Built-in defaults", create_layer_when_needed=False):
     if _init is None:
         return
-    builtin_config = _init["all_configs"][0]["config"]
-    builtin_metas  = _init["all_configs"][0]["metas"]
+    layer_struct = next(filter(lambda l: l["source"] == layer, _init["all_configs"]), None)
+    if layer_struct is None:
+        if not create_layer_when_needed:
+            raise Exception(f"Unknown config '{layer}'!")
+        layer_struct     = {"source": layer, "config": {}, "metas": {}}
+        _init["dynamic_config"].append(layer_struct)
+    layer_config = layer_struct["config"]
+    layer_metas  = layer_struct["metas"]
     for c in config:
         p = misc.parse_line_as_list_of_dict(c)
         key = p[0]["_"]
-        if not ignore_double_definition and key in builtin_config:
+        if not ignore_double_definition and key in layer_config:
             raise Exception("Double definition of key '%s'!" % key)
-        builtin_config[key] = config[c]
-        builtin_metas[key]  = dict(p[0])
+        layer_config[key] = config[c]
+        layer_metas[key]  = dict(p[0])
+
+    # Build the config layer stack
+    layers = []
+    # Add built-in config
+    layers.extend(_init["all_configs"])
+    # Add file loaded config
+    if "loaded_files" in _init:
+        layers.extend(_init["loaded_files"])
+    if _init["with_kvtable"]:
+        # Add DynamoDB based configuration
+        layers.extend([{
+            "source": "DynamoDB configuration table '%s'" % _init["context"]["ConfigurationTable"],
+            "config": _init["configuration_table"].get_dict()}])
+    layers.extend(_init["dynamic_config"])
+    _init["config_layers"] = layers
+
+    # Update config.active_parameter_set
+    builtin_config = _init["all_configs"][0]["config"]
+    for cfg in _get_config_layers(reverse=True):
+        c = cfg["config"]
+        if "config.active_parameter_set" in c:
+            if c == builtin_config and isinstance(c, dict):
+                _init["active_parameter_set"] = c["config.active_parameter_set"]["DefaultValue"]
+            else:
+                _init["active_parameter_set"] = c["config.active_parameter_set"]
+            break
+    _parameterset_sanity_check()
     # Create a lookup efficient key cache
     compile_keys()
 
+
 def _get_config_layers(reverse=False):
-    l = []
-    # Add built-in config
-    l.extend(_init["all_configs"])
-    # Add file loaded config
-    if "loaded_files" in _init:
-        l.extend(_init["loaded_files"])
-    if _init["with_kvtable"]:
-        # Add DynamoDB based configuration
-        l.extend([{
-            "source": "DynamoDB configuration table '%s'" % _init["context"]["ConfigurationTable"],
-            "config": _init["configuration_table"].get_dict()}])
-    l = l.copy()
-    if reverse: l.reverse()
+    if not reverse:
+        return _init["config_layers"]
+    l = _init["config_layers"].copy()
+    l.reverse()
     return l
 
 def _k(key):
@@ -306,7 +323,7 @@ def compile_keys():
                 c = config["config"]
 
                 parameter_set = "None"
-                if active_parameter_set in c:
+                if not key_pattern.startswith("override:") and active_parameter_set in c:
                     if key in c[active_parameter_set]:
                         parameter_set = active_parameter_set
                         r = _test_key(c[active_parameter_set], key_pattern)
@@ -328,7 +345,7 @@ def set(key, value, ttl=None):
     _init["configuration_table"].set_kv(key, value, TTL=ttl)
 
 def get_direct_from_kv(key, default=None):
-    t = kvtable.KVTable(ctx, ctx["ConfigurationTable"])
+    t = kvtable.KVTable.create(ctx, ctx["ConfigurationTable"], cache_max_age=Cfg.get_duration_secs("config.cache.max_age"))
     v = t.get_kv(key, direct=True)
     return v if not None else default
 
@@ -340,21 +357,25 @@ def get_dict():
     t = _init["configuration_table"]
     return t.get_dict()
 
-def get_extended(key):
+def get_extended(key, fmt=None):
     if key in _init["compiled_keys"]:
-        return _init["compiled_keys"][key]
-    return {
-        "Key": key,
-        "Value" : None,
-        "Success" : False,
-        "ConfigurationOrigin": "None",
-        "Status": "[WARNING] Unknown configuration key '%s'" % key,
-        "Stable": False,
-        "Override": False
-    }
+        r = _init["compiled_keys"][key]
+    else:
+        r = {
+            "Key": key,
+            "Value" : None,
+            "Success" : False,
+            "ConfigurationOrigin": "None",
+            "Status": "[WARNING] Unknown configuration key '%s'" % key,
+            "Stable": False,
+            "Override": False
+        }
+    if fmt:
+        r["Value"] = r["Value"].format(**fmt)
+    return r
 
-def get(key, cls=str, none_on_failure=False):
-    r = get_extended(key)
+def get(key, cls=str, none_on_failure=False, fmt=None):
+    r = get_extended(key, fmt=fmt)
     if not r["Success"]:
         if none_on_failure:
             return None
@@ -372,35 +393,35 @@ def get(key, cls=str, none_on_failure=False):
             return None
         raise Exception(f"Failed to convert key '{key}' with value '%s' : {e}" % r["Value"])
 
-def get_int(key):
-    return get(key, cls=int)
+def get_int(key, fmt=None):
+    return get(key, cls=int, fmt=fmt)
 
-def get_float(key):
-    return get(key, cls=float)
+def get_float(key, fmt=None):
+    return get(key, cls=float, fmt=fmt)
 
-def get_list(key, separator=";", default=None):
-    v = get(key)
+def get_list(key, separator=";", default=None, fmt=None):
+    v = get(key, fmt=fmt)
     if v is None or v == "": return default
-    return v.split(separator)
+    return [i for i in v.split(separator) if i != ""]
 
-def get_duration_secs(key):
+def get_duration_secs(key, fmt=None):
     try:
-        return misc.str2duration_seconds(get(key))
+        return misc.str2duration_seconds(get(key, fmt=fmt))
     except Exception as e:
         raise Exception("[ERROR] Failed to parse config key '%s' as a duration! : %s" % (key, e))
 
-def get_list_of_dict(key):
-    v = get(key)
+def get_list_of_dict(key, fmt=None):
+    v = get(key, fmt=fmt)
     if v is None: return []
     return misc.parse_line_as_list_of_dict(v)
 
-def get_date(key, default=None):
-    v = get(key)
+def get_date(key, default=None, fmt=None):
+    v = get(key, fmt=fmt)
     if v is None: return default
     return misc.str2utc(v, default=default)
 
-def get_abs_or_percent(value_name, default, max_value):
-    value = get(value_name)
+def get_abs_or_percent(value_name, default, max_value, fmt=None):
+    value = get(value_name, fmt=fmt)
     return misc.abs_or_percent(value, default, max_value)
 
 

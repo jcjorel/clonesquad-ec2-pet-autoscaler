@@ -28,7 +28,7 @@ has no system issues (i.e. impaired, unavailable etc...).
 
 # Vertical scaling
 
-The Vertical scaling, in the Main fleet, is fully controlled by a single configuration key [`ec2.schedule.verticalscale.instance_type_distribution`](CONFIGURATION_REFERENCE.md#ec2scheduleverticalscaleinstance_type_distribution) (and [`subfleet.<subfleetname>.ec2.schedule.verticalscale.instance_type_distribution`](CONFIGURATION_REFERENCE.md#subfleetsubfleetnameec2scheduleverticalscaleinstance_type_distribution) for subfleets)
+The Vertical scaling, in the Main fleet, is fully controlled by a single configuration key [`ec2.schedule.verticalscale.instance_type_distribution`](CONFIGURATION_REFERENCE.md#ec2scheduleverticalscaleinstance_type_distribution) (and [`subfleet.{SubfleetName}.ec2.schedule.verticalscale.instance_type_distribution`](CONFIGURATION_REFERENCE.md#subfleetsubfleetnameec2scheduleverticalscaleinstance_type_distribution) for subfleets)
 that defines a policy linked to fleet instance types, billing model and instance duties.
 
 It can be used to favor Spot instances over On-Demand as example or flag some instances as 'LightHouse' ones.
@@ -87,7 +87,7 @@ The subfleets are sets of resources tagged with `clonesquad:group-name` but also
 > When a resource is only tagged with `clonesquad:group-name`, it belongs to the Main fleet. When a resource is tagged **BOTH** with `clonesquad:group-name` **AND**
 `clonesquad:subfleet-name`, it belongs to the specified subfleet.  
 
-These subfleet resources are managed in a On/Off manner through the dynamic configuration key named `subfleet.<subfleetname>.state` which can take one
+These subfleet resources are managed in a On/Off manner through the dynamic configuration key named `subfleet.{SubfleetName}.state` which can take one
 of these 3 values: [`stopped`, `undefined` (or ``), `running`].
 
 Ones can use the CloneSquad Scheduler to change this value to manage lifecycle of subfleets.
@@ -105,8 +105,8 @@ Ex:
 	# Delete the key subfleet.__all__.state at 4AM UTC
 	cron(0 4 * * ? *),subfleet.__all__.state=
 
-EC2 resources are subject to an additional configuration key named [`subfleet.<subfleetname>.ec2.schedule.desired_instance_count`](CONFIGURATION_REFERENCE.md#subfleetsubfleetnameec2scheduledesired_instance_count) which have a 
-similar semantic than in the Main fleet: It controls the number of running instances while [`subfleet.<subfleetname>.state`](CONFIGURATION_REFERENCE.md#subfleetsubfleetnamestate)
+EC2 resources are subject to an additional configuration key named [`subfleet.{SubfleetName}.ec2.schedule.desired_instance_count`](CONFIGURATION_REFERENCE.md#subfleetsubfleetnameec2scheduledesired_instance_count) which have a 
+similar semantic than in the Main fleet: It controls the number of running instances while [`subfleet.{SubfleetName}.state`](CONFIGURATION_REFERENCE.md#subfleetsubfleetnamestate)
 is set to `running`. When this parameter is set 
 to a value different than `100%`, standard remediation mechanisms are activated (AZ instance balancing, faulty instance replacement, instance bouncing, 
 instance eviction on faulty AZ, Spot interruption handling and replacement...)

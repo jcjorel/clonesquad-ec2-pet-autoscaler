@@ -35,6 +35,7 @@ class Scheduler:
         self.local_now              = None
         Cfg.register({
             "cron.max_rules_per_batch": "10",
+            "scheduler.cache.max_age": "seconds=60",
             "cron.disable": "0"
         })
 
@@ -55,7 +56,8 @@ class Scheduler:
                 (self.utc_offset, self.dst_offset, self.tz))
 
         # Load scheduler KV table
-        self.scheduler_table = kvtable.KVTable(self.context, self.context["SchedulerTable"])
+        self.scheduler_table = kvtable.KVTable.create(self.context, self.context["SchedulerTable"],
+                cache_max_age=Cfg.get_duration_secs("scheduler.cache.max_age"))
 
         # Compute event names
         self.load_event_definitions()
@@ -66,13 +68,12 @@ class Scheduler:
            "NamePrefix": "CS-Cron-%s-" % (self.context["GroupName"]),
            "Limit":      10
         }
-        rules  = []
-        while True:
-            response = client.list_rules(**params)
-            if "Rules" in response: rules.extend(response["Rules"])
-            if "NextToken" not in response: break
-            params["NextToken"] = response["NextToken"]
-        self.rules = rules
+        self.rules = []
+        paginator  = client.get_paginator('list_rules')
+        response_iterator = paginator.paginate(**params)
+        for response in response_iterator:
+            if "Rules" in response: 
+                self.rules.extend(response["Rules"])
 
         max_rules_per_batch = Cfg.get_int("cron.max_rules_per_batch")
         # Create missing rules

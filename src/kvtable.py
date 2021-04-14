@@ -21,6 +21,7 @@ all_kv_objects = []
 
 class KVTable():
     def __init__(self, context, table_name, aggregates=None):
+        global all_kv_objects
         self.context     = context
         self.table_name  = table_name
         self.table_cache = None
@@ -32,25 +33,25 @@ class KVTable():
         existing_object = next(filter(lambda o: o.table_name == table_name, all_kv_objects), None)
         if existing_object is not None:
             all_kv_objects.remove(existing_object)
+        self.table_cache_dirty = False
         all_kv_objects.append(self)
-        Cfg.register({
-                 "config.cache.max_age" : "minutes=15",
-            }, ignore_double_definition=True)
 
-    def create(context, table_name, aggregates=None, use_cache=False):
-        existing_object = next(filter(lambda o: o.table_name == table_name, all_kv_objects), None)
-        if not use_cache or existing_object is None:
+    def _get_cache_for_tablename(table_name):
+        return next(filter(lambda o: o.table_name == table_name, all_kv_objects), None)
+
+    def create(context, table_name, aggregates=None, cache_max_age=0):
+        existing_object = KVTable._get_cache_for_tablename(table_name)
+        if cache_max_age == 0 or existing_object is None:
             return KVTable(context, table_name, aggregates=aggregates)
 
         if (existing_object.table_last_read_date is not None and 
-                (context["now"] - existing_object.table_last_read_date).total_seconds() > Cfg.get_duration_secs("config.cache.max_age")):
+                (context["now"] - existing_object.table_last_read_date).total_seconds() > cache_max_age):
                 return KVTable(context, table_name, aggregates=aggregates)
 
-        flush = KVTable.get_kv_direct("cache.flush", table_name)
-        if flush in ["1", "2"]:
-            if flush == "1":
-                KVTable.set_kv_direct("cache.flush", "0", table_name, TTL=0)
+        flush = KVTable.get_kv_direct("cache.last_write_index", table_name)
+        if flush != existing_object.get_kv("cache.last_write_index"):
             return KVTable(context, table_name, aggregates=aggregates)
+        log.debug(f"Lambda cache reuse for table {table_name}...")
         return existing_object
 
     def reread_table(self, force_reread=False):
@@ -248,6 +249,8 @@ class KVTable():
                     if KVTable.compare_kv_list(serialized, misc.decode_json(t.get_kv(prefix))) == 0: pass #pdb.set_trace()
                     log.log(log.NOTICE, "Delta end.")
                 t.set_kv(prefix, misc.encode_json(serialized, compress=compress), TTL=ttl)
+            if t.table_cache_dirty:
+                t.set_kv("cache.last_write_index", t.context["now"], TTL=0)
             xray_recorder.end_subsegment()
 
     def _build_dict(self):
@@ -310,12 +313,11 @@ class KVTable():
                 return None
         return None
 
-    def get_kv_direct(key, table_name, default=None, context=None):
+    def get_kv_direct(key, table_name, default=None, context=None, TTL=None):
         if context is None:
             client = boto3.client("dynamodb")
         else:
             client = context["dynamodb.client"]
-
         query  = {
                  'Key': {
                      'S': key
@@ -328,10 +330,15 @@ class KVTable():
             ReturnConsumedCapacity='TOTAL',
             Key=query
             )
+        log.log(log.NOTICE, f"DynamoDB({table_name}): Direct read of item '[{table_name}]{key}'")
         if "Item" not in response:
             return default
-        item = response["Item"]
-        return item["Value"][list(item["Value"].keys())[0]]
+        item  = response["Item"]
+        value = item["Value"][list(item["Value"].keys())[0]]
+        if TTL != 0 and TTL is not None:
+            # Refresh TTL
+            set_kv_direct(key, value, table_name, partition=partition, TTL=TTL, context=context)
+        return value
 
     def set_kv_direct(key, value, table_name, partition=None, TTL=None, context=None):
         if context is None:
@@ -341,6 +348,9 @@ class KVTable():
             client = context["dynamodb.client"]
             now    = context["now"]
         log.debug("KVTable: dynamodb.put_item(TableName=%s, Key=%s, Value='%s'" % (table_name, key, value))
+        existing_object = KVTable._get_cache_for_tablename(table_name)
+        if existing_object is not None:
+            existing_object.table_cache_dirty = True
         if value is None or str(value) == "":
             client.delete_item(
                 Key = {"Key": {"S": key}},
@@ -355,13 +365,13 @@ class KVTable():
                     'S': str(value)
                 }
             }
-            if TTL != 0:
-                log.log(log.NOTICE, f"Writing DynamoDB key '{key}' with TTL={TTL}")
+            if TTL != 0 and TTL is not None:
                 expiration_time = misc.seconds_from_epoch_utc(now=now) + TTL
                 query.update({
                 'ExpirationTime' : {
                     'N': str(expiration_time)
                 }})
+            log.log(log.NOTICE, f"DynamoDB({table_name}): Writing key '{key}' (TTL={TTL}, size=%s)" % len(str(value)))
 
             response = client.put_item(
                 TableName=table_name,
@@ -369,14 +379,16 @@ class KVTable():
                 Item=query
                 )
 
-    def get_kv(self, key, partition=None, default=None, direct=False):
+    def get_kv(self, key, partition=None, default=None, direct=False, TTL=None):
         if direct:
-            return self.get_kv_direct(key, self.table_name, default=default)
+            return self.get_kv_direct(key, self.table_name, default=default, TTL=TTL)
 
         client = self.context["dynamodb.client"]
         item = self.get_item(key, partition=partition)
         if item is None:
             return default
+        if TTL != 0 and TTL is not None:
+            self.set_kv(key, item["Value"], partition=partition, TTL=TTL)
         return item["Value"]
 
     def set_kv(self, key, value, partition=None, TTL=None):
@@ -394,7 +406,7 @@ class KVTable():
         #   expiration time
         if self.table_cache is not None:
             item = self.get_item(key, partition=partition)
-            now = self.context["now"]
+            now  = self.context["now"]
             if (item is not None and "ExpirationTime" in item and 
                     item["Value"] == str(value) and 
                     (misc.seconds_from_epoch_utc() + (ttl/2) ) < int(item["ExpirationTime"])):

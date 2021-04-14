@@ -192,6 +192,22 @@ class ManagedTargetGroup:
     def get_targetgroups(self):
         return self.targetgroups
 
+    #def filter_out_ssm_not_ready_instances(self, instances):
+    #    """ This function filters out instances that are not returning a 'READY' state
+    #    """
+    #    ssm_hcheck = self.context["o_ssm"].run_command([i["InstanceId"] for i in instances], 
+    #            "INSTANCE_HEALTHCHECK", comment="CS-InstanceHealthCheck", return_former_results=True)
+    #    filtered_instances = []
+    #    for i in instances:
+    #        instance_id = i["InstanceId"]
+    #        status = ssm_hcheck.get(instance_id,{}).get("Status")
+    #        if status == "SUCCESS":
+    #            filtered_instances.append(i)
+    #        else:
+    #            log.log(log.NOTICE, 
+    #                f"Instance {instance_id} can't be added to target group as not returning a SSM 'READY' state: (status={status})")
+    #    return filtered_instances
+
     @xray_recorder.capture()
     def manage_targetgroup(self):
         """
@@ -204,6 +220,9 @@ class ManagedTargetGroup:
         excluded_instances = self.ec2.get_instances(State="running", ScalingState="excluded")
         running_instances.extend(self.ec2.filter_instance_list_by_tag(excluded_instances, 
             "clonesquad:force-excluded-instance-in-targetgroups", value=["True", "true"]))
+
+        # If SSM support is activated, filter out instances if they are not ready
+        #running_instances  = self.filter_out_ssm_not_ready_instances(running_instances)
 
         transitions = []
         for target in self.targetgroups:

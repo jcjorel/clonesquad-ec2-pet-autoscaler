@@ -61,6 +61,7 @@ class EC2:
         self.ec2_status_override_url = ""
         self.ec2_status_override     = {}
         self.state_table             = None
+        self.scaling_states          = defaultdict(dict)
 
         Cfg.register({
                  "ec2.describe_instances.max_results" : "500",
@@ -104,8 +105,8 @@ forcing their immediate replacement in healthy AZs in the region.
                  "ec2.state.error_ttl" : "minutes=5",
                  "ec2.state.status_ttl" : "days=40",
                  "ec2.instance.control.ttl" : "hours=1",
-                 "ec2.instance.max_start_instance_at_once": "50",
-                 "ec2.instance.max_stop_instance_at_once": "50",
+                 "ec2.instance.max_start_instance_at_once": "25",
+                 "ec2.instance.max_stop_instance_at_once": "25",
                  "ec2.instance.spot.event.interrupted_at_ttl" : "minutes=10",
                  "ec2.instance.spot.event.rebalance_recommended_at_ttl" : "minutes=20",
                  "ec2.state.error_instance_ids": "",
@@ -119,10 +120,10 @@ forcing their immediate replacement in healthy AZs in the region.
                      with value 'True'.
                      """
                  },
-                 "subfleet.<subfleetname>.state,Stable": {
+                 "subfleet.{SubfleetName}.state,Stable": {
                          "DefaultValue": "undefined",
                          "Format": "String",
-                         "Description": """Define the status of the subfleet named <subfleetname>.
+                         "Description": """Define the status of the subfleet named {SubfleetName}.
 
 Can be one the following values ['`stopped`', '`undefined`', '`running`'].
 
@@ -130,7 +131,7 @@ A subfleet can contain EC2 instances but also RDS and TransferFamilies tagged in
 
 Note: **When subfleet name is `__all__`, the key is overriden in all subfleets.**
                  """},
-                 "subfleet.<subfleetname>.ec2.schedule.desired_instance_count,Stable": {
+                 "subfleet.{SubfleetName}.ec2.schedule.desired_instance_count,Stable": {
                          "DefaultValue": "100%",
                          "Format": "IntegerOrPercentage",
                          "Description": """Define the number of EC2 instances to start when a subfleet is in a 'running' state.
@@ -139,21 +140,21 @@ Note: **When subfleet name is `__all__`, the key is overriden in all subfleets.*
 
 > This parameter has no effect if [`subfleet.subfleetname.state`](#subfleetsubfleetnamestate) is set to a value different than `running`.
                  """},
-                 "subfleet.<subfleetname>.ec2.schedule.burstable_instance.max_cpu_crediting_instances,Stable": {
+                 "subfleet.{SubfleetName}.ec2.schedule.burstable_instance.max_cpu_crediting_instances,Stable": {
                          "DefaultValue": "0%",
                          "Format": "IntegerOrPercentage",
                          "Description": """Define the maximum number of EC2 instances that can be in CPU Crediting state at the same time in the designated subfleet.
 
 Follow the same semantic and usage than [`ec2.schedule.burstable_instance.max_cpu_crediting_instances`](#ec2scheduleburstable_instancemax_cpu_crediting_instances).
                  """},
-                 "subfleet.<subfleetname>.ec2.schedule.min_instance_count,Stable": {
+                 "subfleet.{SubfleetName}.ec2.schedule.min_instance_count,Stable": {
                          "DefaultValue": "0",
                          "Format": "IntegerOrPercentage",
                          "Description": """Define the minimum number of EC2 instances to keep up when a subfleet is in a 'running' state.
 
 > This parameter has no effect if [`subfleet.subfleetname.state`](#subfleetsubfleetnamestate) is set to a value different than `running`.
                  """},
-                 "subfleet.<subfleetname>.ec2.schedule.verticalscale.instance_type_distribution,Stable": {
+                 "subfleet.{SubfleetName}.ec2.schedule.verticalscale.instance_type_distribution,Stable": {
                          "DefaultValue": ".*,spot;.*",
                          "Format": "MetaStringList",
                          "Description": """Define the vertical policy of the subfleet.
@@ -165,10 +166,10 @@ that it does not support LightHouse instance specifications.
 
 > This parameter has no effect if [`subfleet.subfleetname.state`](#subfleetsubfleetnamestate) is set to a value different than `running`.
                  """},
-                 "subfleet.<subfleetname>.ec2.schedule.metrics.enable,Stable": {
+                 "subfleet.{SubfleetName}.ec2.schedule.metrics.enable,Stable": {
                          "DefaultValue": "1",
                          "Format": "Bool",
-                         "Description": """Enable detailed metrics for the subfleet <subfleetname>.
+                         "Description": """Enable detailed metrics for the subfleet {SubfleetName}.
 
 The following additional metrics are generated:
 * Subfleet.EC2.Size,
@@ -209,11 +210,12 @@ without any TargetGroup but another external health instance source exists).
                  }
         })
 
+        self.ttl = Cfg.get_duration_secs("ec2.state.default_ttl")
         self.o_state.register_aggregates([
             {
                 "Prefix": "ec2.instance.",
                 "Compress": True,
-                "DefaultTTL": Cfg.get_duration_secs("ec2.state.default_ttl"),
+                "DefaultTTL": self.ttl,
                 "Exclude" : [
                     "ec2.instance.scaling.state.", 
                     "ec2.instance.spot.event."
@@ -227,7 +229,6 @@ without any TargetGroup but another external health instance source exists).
         """
         if only_if_not_already_done and self.prereqs_done:
             return
-        misc.initialize_clients(["ec2"], self.context)
 
         self.state_table = self.o_state.get_state_table()
         client           = self.context["ec2.client"]
@@ -240,14 +241,14 @@ without any TargetGroup but another external health instance source exists).
         # Retrieve list of instances with appropriate tag
         Filters          = [{'Name': 'tag:clonesquad:group-name', 'Values': [self.context["GroupName"]]}]
         
+        log.debug("describe_instances()")
         instances = []
-        response  = None
-        while (response is None or "NextToken" in response):
-            response = client.describe_instances(Filters=Filters,
-                    MaxResults=Cfg.get_int("ec2.describe_instances.max_results"),
-                    NextToken=response["NextToken"] if response is not None and "NextToken" in response else "")
+        paginator = client.get_paginator('describe_instances')
+        response_iterator = paginator.paginate(Filters=Filters, MaxResults=Cfg.get_int("ec2.describe_instances.max_results"))
+        for response in response_iterator:
             for reservation in response["Reservations"]:
                 instances.extend(reservation["Instances"])
+        log.debug("end - describe_instances()")
 
         # Filter out instances with inappropriate state
         non_terminated_instances = []
@@ -266,6 +267,7 @@ without any TargetGroup but another external health instance source exists).
 
         # Enrich describe_instances output with instance type details
         if Cfg.get_int("ec2.describe_instance_types.enabled"):
+            log.debug("describe_instance_types()")
             self.instance_types = []
             [self.instance_types.append(i["InstanceType"]) for i in self.instances if i["InstanceType"] not in self.instance_types]
             if len(self.instance_types):
@@ -279,16 +281,18 @@ without any TargetGroup but another external health instance source exists).
         response          = None
         i_ids             = self.instance_ids.copy()
         while len(i_ids):
+            log.debug("describe_instance_status()")
             q = { "InstanceIds": i_ids[:100] }
-            while response is None or "NextToken" in response:
-                if response is not None and "NextToken" in response: q["NextToken"] = response["NextToken"]
-                response = client.describe_instance_status(**q) #TODO: Understand why this API do not always returned all requested data...
+            paginator = client.get_paginator('describe_instance_status')
+            response_iterator = paginator.paginate(**q)
+            for response in response_iterator:
                 instance_statuses.extend(response["InstanceStatuses"])
             response = None
             i_ids    = i_ids[100:]
         self.instance_statuses = instance_statuses
 
         # Get AZ status
+        log.debug("describe_availability_zones()")
         response                = client.describe_availability_zones()
         self.availability_zones = response["AvailabilityZones"]
         if len(self.availability_zones) == 0: raise Exception("Can't have a region with no AZ...")
@@ -328,8 +332,8 @@ without any TargetGroup but another external health instance source exists).
         subfleet_names.extend(self.get_subfleet_names())
         for subfleet in subfleet_names:
             for k in Cfg.keys():
-                key = k.replace("<subfleetname>", subfleet)
-                if k.startswith("subfleet.<subfleetname>.") and not Cfg.is_builtin_key_exist(key):
+                key = k.replace("{SubfleetName}", subfleet)
+                if k.startswith("subfleet.{SubfleetName}.") and not Cfg.is_builtin_key_exist(key):
                     Cfg.register({ f"{key},Stable" : Cfg.get(k) if subfleet != "__all__" else None })
         if len(subfleet_names) > 1:
             log.log(log.NOTICE, "Detected following subfleet names across EC2 resources: %s" % subfleet_names)
@@ -337,6 +341,7 @@ without any TargetGroup but another external health instance source exists).
         # Load EC2 status override URL content
         self.ec2_status_override_url = Cfg.get("ec2.instance.status.override_url")
         if self.ec2_status_override_url is not None and self.ec2_status_override_url != "":
+            log.debug("Load ec2_status_override_url %s" % ec2_status_override_url)
             try:
                 content = misc.get_url(self.ec2_status_override_url)
                 self.ec2_status_override = yaml.safe_load(str(content, "utf-8"))
@@ -344,6 +349,7 @@ without any TargetGroup but another external health instance source exists).
                 log.warning("Failed to load 'ec2.instance.status.override_url' YAML file '%s' : %s" % (self.ec2_status_override_url, e))
 
         # Pre-compute scaling states for instance tp be fast later
+        log.debug("compute_scaling_states()")
         self.compute_scaling_states()
 
         self.prereqs_done = True
@@ -355,6 +361,45 @@ without any TargetGroup but another external health instance source exists).
         """ Return the result of describe_instance_status()
         """
         return self.instance_statuses
+
+    def update_ssm_initializing_states(self):
+        o_ssm = self.context["o_ssm"]
+        if not o_ssm.is_feature_enabled("events.ec2.instance_ready_for_operation"):
+            return
+
+        now                             = self.context["now"]
+        self.ssm_initializing_instances = {}
+        instances                       = self.get_instances(State="pending,running", ScalingState="-draining")
+        for i in instances:
+            instance_id     = i["InstanceId"]
+            if self.is_instance_excluded(instance_id):
+                continue
+            launch_time     = i["LaunchTime"]
+            last_start_date = self.get_state_date(f"ec2.instance.ssm.ready_for_operation.start_date.{instance_id}", TTL=self.ttl)
+            if last_start_date is None or last_start_date < launch_time:
+                self.set_state(f"ec2.instance.ssm.ready_for_operation.start_date.{instance_id}", now)
+                last_start_date = now
+            last_ready_date = self.get_state_date(f"ec2.instance.ssm.ready_for_operation.ok_date.{instance_id}", TTL=self.ttl)
+            last_ready_date = last_ready_date if last_ready_date is None or last_ready_date > last_start_date else None
+            if last_ready_date is not None:
+                continue
+            # Need status refresh
+            readyness = o_ssm.run_command([instance_id], "INSTANCE_READY_FOR_OPERATION", 
+                    comment="CS-InstanceReadyForOperation (%s)" % self.context["GroupName"])
+            status    = readyness.get(instance_id, {}).get("Status")
+            if status == "SUCCESS":
+                self.set_state(f"ec2.instance.ssm.ready_for_operation.ok_date.{instance_id}", now)
+                continue
+
+            unhealthy = False
+            if (now - last_start_date) > timedelta(seconds=Cfg.get_duration_secs("ssm.feature.events.ec2.instance_ready_for_operation.max_initializing_time")):
+                    log.warning(f"Instance {instance_id} spent too much time in initializing state. Report it as unhealthy...")
+                    unhealthy = True
+            self.ssm_initializing_instances[instance_id] = {
+                "LastStartDate": last_start_date,
+                "LastReadyDate": last_ready_date,
+                "Unhealthy": unhealthy
+                }
 
     INSTANCE_STATES = ["ok", "impaired", "insufficient-data", "not-applicable", "initializing", "unhealthy", "az_evicted"]
     def is_instance_state(self, instance_id, state):
@@ -368,6 +413,7 @@ without any TargetGroup but another external health instance source exists).
         :param instance_id: The instance id to test
         :param state: A list of state value to test
         """
+        now = self.context["now"]
 
         # Retrieve the instance structure based on the id
         i = next(filter(lambda i: i["InstanceId"] == instance_id, self.instance_statuses), None)
@@ -390,6 +436,16 @@ without any TargetGroup but another external health instance source exists).
                             (instance_id, self.ec2_status_override_url, override_status))
                 else:
                     return override_status in state
+
+        o_ssm = self.context["o_ssm"]
+        if o_ssm.is_feature_enabled("events.ec2.instance_ready_for_operation") and instance_id in self.ssm_initializing_instances:
+            status = self.ssm_initializing_instances[instance_id]
+            if "initializing" in state:
+                if status["LastReadyDate"] is not None:
+                    state.remove("initializing")
+                    return i["InstanceStatus"]["Status"] in state
+            if "unhealthy" in state and status["Unhealthy"]:
+                    return True
         
         return i["InstanceStatus"]["Status"] in state 
 
@@ -436,6 +492,8 @@ without any TargetGroup but another external health instance source exists).
     def get_subfleet_name_for_instance(self, i):
         """ Return the name of subfleet that the instance is part of or None is not part of a subfleet.
         """
+        if isinstance(i, str):
+            i = self.get_instance_by_id(i)
         tags = self.get_instance_tags(i)
         return tags["clonesquad:subfleet-name"] if "clonesquad:subfleet-name" in tags else None
 
@@ -545,8 +603,8 @@ without any TargetGroup but another external health instance source exists).
                         previous_state = r["PreviousState"]
                         current_state  = r["CurrentState"]
                         if current_state["Name"] in ["pending", "running"]:
-                            self.set_state("ec2.instance.last_start_date.%s" % instance_id, now,
-                                    TTL=Cfg.get_duration_secs("ec2.state.status_ttl"))
+                            self.set_scaling_state(instance_id, "") # Reset scaling state
+                            self.set_state("ec2.instance.last_start_date.%s" % instance_id, now, TTL=self.ttl)
                             max_startable_instances -= 1
                             # Update statuses
                             instance = self.get_instance_by_id(instance_id)
@@ -555,7 +613,7 @@ without any TargetGroup but another external health instance source exists).
                         else:
                             log.error("Failed to start instance '%s'! Blacklist it for a while... (pre/current status=%s/%s)" %
                                     (instance_id, previous_state["Name"], current_state["Name"]))
-                            self.set_scaling_state(instance_id, "error", ttl=Cfg.get_duration_secs("ec2.state.error_ttl"))
+                            self.set_scaling_state(instance_id, "error")
                             R(None, self.instance_in_error, Operation="start", InstanceId=instance_id, 
                                     PreviousState=previous_state["Name"], CurrentState=current_state["Name"])
                 else:
@@ -569,6 +627,10 @@ without any TargetGroup but another external health instance source exists).
                     if ex.response['Error']['Code'] == 'IncorrectSpotRequestState':
                         log.log(log.NOTICE, "Failed to start a Spot instance (IncorrectSpotRequestState) among these instances to "
                                 f"start {instance_ids_to_start}. It could happen when a Spot has been recently stopped. Will try again next time...")
+                        need_shortterm_record  = False
+                        need_longterm_record   = False
+                    if ex.response['Error']['Code'] == 'InsufficientInstanceCapacity':
+                        log.warning(f"Failed to start instance due to 'InsufficientInstanceCapacity' error: {ex}")
                         need_shortterm_record  = False
                         need_longterm_record   = False
                 except:
@@ -590,8 +652,7 @@ without any TargetGroup but another external health instance source exists).
             ids       = ids[max_start:]
 
             for i in to_start:
-                self.set_state("ec2.instance.last_start_attempt_date.%s" % i, now,
-                    TTL=Cfg.get_duration_secs("ec2.schedule.state_ttl"))
+                self.set_state("ec2.instance.last_start_attempt_date.%s" % i, now)
 
             log.info("Starting instances %s..." % to_start)
             response = None
@@ -609,7 +670,7 @@ without any TargetGroup but another external health instance source exists).
                     except ClientError as e:
                         if e.response['Error']['Code'] != 'IncorrectSpotRequestState':
                             log.warning("Got Exception while trying to start instance '%s' : %s" % (i, e))
-                            self.set_scaling_state(i, "error", ttl=Cfg.get_duration_secs("ec2.state.error_ttl"))
+                            self.set_scaling_state(i, "error")
 
 
     def stop_instances(self, instance_ids_to_stop):
@@ -635,8 +696,7 @@ without any TargetGroup but another external health instance source exists).
                     for i in response["StoppingInstances"]:
                         instance_id = i["InstanceId"]
                         self.set_scaling_state(instance_id, "")
-                        self.set_state("ec2.schedule.instance.last_stop_date.%s" % instance_id, now, 
-                                TTL=Cfg.get_duration_secs("ec2.state.status_ttl"))
+                        self.set_state("ec2.schedule.instance.last_stop_date.%s" % instance_id, now) 
                         # Update the statuses 
                         instance = self.get_instance_by_id(instance_id)
                         instance["State"]["Code"] = 64
@@ -654,8 +714,7 @@ without any TargetGroup but another external health instance source exists).
                             for i in response["StoppingInstances"]:
                                 instance_id = i["InstanceId"]
                                 self.set_scaling_state(instance_id, "")
-                                self.set_state("ec2.schedule.instance.last_stop_date.%s" % instance_id, now, 
-                                        TTL=Cfg.get_duration_secs("ec2.state.status_ttl"))
+                                self.set_state("ec2.schedule.instance.last_stop_date.%s" % instance_id, now)
                                 # Update the statuses 
                                 instance = self.get_instance_by_id(instance_id)
                                 instance["State"]["Code"] = 64
@@ -956,12 +1015,10 @@ without any TargetGroup but another external health instance source exists).
             r[state].append(instance_id)
         return dict(r)
 
-    def compute_scaling_states(self):
+    def compute_scaling_states(self, instance_id=None):
         """ Compute an optimized lookup structure of scaling instance state.
         """
-        error_instance_ids  = Cfg.get_list("ec2.state.error_instance_ids", default=[]) 
-        self.scaling_states = defaultdict(dict)
-        for i in self.get_instances():
+        def _update_scaling_state(i):
             instance_id  = i["InstanceId"]
             state        = self.scaling_states[instance_id]
             key          = f"ec2.instance.scaling.state.{instance_id}"
@@ -975,15 +1032,28 @@ without any TargetGroup but another external health instance source exists).
                 state["state_no_excluded"] = "error"
                 state["state"]             = "error"
 
-    def get_scaling_state(self, instance_id, default=None, meta=None, default_date=None, do_not_return_excluded=False, raw=False):
-        """ Return the scaling state for  specified instance.
+        error_instance_ids  = Cfg.get_list("ec2.state.error_instance_ids", default=[]) 
+        if instance_id is not None:
+            _update_scaling_state(self.get_instance_by_id(instance_id))
+        else:
+            self.scaling_states = defaultdict(dict)
+            for i in self.get_instances():
+                _update_scaling_state(i)
 
-        TODO: Rewrite with method as it is highly CPU intensive and so inefficient in a Lambda context.
+    def get_scaling_state(self, instance_id, default=None, meta=None, default_date=None, do_not_return_excluded=False, raw=False):
+        """ Return the scaling state for specified instance.
+
         """
         if meta is not None:
-            for i in ["action", "draining", "error", "bounced"]:
-                meta["last_%s_date" % i] = misc.str2utc(self.get_state("ec2.instance.scaling.last_%s_date.%s" %
-                        (i, instance_id), default=self.context["now"]))
+            newest_action_date = None
+            i                  = self.get_instance_by_id(instance_id)
+            last_start_date    = i["LaunchTime"] if "LaunchTime" in i else None
+            for action in ["draining", "error", "bounced"]:
+                date = misc.str2utc(self.get_state(f"ec2.instance.scaling.last_{action}_date.{instance_id}", TTL=self.ttl))
+                meta[f"last_{action}_date"] = date if (date is None or last_start_date is None or date >= last_start_date) else None
+                if date is not None and (newest_action_date is None or newest_action_date < date):
+                    newest_action_date = date
+            meta["last_action_date"] = newest_action_date
 
         state = self.scaling_states.get(instance_id, {"raw": default, "state_no_excluded": default, "state": default})
         if raw:
@@ -992,18 +1062,24 @@ without any TargetGroup but another external health instance source exists).
             return state["state_no_excluded"] if state["state_no_excluded"] is not None else default
         return state["state"] if state["state"] is not None else default
 
-    def set_scaling_state(self, instance_id, value, ttl=None, meta=None, default_date=None):
-        if ttl is None: ttl = Cfg.get_duration_secs("ec2.state.default_ttl") 
+    def set_scaling_state(self, instance_id, value, ttl=None, meta=None, default_date=None, force=False):
+        if ttl is None: ttl = self.ttl
         if default_date is None: default_date = self.context["now"]
 
-        meta           = {} if meta is None else meta
-        previous_value = self.get_scaling_state(instance_id, meta=meta, do_not_return_excluded=True)
-        date           = meta["last_action_date"] if previous_value == value else default_date
-        self.set_state("ec2.instance.scaling.last_action_date.%s" % instance_id, date, ttl)
-        self.set_state("ec2.instance.scaling.last_%s_date.%s" % (value, instance_id), date, ttl)
-        previous_value = self.get_scaling_state(instance_id, meta=meta)
-        key            = "ec2.instance.scaling.state.%s" % instance_id
-        return self.set_state(key, value, ttl)
+        if value != "":
+            meta           = {} if meta is None else meta
+            previous_value = self.get_scaling_state(instance_id, meta=meta, do_not_return_excluded=True)
+            date           = meta["last_action_date"] if not force and previous_value == value else default_date
+            meta[f"last_{value}_date"] = date
+            meta[f"last_action_date"] = date
+            self.set_state(f"ec2.instance.scaling.last_{value}_date.{instance_id}", date, TTL=ttl)
+        else:
+            # Remove all state keys
+            for action in ["action", "draining", "error", "bounced"]:
+                self.set_state(f"ec2.instance.scaling.last_{action}_date.{instance_id}", "", TTL=ttl)
+        self.set_state(f"ec2.instance.scaling.state.{instance_id}", value, TTL=ttl)
+        # Update the cache
+        self.compute_scaling_states(instance_id=instance_id)
 
     def list_states(self, prefix="ec2.instance.scaling_state.", not_matching_instances=None):
         r = self.state_table.get_keys(prefix) 
@@ -1019,38 +1095,25 @@ without any TargetGroup but another external health instance source exists).
             return filtered_r
         return r
 
-    def get_state(self, key, default=None, direct=False):
-        if self.state_table is None or direct: 
-            return kvtable.KVTable.get_kv_direct(key, self.context["StateTable"], context=self.context, default=default)
-        return self.state_table.get_kv(key, default=default, direct=direct)
+    def get_state(self, key, default=None, direct=False, TTL=None):
+        return self.o_state.get_state(key, default=default, direct=direct, TTL=TTL)
 
-    def get_state_int(self, key, default=0, direct=False):
-        try:
-            return int(self.get_state(key, direct=direct))
-        except:
-            return default
+    def get_state_int(self, key, default=0, direct=False, TTL=None):
+        return self.o_state.get_state_int(key, default=default, direct=direct, TTL=TTL)
 
-    def get_state_json(self, key, default=None, direct=False):
-        try:
-            v = misc.decode_json(self.get_state(key, direct=direct))
-            return v if v is not None else default
-        except:
-            return default
+    def get_state_json(self, key, default=None, direct=False, TTL=None):
+        return self.o_state.get_state_json(key, default=default, direct=direct, TTL=TTL)
 
-    def set_state_json(self, key, value, compress=True, TTL=0):
-        self.set_state(key, misc.encode_json(value, compress=compress), TTL=TTL)
+    def set_state_json(self, key, value, compress=True, TTL=None):
+        if TTL is None: TTL = self.ttl
+        self.o_state.set_state_json(key, value, compress=compress, TTL=TTL)
 
-    def get_state_date(self, key, default=None, direct=False):
-        d = self.get_state(key, default=default, direct=direct)
-        if d is None or d == "": return default
-        try:
-            date = datetime.fromisoformat(d)
-        except:
-            return default
-        return date
+    def get_state_date(self, key, default=None, direct=False, TTL=None):
+        return self.o_state.get_state_date(key, default=default, direct=direct, TTL=TTL)
 
-    def set_state(self, key, value, TTL=None):
-        self.state_table.set_kv(key, value, TTL=TTL)
+    def set_state(self, key, value, direct=False, TTL=None):
+        if TTL is None: TTL = self.ttl
+        self.o_state.set_state(key, value, direct=direct, TTL=TTL)
 
     ### 
     # State management with temporal integration
@@ -1136,7 +1199,7 @@ without any TargetGroup but another external health instance source exists).
 
     def set_instance_control_state(self, state):
         # Test if we are going to write an empty state so we may optimize it
-        min_ttl = Cfg.get_duration_secs("ec2.state.default_ttl")
+        min_ttl = self.ttl
         now     = misc.seconds_from_epoch_utc() 
         ttl     = now + min_ttl 
         for c in state:
@@ -1148,7 +1211,6 @@ without any TargetGroup but another external health instance source exists).
             # Former value was already empty => no need to create a record
             return
         self.set_state_json("ec2.control.state", state, TTL=(ttl-now))
-        self.set_state("cache.flush", "1") # Force state cache flush
 
     def update_instance_control_state(self, listname, mode, filter_query, ttl_string):
         ctrl = self.get_instance_control_state()
@@ -1298,7 +1360,7 @@ without any TargetGroup but another external health instance source exists).
     def set_spot_event(ctx, instance_id, reason, now):
         ctx["o_ec2"].set_state("ec2.instance.spot.event.%s.%s_at" % (instance_id, reason), now,
             TTL=Cfg.get_duration_secs("ec2.instance.spot.event.%s_at_ttl" % reason))
-        ctx["o_ec2"].set_state("cache.flush", "1") # Force state cache flush
+        ctx["o_ec2"].set_state("cache.last_write_index", ctx["now"]) # Force state cache flush
 
 def manage_spot_notification(sqs_record, ctx):
     try:
