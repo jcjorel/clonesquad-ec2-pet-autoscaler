@@ -378,7 +378,7 @@ if __name__ == '__main__':
             nargs='?', type=bool, default=argparse.SUPPRESS)
     parser.add_argument('--log-file', help="File where to write operation logs.",
             nargs='?', type=str, default=argparse.SUPPRESS)
-    parser.add_argument('--log-file-rotate', help="File where to write operation logs. Format: <timeunit>,<interval>,<retention> Default value: d,1,7 meaning rotate every day and keep 7 log backup (one week).",
+    parser.add_argument('--log-file-rotate', help="File where to write operation logs. Format: <timeunit>,<interval>,<retention> Default value: h,1,24 meaning rotate every hour and keep 24 log backup (one day).",
             nargs='?', type=str, default=argparse.SUPPRESS)
     parser.add_argument('--generate-systemd', help="Generate a systemd service file at the specified location.",
             nargs='?', type=str, default=argparse.SUPPRESS)
