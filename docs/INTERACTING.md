@@ -224,16 +224,17 @@ knows that it can't start now. Ex: Instance in `error`or `spot interrupted`).
 	# awscurl https://pq264fab39.execute-api.eu-west-3.amazonaws.com/v1/discovery
 	{
 	    "discovery": {
+		"CloneSquadVersion": "v0.19.0",
+		"GroupName": "test",
+		"InteractQueue": "https://sqs.eu-west-3.amazonaws.com/111111111111/CloneSquad-Interact-test",
 		"AlarmStateEC2Table": "CloneSquad-test-AlarmState-EC2",
 		"ConfigurationTable": "CloneSquad-test-Configuration",
 		"ConfigurationURL": "",
 		"EventTable": "CloneSquad-test-EventLog",
-		"GroupName": "test",
-		"InteractQueue": "https://sqs.eu-west-3.amazonaws.com/111111111111/CloneSquad-Interact-test",
-		"LoggingS3Path": "s3://my-clonesquad-logging-bucketname/reports/",
 		"LongTermEventTable": "CloneSquad-test-EventLog-LongTerm",
 		"SchedulerTable": "CloneSquad-test-Scheduler",
-		"StateTable": "CloneSquad-test-State"
+		"StateTable": "CloneSquad-test-State",
+		"LoggingS3Path": "s3://my-clonesquad-logging-bucketname/reports/"
 	    },
 	    "identity": {
 		"accessKey": "AS------------------",
