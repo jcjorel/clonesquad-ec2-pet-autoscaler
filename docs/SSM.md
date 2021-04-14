@@ -114,7 +114,7 @@ If the file `/etc/cs-ssm/blocked-connections/extra-iptables-parameters.txt` exis
 
 **Feature toggle:** [`ssm.feature.events.ec2.instance_ready_for_shutdown`](CONFIGURATION_REFERENCE.md#ssmfeatureeventsec2instance_ready_for_shutdown)
 
-This event is sent as soon as an instance enter the 'draining' state. CloneSquad will wait for up to one hour (see [`ssm.feature.events.ec2.instance_ready_for_shutdown.max_shutdown_delay`](CONFIGURATION_REFERENCE.md#ssmfeatureeventsec2instance_ready_for_shutdownmax_shutdown_delay). A zero return code is expected from the user script `/etc/cs-ssm/instance-ready-for-shutdown` as prerequisite to shutdown the instance. After this delay, the instance is forcibly shutdowned.
+This event is sent as soon as an instance enter the 'draining' state.  A zero return code is expected from the user script `/etc/cs-ssm/instance-ready-for-shutdown` as prerequisite to shutdown the instance. CloneSquad will wait for up to one hour (see [`ssm.feature.events.ec2.instance_ready_for_shutdown.max_shutdown_delay`](CONFIGURATION_REFERENCE.md#ssmfeatureeventsec2instance_ready_for_shutdownmax_shutdown_delay). After this delay, the instance is forcibly shutdowned.
 
 A typical use-case for this event is to perform house keeping tasks and allow to shutdown instance gracefully. Examples of tasks can range from breaking the lifeline of loadbalancer healthchecks, wait for all active connections to terminate or backup the machine...
 
