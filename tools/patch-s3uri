@@ -72,6 +72,6 @@ with open(args.template_file[0]) as f:
         if "Environment" in properties and "Variables" in properties["Environment"]:
             envs = properties["Environment"]["Variables"]
             if "CloneSquadVersion" in envs:
-                properties["CloneSquadVersion"] = args.version
+                envs["CloneSquadVersion"] = args.version
 
 print(yaml.dump(content))
