@@ -112,7 +112,7 @@ Currently, only `draining` and `bounced` events are sent (`bounced`is sent only 
 * If the script doesn't exists, the event is sent only once,
 * If the script returns a non-zero code, the event will be repeated.
 
-> Note: This event differs from [`ssm.feature.events.ec2.instance_ready_for_shutdown`](#ssmfeatureeventsec2instance_ready_for_shutdown) as it is only meant to inform the instance about a status change. The [`ssm.feature.events.ec2.instance_ready_for_shutdown`](#ssmfeatureeventsec2instance_ready_for_shutdown) is a request to the instance asking an approval for shutdown.
+> Note: This event differs from [`ssm.feature.events.ec2.instance_ready_for_shutdown`](#ssmfeatureeventsec2instance_ready_for_shutdown) one as it is only meant to inform the instance about a status change. The [`ssm.feature.events.ec2.instance_ready_for_shutdown`](#ssmfeatureeventsec2instance_ready_for_shutdown) event is a request toward the instance asking for an approval to shutdown.
 
             """
             },
@@ -163,7 +163,7 @@ By default, all the subfleets is woken up by a maintenance window ([`subfleet.{S
                     "Format": "Duration",
                     "Description": """Start instances this specified time ahead of the next Maintenance Window.
 
-In order to ensure that instances are up and ready when a SSM Maintenance Window starts, they are started in advance of the 'NextExecutionTime' defined in the maintenance window.
+In order to ensure that instances are up and ready when a SSM Maintenance Window starts, they are started in advance of the 'NextExecutionTime' defined in the SSM maintenance window object.
             """
             },
             "ssm.feature.maintenance_window.start_ahead.max_jitter": "66%",

@@ -384,20 +384,6 @@ is enabled, from an instance type distribution PoV.
 
 
 
-### ec2.schedule.burstable_instance.max_cpu_credit_unhealthy_instances
-Default Value: `1`   
-Format       :  [IntegerOrPercentage](#IntegerOrPercentage)
-
-Maximum number of instances that could be considered, at a given time, as unhealthy because their CPU credit is exhausted.
-
-* Setting this parameter to `100%` will indicate that all burstable instances could marked as unhealthy at the same time.
-* Setting this parameter to `0` will completely disable the ability to consider burstable instances as unhealthy. 
-
-> To prevent a DDoS, burstable instances with exhausted CPU Credit balance are NOT marked as unhealthy when len(stopped_instance) - (ec2.scheduler.min_instance_count) &lt;= 0.
-                     
-
-
-
 ### ec2.schedule.burstable_instance.max_cpu_crediting_instances
 Default Value: `50%`   
 Format       :  [IntegerOrPercentage](#IntegerOrPercentage)
@@ -799,7 +785,7 @@ Currently, only `draining` and `bounced` events are sent (`bounced`is sent only 
 * If the script doesn't exists, the event is sent only once,
 * If the script returns a non-zero code, the event will be repeated.
 
-> Note: This event differs from [`ssm.feature.events.ec2.instance_ready_for_shutdown`](#ssmfeatureeventsec2instance_ready_for_shutdown) as it is only meant to inform the instance about a status change. The [`ssm.feature.events.ec2.instance_ready_for_shutdown`](#ssmfeatureeventsec2instance_ready_for_shutdown) is a request to the instance asking an approval for shutdown.
+> Note: This event differs from [`ssm.feature.events.ec2.instance_ready_for_shutdown`](#ssmfeatureeventsec2instance_ready_for_shutdown) one as it is only meant to inform the instance about a status change. The [`ssm.feature.events.ec2.instance_ready_for_shutdown`](#ssmfeatureeventsec2instance_ready_for_shutdown) event is a request toward the instance asking for an approval to shutdown.
 
             
 
@@ -850,7 +836,7 @@ Format       :  [Duration](#Duration)
 
 Start instances this specified time ahead of the next Maintenance Window.
 
-In order to ensure that instances are up and ready when a SSM Maintenance Window starts, they are started in advance of the 'NextExecutionTime' defined in the maintenance window.
+In order to ensure that instances are up and ready when a SSM Maintenance Window starts, they are started in advance of the 'NextExecutionTime' defined in the SSM maintenance window object.
             
 
 
