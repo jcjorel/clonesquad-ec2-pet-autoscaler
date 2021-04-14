@@ -1420,24 +1420,6 @@ By default, the dashboard is enabled.
                log.info(f"Can't stop drained instance {instance_id} while a SSM Maintenance window is active.")
                continue
             
-           if instance_id in self.subfleet_cpu_crediting_ids[subfleet_name]:
-               if subfleet_details[subfleet_name]["IsRunningState"] and subfleet_details[subfleet_name]["desired_instance_count"] == "100%":
-                  pass # When desired_instance_count is set to 100%, we want all instances up and running as fast as possible
-                       #   so we prematuraly exit currently CPU Crediting instances.
-               else:
-                  letter_box = self.letter_box_subfleet_to_stop_drained_instances
-                  # Did we receive a letter from subfleet management method?
-                  if letter_box[subfleet_name]: 
-                       # The subfleet management method wants stop_drained_instances to shutdown some instances
-                       #   to bring them back into the serving pool ASAP.
-                       letter_box[subfleet_name] -= 1
-                  else:
-                     continue
-
-           if instance_id in mainfleet_cpu_crediting_instance_ids and Cfg.get("ec2.schedule.desired_instance_count") != "100%":
-               continue # When desired_instance_count is set to 100%, we want all instances up and running as fast as possible
-                    #   so we prematuraly exit currently CPU Crediting instances.
-
            if instance_id in draining_target_instance_ids:
                log.info(f"Can't stop yet instance {instance_id}. Target Group is still draining it...")
                continue
@@ -1474,6 +1456,25 @@ By default, the dashboard is enabled.
                             f"ec2.schedule.draining.ssm_ready_for_shutdown_delay={ssm_ready_for_shutdown_delay}): "
                             "Do not assess stop now..." % elapsed_time.total_seconds())
                        continue
+
+           if instance_id in mainfleet_cpu_crediting_instance_ids and Cfg.get("ec2.schedule.desired_instance_count") != "100%":
+               continue # When desired_instance_count is set to 100%, we want all instances up and running as fast as possible
+                    #   so we prematuraly exit currently CPU Crediting instances.
+
+           if instance_id in self.subfleet_cpu_crediting_ids[subfleet_name]:
+               if subfleet_details[subfleet_name]["IsRunningState"] and subfleet_details[subfleet_name]["desired_instance_count"] == "100%":
+                  pass # When desired_instance_count is set to 100%, we want all instances up and running as fast as possible
+                       #   so we prematuraly exit currently CPU Crediting instances.
+               else:
+                  letter_box = self.letter_box_subfleet_to_stop_drained_instances
+                  # Did we receive a letter from subfleet management method?
+                  if letter_box[subfleet_name]: 
+                       # The subfleet management method wants stop_drained_instances to shutdown some instances
+                       #   to bring them back into the serving pool ASAP.
+                       letter_box[subfleet_name] -= 1
+                       # Fall through...
+                  else:
+                     continue
 
            ids_to_stop.append(instance_id)
 
