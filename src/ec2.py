@@ -164,6 +164,8 @@ that it does not support LightHouse instance specifications.
 
 **Due to the default value `.*,spot;.*`, by default, Spot instances are always scheduled first in a subfleet!** This can be changed by the user.
 
+Please consider reading [detailed decumentation about vertical scaling](SCALING.md#vertical-scaling) to ensure proper use.
+
 > This parameter has no effect if [`subfleet.subfleetname.state`](#subfleetsubfleetnamestate) is set to a value different than `running`.
                  """},
                  "subfleet.{SubfleetName}.ec2.schedule.metrics.enable,Stable": {
