@@ -166,7 +166,7 @@ def main_handler_entrypoint(event, context):
     ctx["FunctionName"] = "Main"
 
     init()
-
+    misc.discovery(ctx, via_discovery_lambda=True)
     if Cfg.get_int("app.disable") != 0 and not misc.is_sam_local():
         log.warning("Application disabled due to 'app.disable' key")
         return

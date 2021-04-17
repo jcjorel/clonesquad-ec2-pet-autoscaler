@@ -642,6 +642,7 @@ Resources:
                   - !GetAtt GeneralParameters.MetadataConfigurationS3PathArn
                   - !GetAtt GeneralParameters.MetadataSchedulerS3PathArn
                   - !GetAtt GeneralParameters.MetadataDiscoveryS3PathArn
+                  - !GetAtt GeneralParameters.MetadataInstancesS3PathArn
                 Action:
                   - 's3:PutObject'
                   - 's3:CreateMultipartUpload'
@@ -922,6 +923,7 @@ Resources:
               Policies:
                   - AWSLambdaBasicExecutionRole 
                   - AWSXRayDaemonWriteAccess
+                  - AWSLambdaRole 
               Environment:
                 Variables:
                   PYTHONPATH:                                 "/opt:/opt/site-packages"

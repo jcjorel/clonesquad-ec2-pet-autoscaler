@@ -192,7 +192,7 @@ class Interact:
                     "interface": ["apigw", "sqs"],
                     "cache": "none",
                     "clients": [],
-                    "prerequisites": ["o_state", "o_scheduler"],
+                    "prerequisites": ["o_state", "o_ec2", "o_scheduler"],
                     "func": self.backup,
                 },
             }
@@ -215,10 +215,15 @@ class Interact:
         # Export discovery metadata
         account_id, region, group_name = (self.context["ACCOUNT_ID"], self.context["AWS_DEFAULT_REGION"], self.context["GroupName"])
         path      = f"accountid={account_id}/region={region}/groupname={group_name}"
-        discovery = misc.discovery(self.context)
-        del discovery["GroupName"]
+        discovery = misc.discovery(self.context, via_discovery_lambda=True)
         discovery["MetadataRecordLastUpdatedAt"] = str(now).split("+")[0]
         misc.put_url(f"{export_url}/metadata/discovery/{path}/clonesquad-discovery.json", json.dumps(discovery, default=str))
+
+        # Export instance specifications
+        instances = []
+        for i in self.context["o_ec2"].get_instances():
+            instances.append(json.dumps(i, default=str))
+        misc.put_url(f"{export_url}/metadata/instances/{path}/clonesquad-managed-instances.json", "\n".join(instances))
 
         response["statusCode"] = 200
         response["body"]       = f"Exported Configuration/Scheduler backups and metadata to {export_url}."
@@ -369,7 +374,7 @@ class Interact:
         response["statusCode"]   = 200
         discovery = {
                 "identity": event["requestContext"]["identity"],
-                "discovery": misc.discovery(self.context)
+                "discovery": misc.discovery(self.context, via_discovery_lambda=True)
             }
         response["body"]         = Dbg.pprint(discovery)
         return True

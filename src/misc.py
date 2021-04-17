@@ -364,25 +364,50 @@ def initialize_clients(clients, ctx):
             log.debug("Initialize client '%s'." % c)
             ctx[k] = boto3.client(c, config=config)
 
-def discovery(ctx):
+def discovery(ctx, via_discovery_lambda=False):
     """ Returns a discovery JSON dict of essential environment variables
     """
-    context = ctx.copy()
-    for k in ctx.keys():
-        if (k.startswith("AWS_") or k.startswith("_AWS_") or k.startswith("LAMBDA") or 
-                k.endswith("_SNSTopicArn") or
-                k in ["_HANDLER", "LD_LIBRARY_PATH", "LANG", "PATH", "TZ", "PYTHONPATH", "cwd", "FunctionName", "MainFunctionArn"] or 
-                not isinstance(context[k], str)):
-            del context[k]
-    user_metadata = context["UserSuppliedJSONMetadata"]
-    try:
-        metadata = json.loads(user_metadata) if user_metadata != "" else {}
-        if isinstance(metadata, dict):
-            for k in metadata:
-                context[f"X-{k}"] = metadata[k]
-        else:
-            log.warning(f"'UserSuppliedJSONMetadata' CloudFormation template parameter must be a JSON dict! Ignoring supplied data...")
-    except Exception as e:
-        log.warning(f"Can not parse 'UserSuppliedJSONMetadata' CloudFormation template parameter as valid JSON document: {e}")
-    return json.loads(json.dumps(context, default=str))
+    if via_discovery_lambda:
+        initialize_clients(["lambda"], ctx)
+        client     = ctx["lambda.client"]
+        group_name = ctx["GroupName"]
+        region     = ctx["AWS_DEFAULT_REGION"]
+        account_id = ctx["ACCOUNT_ID"]
+        log.info("Calling Discovery Lambda 'CloneSquad-Discovery-{group_name}'...")
+        response = client.invoke(
+            FunctionName=f"arn:aws:lambda:{region}:{account_id}:function:CloneSquad-Discovery-{group_name}",
+            InvocationType='RequestResponse',
+            LogType='None',
+            Payload=bytes('', "utf-8")
+        )
+        discovery = json.loads(str(response["Payload"].read(), "utf-8"))
+        return discovery
+    else:
+        context = ctx.copy()
+        for k in ctx.keys():
+            if (k.startswith("AWS_") or k.startswith("_AWS_") or k.startswith("LAMBDA") or 
+                    k.endswith("_SNSTopicArn") or
+                    k in ["_HANDLER", "LD_LIBRARY_PATH", "LANG", "PATH", "TZ", "PYTHONPATH", "cwd", "FunctionName", "MainFunctionArn"] or 
+                    not isinstance(context[k], str)):
+                del context[k]
+        if "ACCOUNT_ID" in context:
+            context["AccountId"] = context["ACCOUNT_ID"]
+            del context["ACCOUNT_ID"]
+        if "CLONESQUAD_LOGLEVELS" in context:
+            context["LogLevels"] = context["CLONESQUAD_LOGLEVELS"]
+            del context["CLONESQUAD_LOGLEVELS"]
+        if context["TimeZone"] == "":
+            context["TimeZone"] = "UTC"
+
+        user_metadata = context["UserSuppliedJSONMetadata"]
+        try:
+            metadata = json.loads(user_metadata) if user_metadata != "" else {}
+            if isinstance(metadata, dict):
+                for k in metadata:
+                    context[f"X-{k}"] = metadata[k]
+            else:
+                log.warning(f"'UserSuppliedJSONMetadata' CloudFormation template parameter must be a JSON dict! Ignoring supplied data...")
+        except Exception as e:
+            log.warning(f"Can not parse 'UserSuppliedJSONMetadata' CloudFormation template parameter as valid JSON document: {e}")
+        return json.loads(json.dumps(context, default=str))
 

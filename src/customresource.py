@@ -231,6 +231,10 @@ def GeneralParameters_CreateOrUpdate(data, CloneSquadVersion=None, AccountId=Non
             "VarName": "MetadataDiscovery",
             "Path": "metadata/discovery"
         },
+        {
+            "VarName": "MetadataInstances",
+            "Path": "metadata/instances"
+        },
     ]
     for p in authorized_paths:
         varname, authpath   = (p["VarName"], p["Path"])
