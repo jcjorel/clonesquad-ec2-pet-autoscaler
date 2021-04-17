@@ -444,14 +444,14 @@ class KVTable():
         group_name = self.context["GroupName"]
         now        = self.context["now"]
         prefix     = str(now) if prefix is None else prefix
-        path       = f"{url}/account_id={account_id}/region={region}/group_name={group_name}/{prefix}-{suffix}"
+        path       = f"{url}/accountid={account_id}/region={region}/groupname={group_name}/clonesquad-{prefix}-{suffix}"
         if not athena_search_format:
             misc.put_url(f"{path}.yaml", yaml.dump(self.get_dict()))
         else:
             dump = []
             for k in self.get_keys():
                 item              = self.get_item(k).copy()
-                item["MetadataRecordLastUpdatedAt"] = str(now)
+                item["MetadataRecordLastUpdatedAt"] = str(now).split("+")[0]
                 dump.append(json.dumps(item, default=str))
             misc.put_url(f"{path}.json", "\n".join(dump))
                 

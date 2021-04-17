@@ -214,10 +214,11 @@ class Interact:
             d.exports_metadata_and_backup(export_url)
         # Export discovery metadata
         account_id, region, group_name = (self.context["ACCOUNT_ID"], self.context["AWS_DEFAULT_REGION"], self.context["GroupName"])
-        path      = f"account_id={account_id}/region={region}/group_name={group_name}"
+        path      = f"accountid={account_id}/region={region}/groupname={group_name}"
         discovery = misc.discovery(self.context)
-        discovery["MetadataRecordLastUpdatedAt"] = str(now)
-        misc.put_url(f"{export_url}/metadata/discovery/{path}/discovery.json", json.dumps(discovery, default=str))
+        del discovery["GroupName"]
+        discovery["MetadataRecordLastUpdatedAt"] = str(now).split("+")[0]
+        misc.put_url(f"{export_url}/metadata/discovery/{path}/clonesquad-discovery.json", json.dumps(discovery, default=str))
 
         response["statusCode"] = 200
         response["body"]       = f"Exported Configuration/Scheduler backups and metadata to {export_url}."
