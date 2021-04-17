@@ -374,5 +374,15 @@ def discovery(ctx):
                 k in ["_HANDLER", "LD_LIBRARY_PATH", "LANG", "PATH", "TZ", "PYTHONPATH", "cwd", "FunctionName", "MainFunctionArn"] or 
                 not isinstance(context[k], str)):
             del context[k]
+    user_metadata = context["UserSuppliedJSONMetadata"]
+    try:
+        metadata = json.loads(user_metadata) if user_metadata != "" else {}
+        if isinstance(metadata, dict):
+            for k in metadata:
+                context[f"X-{k}"] = metadata[k]
+        else:
+            log.warning(f"'UserSuppliedJSONMetadata' CloudFormation template parameter must be a JSON dict! Ignoring supplied data...")
+    except Exception as e:
+        log.warning(f"Can not parse 'UserSuppliedJSONMetadata' CloudFormation template parameter as valid JSON document: {e}")
     return json.loads(json.dumps(context, default=str))
 
