@@ -836,8 +836,9 @@ without any TargetGroup but another external health instance source exists).
         if instance is None:
             return default
         tags = {}
-        for t in instance["Tags"]:
-            tags[t["Key"]] = t["Value"]
+        if "Tags" in instance:
+            for t in instance["Tags"]:
+                tags[t["Key"]] = t["Value"]
         return tags
 
 

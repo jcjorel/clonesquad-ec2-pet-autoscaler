@@ -221,7 +221,9 @@ class Interact:
 
         # Export instance specifications
         instances = []
-        for i in self.context["o_ec2"].get_instances():
+        o_ec2 = self.context["o_ec2"]
+        for i in o_ec2.get_instances():
+            i["Hostname"] = o_ec2.get_instance_tags(i).get("Name")
             instances.append(json.dumps(i, default=str))
         misc.put_url(f"{export_url}/metadata/instances/{path}/clonesquad-managed-instances.json", "\n".join(instances))
 
