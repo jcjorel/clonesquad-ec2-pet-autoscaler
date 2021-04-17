@@ -1,3 +1,7 @@
+v0.20.0(not yet released):
+- (Improvment/Major) Added 'Metadata and Backup export to S3' feature. 
+- (Bug/Minor) On rare circumstances, 'BlockNewConnectionToPorts' can received a message due to iptables lock. '-w 10' option is added to every iptables call to wait for lock release.
+
 v0.19.0:
 - (Improvment/Major) COMPATIBILITY BREACH: In order to reduce the size on screen and improve subfleet dashboard readability, the subfleet metrics are shortened ("Subfleet." prefix is removed).
 - (Improvment/Major) Added optional SSM subsystem (disabled by default): Brings SSM Maintenance Window support and SSM Event notifications through SSM RunCommands (see https://github.com/jcjorel/clonesquad-ec2-pet-autoscaler/blob/master/docs/SSM.md)

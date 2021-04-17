@@ -237,6 +237,17 @@ class Scheduler:
             return True
         return False
 
+    def exports_metadata_and_backup(self, export_url):
+        account_id = self.context["ACCOUNT_ID"]
+        group_name = self.context["GroupName"]
+
+        # Export configuration 
+        self.scheduler_table.export_to_s3(f"{export_url}/backups", "scheduler")
+        self.scheduler_table.export_to_s3(f"{export_url}/backups", "scheduler", prefix="latest")
+
+        # Export matadata
+        self.scheduler_table.export_to_s3(f"{export_url}/metadata/scheduler", group_name, prefix="scheduler", athena_search_format=True)
+
 if __name__ == '__main__':
     # Local timezone test case
     scheduler = Scheduler()

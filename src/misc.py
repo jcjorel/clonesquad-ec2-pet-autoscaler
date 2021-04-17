@@ -181,6 +181,24 @@ def Session():
     s.mount('file://', FileAdapter())
     return s
 
+def put_url(url, value):
+    # s3:// protocol management
+    if url.startswith("s3://"):
+        m = re.search("^s3://([-.\w]+)/(.*)", url)
+        if len(m.groups()) != 2:
+            return None
+        bucket, key = [m.group(1), m.group(2)]
+        key         = "/".join([p for p in key.split("/") if p != ""])
+        client = boto3.client("s3")
+        try:
+            response = client.put_object(Bucket=bucket, Key=key, Body=bytes(value,"utf-8"))
+            return True
+        except Exception as e:
+            log.warning(f"Failed to put data to S3 url '{url}' : {e}")
+            return False
+    log.warning(f"Unknown protocol '{url}' for put_url()")
+    return False
+
 def get_url(url, throw_exception_on_warning=False):
     def _warning(msg):
         if throw_exception_on_warning: 
@@ -218,6 +236,7 @@ def get_url(url, throw_exception_on_warning=False):
         if len(m.groups()) != 2:
             return None
         bucket, key = [m.group(1), m.group(2)]
+        key         = "/".join([p for p in key.split("/") if p != ""])
         client = boto3.client("s3")
         try:
             response = client.get_object(Bucket=bucket, Key=key)

@@ -68,6 +68,11 @@ with open(args.template_file[0]) as f:
                             "Bucket": select_customization_parameter(0, args.s3_bucket),
                             "Key": select_customization_parameter(1, prefix_and_key)
                         }
+
+        # Patch custom resource with version to force CloudFormation update
+        if "CloneSquadVersion" in properties:
+            properties["CloneSquadVersion"] = args.version
+
         # Patch Lambda Environment variable with version
         if "Environment" in properties and "Variables" in properties["Environment"]:
             envs = properties["Environment"]["Variables"]

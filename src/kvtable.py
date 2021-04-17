@@ -3,6 +3,7 @@ import pdb
 import re
 import misc
 import json
+import yaml
 from datetime import datetime
 from datetime import timedelta
 from collections import defaultdict
@@ -436,5 +437,23 @@ class KVTable():
 
         # Rebuild the dict representation
         self._build_dict()
+
+    def export_to_s3(self, url, suffix, prefix=None, athena_search_format=False):
+        account_id = self.context["ACCOUNT_ID"]
+        region     = self.context["AWS_DEFAULT_REGION"]
+        group_name = self.context["GroupName"]
+        now        = self.context["now"]
+        prefix     = str(now) if prefix is None else prefix
+        path       = f"{url}/account_id={account_id}/region={region}/group_name={group_name}/{prefix}-{suffix}"
+        if not athena_search_format:
+            misc.put_url(f"{path}.yaml", yaml.dump(self.get_dict()))
+        else:
+            dump = []
+            for k in self.get_keys():
+                item              = self.get_item(k).copy()
+                item["MetadataRecordLastUpdatedAt"] = str(now)
+                dump.append(json.dumps(item, default=str))
+            misc.put_url(f"{path}.json", "\n".join(dump))
+                
 
 

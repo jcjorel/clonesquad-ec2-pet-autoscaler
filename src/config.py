@@ -424,4 +424,15 @@ def get_abs_or_percent(value_name, default, max_value, fmt=None):
     value = get(value_name, fmt=fmt)
     return misc.abs_or_percent(value, default, max_value)
 
+def exports_metadata_and_backup(export_url):
+    account_id = ctx["ACCOUNT_ID"]
+    group_name = ctx["GroupName"]
+
+    # Export configuration 
+    table = _init["configuration_table"]
+    table.export_to_s3(f"{export_url}/backups", "configuration")
+    table.export_to_s3(f"{export_url}/backups", "configuration", prefix="latest")
+
+    # Export matadata
+    table.export_to_s3(f"{export_url}/metadata/configuration", group_name, prefix="configuration", athena_search_format=True)
 

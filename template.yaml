@@ -46,6 +46,11 @@ Parameters:
     Default: "None"
     Description: "(Optional) S3 Path for detailed logging (s3://<bucket_name>/<path>)"
 
+  MetadataAndBackupS3Path:
+    Type: String
+    Default: "None"
+    Description: "(Optional) S3 Path for configuration backups and metadata exports (s3://<bucket_name>/<path>.)"
+
   ApiGWConfiguration:
     Type: String
     Default: ""
@@ -75,6 +80,11 @@ Parameters:
     Type: String
     Default: ""
     Description: "(Optional) IAM boundary to apply to all created roles."
+
+  UserSuppliedJSONMetadata:
+    Type: String
+    Default: ""
+    Description: "(Optional) User supplied free text. This field only purpose is to be available in <MetadataAndBackupS3Path>/metadata/discovery/.../metadata.json file and be queriable with Athena."
 
 
   XRayDiagnosis:
@@ -147,6 +157,7 @@ Resources:
               AccountId: !Ref AWS::AccountId
               Region: !Ref AWS::Region
               DynamoDBConfiguration: !Ref DynamoDBConfiguration
+              CloneSquadVersion: "--Development--"
 
     ConfigTable: 
       Type: AWS::DynamoDB::Table
@@ -537,7 +548,7 @@ Resources:
               Helper: ApiGWParameters
               AccountId: !Ref AWS::AccountId
               Region: !Ref AWS::Region
-              Dummy: "0"
+              CloneSquadVersion: "--Development--"
               ApiGWConfiguration: !Ref ApiGWConfiguration
               ApiGWEndpointConfiguration: !Ref ApiGWEndpointConfiguration
               DefaultGWPolicyURL: "internal:api-gw-default-policy.json"
@@ -569,6 +580,7 @@ Resources:
               ApiGWEndpointConfiguration: !Ref ApiGWEndpointConfiguration
               ApiGWId: !Ref InteractApi
               DefaultGWVpcEndpointPolicyURL: "internal:api-gw-default-endpoint-policy.json"
+              CloneSquadVersion: "--Development--"
 
     ApiGWVpcEndpoints:
         Type: AWS::EC2::VPCEndpoint
@@ -606,7 +618,10 @@ Resources:
               Helper: GeneralParameters
               AccountId: !Ref AWS::AccountId
               Region: !Ref AWS::Region
+              GroupName: !Ref GroupName
               LoggingS3Path: !Ref LoggingS3Path
+              MetadataAndBackupS3Path: !Ref MetadataAndBackupS3Path
+              CloneSquadVersion: "--Development--"
 
     CloneSquadPolicyDocument:
         Type: 'AWS::IAM::Policy'
@@ -623,6 +638,10 @@ Resources:
               - Effect: Allow
                 Resource: 
                   - !GetAtt GeneralParameters.LoggingS3PathArn
+                  - !GetAtt GeneralParameters.BackupS3PathArn
+                  - !GetAtt GeneralParameters.MetadataConfigurationS3PathArn
+                  - !GetAtt GeneralParameters.MetadataSchedulerS3PathArn
+                  - !GetAtt GeneralParameters.MetadataDiscoveryS3PathArn
                 Action:
                   - 's3:PutObject'
                   - 's3:CreateMultipartUpload'
@@ -741,12 +760,22 @@ Resources:
                   LongTermEventTable:                         !Ref LongTermEventTable
                   ConfigurationURLs:                          !Ref ConfigurationURLs
                   LoggingS3Path:                              !Ref LoggingS3Path
+                  MetadataAndBackupS3Path:                    !Ref MetadataAndBackupS3Path
                   TimeZone:                                   !Ref TimeZone
                   SSMLogGroup:                                !Sub "/aws/lambda/CloneSquad-SSM-${GroupName}"
                   AWS_XRAY_SDK_ENABLED:                       !Ref XRayDiagnosis
                   CLONESQUAD_LOGLEVELS:                       !Ref LogLevels
                   ACCOUNT_ID:                                 !Ref "AWS::AccountId"
                   CloneSquadVersion:                          "--Development--"
+                  UserSuppliedJSONMetadata:                   !Ref UserSuppliedJSONMetadata
+                  MainLambdaIamRoleArn:                       !GetAtt MainFunctionRole.Arn
+                  InteractLambdaIamRoleArn:                   !GetAtt InteractFunctionRole.Arn
+                  DiscoveryLambdaIamRoleArn:                  !GetAtt DiscoveryFunctionRole.Arn
+                  InternalERRORMainAlarmArn:                  !GetAtt InternalERRORMainAlarm.Arn
+                  InternalWARNINGMainAlarmArn:                !GetAtt InternalWARNINGMainAlarm.Arn
+                  InternalERRORInteractAlarmArn:              !GetAtt InternalERRORInteractAlarm.Arn
+                  InternalWARNINGInteractAlarmArn:            !GetAtt InternalWARNINGInteractAlarm.Arn
+                  LackOfCPUCreditAlarmArn:                    !GetAtt LackOfCPUCreditAlarm.Arn
               Events:
                 Schedule:
                   Type: Schedule
@@ -804,6 +833,7 @@ Resources:
                   CLONESQUAD_LOGLEVELS:                       !Ref LogLevels
                   ACCOUNT_ID:                                 !Ref "AWS::AccountId"
                   CloneSquadVersion:                          "--Development--"
+                  UserSuppliedJSONMetadata:                   !Ref UserSuppliedJSONMetadata
               Events:
                 ScaleUpTopic:
                   Type: SNS
@@ -856,10 +886,20 @@ Resources:
                   InteractAPIGWUrl:                           !Sub "https://${InteractApi}.execute-api.${AWS::Region}.amazonaws.com/v1/"
                   MainFunctionArn:                            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:CloneSquad-Main-${GroupName}"
                   InteractApi:                                !Ref InteractApi
+                  MetadataAndBackupS3Path:                    !Ref MetadataAndBackupS3Path
                   TimeZone:                                   !Ref TimeZone
                   CLONESQUAD_LOGLEVELS:                       !Ref LogLevels
                   ACCOUNT_ID:                                 !Ref "AWS::AccountId"
                   CloneSquadVersion:                          "--Development--"
+                  UserSuppliedJSONMetadata:                   !Ref UserSuppliedJSONMetadata
+                  MainLambdaIamRoleArn:                       !GetAtt MainFunctionRole.Arn
+                  InteractLambdaIamRoleArn:                   !GetAtt InteractFunctionRole.Arn
+                  DiscoveryLambdaIamRoleArn:                  !GetAtt DiscoveryFunctionRole.Arn
+                  InternalERRORMainAlarmArn:                  !GetAtt InternalERRORMainAlarm.Arn
+                  InternalWARNINGMainAlarmArn:                !GetAtt InternalWARNINGMainAlarm.Arn
+                  InternalERRORInteractAlarmArn:              !GetAtt InternalERRORInteractAlarm.Arn
+                  InternalWARNINGInteractAlarmArn:            !GetAtt InternalWARNINGInteractAlarm.Arn
+                  LackOfCPUCreditAlarmArn:                    !GetAtt LackOfCPUCreditAlarm.Arn
                   ApiGwVpcEndpointDNSEntry: !If 
                         - HasApiGWEndpointConfiguration 
                         - !Select [ 1, !Split [ ":", !Select [ 0, !GetAtt ApiGWVpcEndpoints.DnsEntries]]]
@@ -898,12 +938,22 @@ Resources:
                   SchedulerTable:                             !Ref SchedulerTable
                   ConfigurationURLs:                          !Ref ConfigurationURLs
                   LoggingS3Path:                              !Ref LoggingS3Path
+                  MetadataAndBackupS3Path:                    !Ref MetadataAndBackupS3Path
                   InteractQueue:                              !Ref InteractQueue
                   MainFunctionArn:                            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:CloneSquad-Main-${GroupName}"
                   TimeZone:                                   !Ref TimeZone
                   CLONESQUAD_LOGLEVELS:                       !Ref LogLevels
                   ACCOUNT_ID:                                 !Ref "AWS::AccountId"
                   CloneSquadVersion:                          "--Development--"
+                  UserSuppliedJSONMetadata:                   !Ref UserSuppliedJSONMetadata
+                  MainLambdaIamRoleArn:                       !GetAtt MainFunctionRole.Arn
+                  InteractLambdaIamRoleArn:                   !GetAtt InteractFunctionRole.Arn
+                  DiscoveryLambdaIamRoleArn:                  !GetAtt DiscoveryFunctionRole.Arn
+                  InternalERRORMainAlarmArn:                  !GetAtt InternalERRORMainAlarm.Arn
+                  InternalWARNINGMainAlarmArn:                !GetAtt InternalWARNINGMainAlarm.Arn
+                  InternalERRORInteractAlarmArn:              !GetAtt InternalERRORInteractAlarm.Arn
+                  InternalWARNINGInteractAlarmArn:            !GetAtt InternalWARNINGInteractAlarm.Arn
+                  LackOfCPUCreditAlarmArn:                    !GetAtt LackOfCPUCreditAlarm.Arn
               Events:
                 SQS:
                   Type: SQS

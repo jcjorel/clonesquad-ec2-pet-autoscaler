@@ -188,10 +188,41 @@ class Interact:
                     "prerequisites": ["o_state"],
                     "func": self.control_reschedulenow,
                 },
+                "backup"  : {
+                    "interface": ["apigw", "sqs"],
+                    "cache": "none",
+                    "clients": [],
+                    "prerequisites": ["o_state", "o_scheduler"],
+                    "func": self.backup,
+                },
             }
 
     def get_prerequisites(self):
         return
+
+    def backup(self, context, event, response, cacheddata):
+        now        = self.context["now"]
+        export_url = self.context["MetadataAndBackupS3Path"]
+        if export_url is None or export_url == "":
+            response["statusCode"] = 500
+            response["body"]       = (f"Can not backup configuration and metadata! Please fillin 'MetadataAndBackupS3Path' CloudFormation parameter "
+                "with a valid S3 bucket path!")
+            return False
+
+        # Export scheduler metadata and backup
+        for d in [self.context["o_scheduler"], Cfg]:
+            d.exports_metadata_and_backup(export_url)
+        # Export discovery metadata
+        account_id, region, group_name = (self.context["ACCOUNT_ID"], self.context["AWS_DEFAULT_REGION"], self.context["GroupName"])
+        path      = f"account_id={account_id}/region={region}/group_name={group_name}"
+        discovery = misc.discovery(self.context)
+        discovery["MetadataRecordLastUpdatedAt"] = str(now)
+        misc.put_url(f"{export_url}/metadata/discovery/{path}/discovery.json", json.dumps(discovery, default=str))
+
+        response["statusCode"] = 200
+        response["body"]       = f"Exported Configuration/Scheduler backups and metadata to {export_url}."
+        log.info(response["body"])
+        return False
 
     def control_instances(self, context, event, response, cacheddata):
         path = event["path"].split("/")[-1:][0]
