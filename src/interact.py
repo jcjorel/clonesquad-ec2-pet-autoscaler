@@ -209,6 +209,7 @@ class Interact:
                 "with a valid S3 bucket path!")
             return False
 
+        o_ec2 = self.context["o_ec2"]
         # Export scheduler metadata and backup
         for d in [self.context["o_scheduler"], Cfg]:
             d.exports_metadata_and_backup(export_url)
@@ -217,11 +218,11 @@ class Interact:
         path      = f"accountid={account_id}/region={region}/groupname={group_name}"
         discovery = misc.discovery(self.context, via_discovery_lambda=True)
         discovery["MetadataRecordLastUpdatedAt"] = str(now).split("+")[0]
+        discovery["Subfleets"]                   = o_ec2.get_subfleet_names()
         misc.put_url(f"{export_url}/metadata/discovery/{path}/clonesquad-discovery.json", json.dumps(discovery, default=str))
 
         # Export instance specifications
         instances = []
-        o_ec2 = self.context["o_ec2"]
         for i in o_ec2.get_instances():
             i["Hostname"] = o_ec2.get_instance_tags(i).get("Name")
             instances.append(json.dumps(i, default=str))
