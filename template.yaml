@@ -777,6 +777,13 @@ Resources:
                   InternalERRORInteractAlarmArn:              !GetAtt InternalERRORInteractAlarm.Arn
                   InternalWARNINGInteractAlarmArn:            !GetAtt InternalWARNINGInteractAlarm.Arn
                   LackOfCPUCreditAlarmArn:                    !GetAtt LackOfCPUCreditAlarm.Arn
+                  CustomizationZipParameters:                 !Ref CustomizationZipParameters
+                  LambdaMemorySize:                           !Ref LambdaMemorySize
+                  LogRetentionDuration:                       !Ref LogRetentionDuration
+                  ApiGWConfiguration:                         !Ref ApiGWConfiguration
+                  DynamoDBConfiguration:                      !Ref DynamoDBConfiguration
+                  PermissionsBoundary:                        !Ref PermissionsBoundary
+                  XRayDiagnosis:                              !Ref XRayDiagnosis
               Events:
                 Schedule:
                   Type: Schedule
@@ -905,6 +912,13 @@ Resources:
                         - HasApiGWEndpointConfiguration 
                         - !Select [ 1, !Split [ ":", !Select [ 0, !GetAtt ApiGWVpcEndpoints.DnsEntries]]]
                         - !GetAtt ApiGWParameters.VpcEndpointDNS
+                  CustomizationZipParameters:                 !Ref CustomizationZipParameters
+                  LambdaMemorySize:                           !Ref LambdaMemorySize
+                  LogRetentionDuration:                       !Ref LogRetentionDuration
+                  ApiGWConfiguration:                         !Ref ApiGWConfiguration
+                  DynamoDBConfiguration:                      !Ref DynamoDBConfiguration
+                  PermissionsBoundary:                        !Ref PermissionsBoundary
+                  XRayDiagnosis:                              !Ref XRayDiagnosis
 
     InteractFunction:
             Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
@@ -956,6 +970,13 @@ Resources:
                   InternalERRORInteractAlarmArn:              !GetAtt InternalERRORInteractAlarm.Arn
                   InternalWARNINGInteractAlarmArn:            !GetAtt InternalWARNINGInteractAlarm.Arn
                   LackOfCPUCreditAlarmArn:                    !GetAtt LackOfCPUCreditAlarm.Arn
+                  CustomizationZipParameters:                 !Ref CustomizationZipParameters
+                  LambdaMemorySize:                           !Ref LambdaMemorySize
+                  LogRetentionDuration:                       !Ref LogRetentionDuration
+                  ApiGWConfiguration:                         !Ref ApiGWConfiguration
+                  DynamoDBConfiguration:                      !Ref DynamoDBConfiguration
+                  PermissionsBoundary:                        !Ref PermissionsBoundary
+                  XRayDiagnosis:                              !Ref XRayDiagnosis
               Events:
                 SQS:
                   Type: SQS
