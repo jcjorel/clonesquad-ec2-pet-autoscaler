@@ -1,0 +1,69 @@
+#!/usr/bin/python3
+#
+import os
+import sys
+import json
+import pdb
+import argparse
+import logging
+from collections import defaultdict
+from logging import handlers
+log = logging.getLogger(sys.argv[0])
+log.setLevel(logging.INFO)
+
+parser = argparse.ArgumentParser(description="Athena DDL Generator")
+parser.add_argument('input_file', help="Input file (JSON).", type=str, nargs=1)
+parser.add_argument('--s3-url', '-s', help="Target S3 (s3://... format)", type=str, default="")
+parser.add_argument('--extra-ddl-parameter', '-x', help="Extra string to add to the generated DDL statement.", type=str, default="")
+
+args = parser.parse_args()
+
+input_file  = open(args.input_file[0])
+input_lines = input_file.readlines()
+
+json_lines  = []
+i           = 0
+for l in input_lines:
+    i += 1
+    try:
+        json_lines.append(json.loads(l))
+    except Exception as e:
+        log.warning(f"Can not decode line {i} as JSON document!")    
+
+def encode_json(document, outputs):
+    d = {}
+    for k in document:
+        if k is None:
+            log.error("Can not encode Null parameter!")
+            sys.exit(1)
+        v    = document[k]
+        item = {}
+        if isinstance(v, dict):
+            encode_json(v, item)
+            d[k] = item
+        elif isinstance(v, list):
+            d[k] = [str]
+            if len(v):
+                if isinstance(v[0], dict):
+                    it = {}
+                    encode_json(v[0], it)
+                    d[k] = [it]
+                else:
+                    d[k] = [v[0].__class__]
+        else:
+            item = v.__class__
+            d[k] = item
+    outputs.update(d)
+
+def process_documents(inputs, outputs):
+    for l in inputs:
+        if not isinstance(l, dict):
+            log.warning(f"JSON document must be a Dict! Ignoring")
+            continue
+        encode_json(l, outputs)
+        
+outputs = {}
+pdb.set_trace()
+process_documents(json_lines, outputs)
+
+
