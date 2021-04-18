@@ -219,7 +219,7 @@ class Interact:
         discovery = misc.discovery(self.context, via_discovery_lambda=True)
         discovery["MetadataRecordLastUpdatedAt"] = str(now).split("+")[0]
         discovery["Subfleets"]                   = o_ec2.get_subfleet_names()
-        misc.put_url(f"{export_url}/metadata/discovery/{path}/{account_id}-{region}-{group_name}-discovery-cs.json", 
+        misc.put_url(f"{export_url}/metadata/discovery/{path}/{account_id}-{region}-discovery-cs-{group_name}.json", 
                 json.dumps(discovery, default=str))
 
         # Export instance specifications
@@ -227,7 +227,7 @@ class Interact:
         for i in o_ec2.get_instances():
             i["Hostname"] = o_ec2.get_instance_tags(i).get("Name")
             instances.append(json.dumps(i, default=str))
-        misc.put_url(f"{export_url}/metadata/instances/{path}/{account_id}-{region}-{group_name}-managed-instances-cs.json", 
+        misc.put_url(f"{export_url}/metadata/instances/{path}/{account_id}-{region}-managed-instances-cs-{group_name}.json", 
                 "\n".join(instances))
 
         response["statusCode"] = 200
