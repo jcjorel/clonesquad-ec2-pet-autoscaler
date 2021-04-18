@@ -444,7 +444,8 @@ class KVTable():
         group_name = self.context["GroupName"]
         now        = self.context["now"]
         prefix     = str(now) if prefix is None else prefix
-        path       = f"{url}/accountid={account_id}/region={region}/groupname={group_name}/clonesquad-{prefix}-{suffix}"
+        path       = (f"{url}/accountid={account_id}/region={region}/groupname={group_name}/"
+            f"{account_id}-{region}-{group_name}-{prefix}-{suffix}-cs")
         if not athena_search_format:
             misc.put_url(f"{path}.yaml", yaml.dump(self.get_dict()))
         else:

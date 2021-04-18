@@ -205,8 +205,8 @@ class Interact:
         export_url = self.context["MetadataAndBackupS3Path"]
         if export_url is None or export_url == "":
             response["statusCode"] = 500
-            response["body"]       = (f"Can not backup configuration and metadata! Please fillin 'MetadataAndBackupS3Path' CloudFormation parameter "
-                "with a valid S3 bucket path!")
+            response["body"]       = (f"Can not backup configuration and metadata! Please fillin 'MetadataAndBackupS3Path' CloudFormation "
+                "parameter with a valid S3 bucket path!")
             return False
 
         o_ec2 = self.context["o_ec2"]
@@ -219,14 +219,16 @@ class Interact:
         discovery = misc.discovery(self.context, via_discovery_lambda=True)
         discovery["MetadataRecordLastUpdatedAt"] = str(now).split("+")[0]
         discovery["Subfleets"]                   = o_ec2.get_subfleet_names()
-        misc.put_url(f"{export_url}/metadata/discovery/{path}/clonesquad-discovery.json", json.dumps(discovery, default=str))
+        misc.put_url(f"{export_url}/metadata/discovery/{path}/{account_id}-{region}-{group_name}-discovery-cs.json", 
+                json.dumps(discovery, default=str))
 
         # Export instance specifications
         instances = []
         for i in o_ec2.get_instances():
             i["Hostname"] = o_ec2.get_instance_tags(i).get("Name")
             instances.append(json.dumps(i, default=str))
-        misc.put_url(f"{export_url}/metadata/instances/{path}/clonesquad-managed-instances.json", "\n".join(instances))
+        misc.put_url(f"{export_url}/metadata/instances/{path}/{account_id}-{region}-{group_name}-managed-instances-cs.json", 
+                "\n".join(instances))
 
         response["statusCode"] = 200
         response["body"]       = f"Exported Configuration/Scheduler backups and metadata to {export_url}."
