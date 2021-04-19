@@ -79,7 +79,12 @@ Parameters:
   PermissionsBoundary:
     Type: String
     Default: ""
-    Description: "(Optional) IAM boundary to apply to all created roles."
+    Description: "(Optional) IAM boundary to apply to all created roles (IAM policy ARN format)."
+
+  EBSVolumeKMSKeys:
+    Type: CommaDelimitedList
+    Default: ""
+    Description: "(Optional) KMS Key ARNs used by EBS volumes attached to EC2 managed instances. Used to restrict CloneSquad permissions toward KMS keys."
 
   UserSuppliedJSONMetadata:
     Type: String
@@ -97,6 +102,7 @@ Conditions:
     HasCustomizationZipParameters: !Not [ !Equals [ !Ref CustomizationZipParameters, ""]]
     HasApiGWEndpointConfiguration: !Not [ !Equals [ !Ref ApiGWEndpointConfiguration, ""]]
     HasPermissionsBoundary:        !Not [ !Equals [ !Ref PermissionsBoundary, ""]]
+    HasEBSVolumeKMSKeys:           !Not [ !Equals [ !Join ["", !Ref EBSVolumeKMSKeys], ""]]
 
 
 Resources:
@@ -636,6 +642,17 @@ Resources:
             Version: "2012-10-17"
             Statement:
               - Effect: Allow
+                Resource: !If [HasEBSVolumeKMSKeys, !Ref EBSVolumeKMSKeys, "*"]
+                Action:
+                  - 'kms:CreateGrant'
+                  - 'kms:RevokeGrant'
+                  - 'kms:ListGrants'
+                  - 'kms:GenerateDataKey*'
+                  - 'kms:ReEncrypt*'
+                  - 'kms:Encrypt'
+                  - 'kms:Decrypt'
+                  - 'kms:DescribeKey'
+              - Effect: Allow
                 Resource: 
                   - !GetAtt GeneralParameters.LoggingS3PathArn
                   - !GetAtt GeneralParameters.BackupS3PathArn
@@ -695,21 +712,12 @@ Resources:
                   - 'ec2:DescribeInternetGateways'
                   - 'ec2:DescribeSubnets'
                   - 'ec2:DescribeVpcs'
-                  - 'kms:CreateGrant'
-                  - 'kms:RevokeGrant'
-                  - 'kms:ListGrants'
-                  - 'kms:GenerateDataKey*'
-                  - 'kms:ReEncrypt*'
-                  - 'kms:Encrypt'
-                  - 'kms:Decrypt'
-                  - 'kms:DescribeKey'
                   - 'events:DeleteRule'
                   - 'events:ListRules'
                   - 'events:PutRule'
                   - 'events:PutTargets'
                   - 'events:RemoveTargets'
                   - 'iam:PassRole'
-                  - 'kms:Decrypt'
                   - 'cloudwatch:DeleteAlarms'
                   - 'cloudwatch:DescribeAlarms'
                   - 'cloudwatch:DeleteDashboards'
