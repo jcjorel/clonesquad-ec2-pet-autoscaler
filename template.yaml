@@ -683,7 +683,6 @@ Resources:
                   StringEquals: 
                       "aws:ResourceTag/clonesquad:group-name": !Ref GroupName
                 Action:
-                  - 'ec2:StartInstances'
                   - 'ec2:StopInstances'
                   - 'rds:StartDBCluster'
                   - 'rds:StartDBInstance'
@@ -701,6 +700,7 @@ Resources:
                   - 'sqs:DeleteMessage'
                   - 'sns:Publish'
                   - 's3:GetObject'
+                  - 'ec2:StartInstances' # We have to give full StartInstances access to succeed starting Licence Manager controlled instances
                   - 'ec2:DescribeAvailabilityZones'
                   - 'ec2:DescribeInstances'
                   - 'ec2:DescribeInstanceStatus'
