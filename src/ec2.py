@@ -595,6 +595,7 @@ without any TargetGroup but another external health instance source exists).
 
         def _check_response(need_longterm_record, response, ex):
             nonlocal max_startable_instances
+            nonlocal InstanceIds
             log.debug(Dbg.pprint(response))
             if ex is None:
                 metadata = response["ResponseMetadata"]
@@ -635,6 +636,15 @@ without any TargetGroup but another external health instance source exists).
                         log.warning(f"Failed to start instance due to 'InsufficientInstanceCapacity' error: {ex}")
                         need_shortterm_record  = False
                         need_longterm_record   = False
+                    if ex.response['Error']['Code'] == 'InternalError':
+                        if len(InstanceIds) == 1:
+                            log.warning(f"Received error while trying to start to start instance {InstanceIds} due to "
+                                "'InternalError' error: {ex}. If encrypted volumes are used, a possible cause is a lack of "
+                                "permissions to the KMS EKS used by EBS volumes connected to the EC2 instance.")
+                            need_shortterm_record  = True
+                        else:
+                            need_shortterm_record  = False
+                        need_longterm_record   = False
                 except:
                     pass
 
@@ -659,15 +669,17 @@ without any TargetGroup but another external health instance source exists).
             log.info("Starting instances %s..." % to_start)
             response = None
             try:
+                InstanceIds=to_start
                 response = R_xt(_check_response, lambda args, kwargs, r: r["ResponseMetadata"]["HTTPStatusCode"] == 200,
-                    client.start_instances, InstanceIds=to_start
+                    client.start_instances, InstanceIds=InstanceIds
                 )
             except Exception as e:
                 log.log(log.NOTICE, f"Got Exception while trying to start instance(s) '{to_start}' : {e}. Trying again one-by-one...")
                 for i in to_start:
                     try:
+                        InstanceIds=[i]
                         response = R_xt(_check_response, lambda args, kwargs, r: r["ResponseMetadata"]["HTTPStatusCode"] == 200,
-                            client.start_instances, InstanceIds=[i]
+                            client.start_instances, InstanceIds=InstanceIds
                         )
                     except ClientError as e:
                         if e.response['Error']['Code'] != 'IncorrectSpotRequestState':
