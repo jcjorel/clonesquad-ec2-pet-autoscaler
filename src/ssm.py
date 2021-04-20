@@ -490,7 +490,7 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
                 platform_type = info["PlatformType"]
                 pltf          = refs.get(platform_type)
                 if pltf is None:
-                    log.warning("Can't run a command on an unsupported platform : %s" % info["PlatformType"])
+                    log.warning(f"Can't run a command {cmd} on an unsupported platform : {i}/%s" % info["PlatformType"])
                     continue # Unsupported platform
                 if platform_type not in platforms:
                     platforms[platform_type] = copy.deepcopy(pltf)
