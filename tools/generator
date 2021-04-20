@@ -108,7 +108,7 @@ def output_ddl(v, node, depth, output):
             o.append(f"{justify}{node}float")
         if v == datetime.datetime:
             o.append(f"{justify}{node}timestamp")
-        output.extend(",\n".join(o))
+        output.append(",\n".join(o))
 
 
         
