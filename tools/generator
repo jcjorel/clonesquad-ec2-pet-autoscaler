@@ -82,33 +82,33 @@ def output_ddl(v, node, depth, output):
         justify = "".ljust(4 * depth)
         if node is not None and node != "":
             node += ":"
+        o = []
         if isinstance(v, dict):
             if node is not None:
                 output.append(f"{justify}{node}struct<")
             keys = sorted(v.keys())
-            o = []
             for k in keys:
                 output_ddl(v[k], k, depth + 1, o)
-            output.extend(",\n".join(o))
             if node is not None:
                 output.append(f"{justify}    >")
         if isinstance(v, list):
-            output.append(f"{justify}{node}array<")
+            o.append(f"{justify}{node}array<")
             for l in v:
                 output_ddl(l, "", depth + 1, output)
-            output.append(f"{justify}    >")
+            o.append(f"{justify}    >")
         if v == dict:
-            output.append(f"{justify}{node}struct<>")
+            o.append(f"{justify}{node}struct<>")
         if v == str:
-            output.append(f"{justify}{node}string")
+            o.append(f"{justify}{node}string")
         if v == bool:
-            output.append(f"{justify}{node}bool")
+            o.append(f"{justify}{node}bool")
         if v == int:
-            output.append(f"{justify}{node}int")
+            o.append(f"{justify}{node}int")
         if v == float:
-            output.append(f"{justify}{node}float")
+            o.append(f"{justify}{node}float")
         if v == datetime.datetime:
-            output.append(f"{justify}{node}timestamp")
+            o.append(f"{justify}{node}timestamp")
+        output.extend(",\n".join(o))
 
 
         
