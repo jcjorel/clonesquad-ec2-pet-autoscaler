@@ -3,6 +3,7 @@ import sys
 import re
 import hashlib
 import json
+import yaml
 import math
 
 import gzip
@@ -18,6 +19,7 @@ from botocore.config import Config
 from datetime import datetime
 from datetime import timezone
 from datetime import timedelta
+import dateutil
 import requests
 from requests_file import FileAdapter
 from collections import defaultdict
@@ -98,6 +100,47 @@ def is_direct_launch():
 
 def utc_now():
     return datetime.now(tz=timezone.utc) # datetime.utcnow()
+
+def local_now():
+    timezones  = yaml.safe_load(get_url("internal:region-timezones.yaml"))
+    tz         = os.getenv("TimeZone") 
+    tz         = timezones.get(ctx["AWS_DEFAULT_REGION"]) if (tz is None or tz == "") else tz
+    tz         = tz if tz else "UTC"
+    return datetime.now(tz=dateutil.tz.gettz(tz))
+
+def athena_timestamp_format(date):
+    """ Return a timestamp with timezone
+    """
+    date_str = str(date).split("+")[0]
+    return f"{date_str} %s" % date.strftime("%Z")
+
+def stringify_timestamps(struct, utc_naive=True, athena_timestamp=False):
+    """ This function walkthough the 'struct' and stringify all datetime objects encountered
+        either with standard date + timezone format, UTC naive or an AWS Athena compatible one with TZ.
+    """
+    if isinstance(struct, dict):
+        for k in struct:
+            if isinstance(struct[k], dict) or isinstance(struct[k], list):
+                stringify_timestamps(struct[k], athena_timestamp=athena_timestamp)
+            elif isinstance(struct[k], datetime):
+                if utc_naive:
+                    struct[k] = str(struct[k]).split("+")[0]
+                elif athena_timestamp_format:
+                    struct[k] = str(struct[k])
+                else:
+                    struct[k] = athena_timestamp_format(struct[k])
+    if isinstance(struct, list):
+        for i in range(0, len(struct)):
+            if isinstance(struct[i], dict) or isinstance(struct[i], list):
+                stringify_timestamps(struct[i], athena_timestamp=athena_timestamp)
+            if isinstance(struct[i], datetime):
+                if utc_naive:
+                    struct[i] = str(struct[i]).split("+")[0]
+                elif athena_timestamp_format:
+                    struct[i] = str(struct[i])
+                else:
+                    struct[i] = athena_timestamp_format(struct[i])
+    return struct
 
 def epoch():
     return seconds2utc(0)

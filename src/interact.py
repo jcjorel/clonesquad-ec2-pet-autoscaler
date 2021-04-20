@@ -218,8 +218,9 @@ class Interact:
         account_id, region, group_name = (self.context["ACCOUNT_ID"], self.context["AWS_DEFAULT_REGION"], self.context["GroupName"])
         path      = f"accountid={account_id}/region={region}/groupname={group_name}"
         discovery = misc.discovery(self.context, via_discovery_lambda=True)
-        discovery["MetadataRecordLastUpdatedAtUTC"] = str(now).split("+")[0]
+        discovery["MetadataRecordLastUpdatedAt"] = now
         discovery["Subfleets"]                   = o_ec2.get_subfleet_names()
+        misc.stringify_timestamps(discovery)
         misc.put_url(f"{export_url}/metadata/discovery/{path}/{account_id}-{region}-discovery-cs-{group_name}.json", 
                 json.dumps(discovery, default=str))
 

@@ -45,13 +45,10 @@ class Scheduler:
             return
 
         # Get Timezone related info 
-        self.timezones  = yaml.safe_load(misc.get_url("internal:region-timezones.yaml"))
-        self.tz         = os.getenv("TimeZone") 
-        self.tz         = self.timezones.get(self.context["AWS_DEFAULT_REGION"]) if (self.tz is None or self.tz == "") else self.tz
-        self.tz         = self.tz if self.tz else "UTC"
-        self.local_now  = arrow.now(self.tz) # Get local time (with local timezone)
+        self.local_now  = arrow.get(misc.local_now()) # Get local time (with local timezone)
         self.utc_offset = self.local_now.utcoffset()
         self.dst_offset = self.local_now.dst()
+        self.tz         = self.local_now.strftime("%Z")
         log.log(log.NOTICE, "Current timezone offset to UTC: %s, DST: %s, TimeZone: %s" % 
                 (self.utc_offset, self.dst_offset, self.tz))
 

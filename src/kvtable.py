@@ -456,7 +456,7 @@ class KVTable():
                     log.warning(f"Detected a possible bug for item {k} during export to S3 ({url}!")
                     continue # Paranoid: How could it happen??
                 item = item.copy()
-                item["MetadataRecordLastUpdatedAtUTC"] = str(now).split("+")[0]
+                item["MetadataRecordLastUpdatedAt"] = now
                 dump.append(json.dumps(item, default=str))
             misc.put_url(f"{path}.json", "\n".join(dump))
                 

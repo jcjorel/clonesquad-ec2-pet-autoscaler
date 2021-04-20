@@ -34,6 +34,7 @@ from datetime import datetime
 from datetime import timedelta
 from collections import defaultdict
 from botocore.exceptions import ClientError
+import copy
 
 import misc
 import kvtable
@@ -1368,7 +1369,9 @@ without any TargetGroup but another external health instance source exists).
         instances = self.get_instances()
         instance_serialized = []
         for i in instances:
+            i = copy.deepcopy(i)
             i["Hostname"] = self.get_instance_tags(i).get("Name")
+            misc.stringify_timestamps(i)
             instance_serialized.append(json.dumps(i, default=str))
         misc.put_url(f"{export_url}/metadata/instances/{path}/{account_id}-{region}-managed-instances-cs-{group_name}.json", 
                 "\n".join(instance_serialized))
@@ -1391,6 +1394,8 @@ without any TargetGroup but another external health instance source exists).
 
         volume_serialized = []
         for vol in volumes:
+            vol = copy.deepcopy(vol)
+            misc.stringify_timestamps(vol)
             volume_serialized.append(json.dumps(vol, default=str))
         misc.put_url(f"{export_url}/metadata/volumes/{path}/{account_id}-{region}-managed-volumes-cs-{group_name}.json", 
                 "\n".join(volume_serialized))
