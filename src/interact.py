@@ -12,6 +12,7 @@ import re
 import kvtable
 import traceback
 import urllib.parse
+from collections import defaultdict
 
 from aws_xray_sdk.core import xray_recorder
 from aws_xray_sdk.core import patch_all
@@ -497,6 +498,33 @@ class Interact:
         # Look up for regex command match.
         candidates = [ c for c in self.commands.keys() if ("*" in c or "(" in c) and re.match(c, path) ]
         return self.commands[candidates[0]] if len(candidates) else None
+
+    def internal_caller_handler(self, path):
+        """ Method to call interact module internally. 
+
+        It is the way to call interact methods from within the Lambda function (ex: Scheduler) by simulating 
+        an API call.
+        """
+        event = {
+            "path": path,
+            "httpMethod": "GET",
+            "queryStringParameters": {}
+        }
+        if "?" in path:
+            p, qs     = path.split("?", 1)
+            qs_parsed = urllib.parse.parse_qs(qs)
+            for s in qs_parsed:
+                event["queryStringParameters"][s] = qs_parsed[s][-1:][0] # Keep only the latest occurence
+            event["path"] = p
+
+        context = {
+            "requestContext": {
+                "identity": defaultdict(dict)
+            }
+        }
+        response = {}
+        self.handler(event, context, response)
+        log.info(f"Internal call {event}: {response}")
 
     def handler(self, event, context, response):
         global query_cache

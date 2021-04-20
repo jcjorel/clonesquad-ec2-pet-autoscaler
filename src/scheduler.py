@@ -13,6 +13,7 @@ import notify
 from notify import record_call as R
 import sqs
 import kvtable
+import scheduler
 import misc
 import config as Cfg
 import debug as Dbg
@@ -36,7 +37,17 @@ class Scheduler:
         Cfg.register({
             "cron.max_rules_per_batch": "10",
             "scheduler.cache.max_age": "seconds=60",
-            "cron.disable": "0"
+            "cron.disable": "0",
+            "cron.backup,Stable": {
+                "DefaultValue": "cron(0 * * * ? *)",
+                "Format": "String",
+                "Description": """Cron job specification for Backup and Metadata generation.
+
+This setting control when Configuration/Scheduler DynamoDB tables are taken. It also updates the Metadata queriable with Athena.
+
+> Setting this parameter to `disabled` will disable the feature even if the Cloudformation parameter `MetadataAndBackupS3Path` is defined.
+            """
+            }
         })
 
 
@@ -178,24 +189,40 @@ class Scheduler:
         return f"cron(%s %s {dom} {month} {dow} {year})" % (converts[0], converts[1])
 
     def load_event_definitions(self):
+        def _append_entry(e, param, event_name=None):
+            event_name  = f"CS-Cron-{group_name}"
+            event_name += "-" + misc.sha256(f"{e}:%s:%s:%s" % (self.tz, self.dst_offset, param))[:10]
+            try:
+                self.event_names.append({
+                    "Name": event_name,
+                    "EventName": e,
+                    "Event": param,
+                    "Data": misc.parse_line_as_list_of_dict(param, leading_keyname="schedule")
+                })
+            except Exception as ex:
+                log.exception("Failed to parse Scheduler event '%s' (%s) : %s" % (e, param, ex))
+
+        group_name   = self.context["GroupName"]
+        periodic_key = f"CS-PeriodicBackup-{group_name}"
+
+        # Read Scheduler DynamoDB table
         self.scheduler_table.reread_table()
         self.events = self.scheduler_table.get_dict()
         for e in self.events:
             if e.startswith("#"):
                 continue # Ignore commented out rules
-            if not isinstance(self.events[e], str): continue
+            if not isinstance(self.events[e], str): 
+                log.warning(f"Scheduler entry {e} must have a 'Value' of type 'string'")
+                continue
+            if e == periodic_key:
+                log.warning(f"Scheduler entry {e} uses a reserved keyword!")
+                continue
+            _append_entry(e, self.events[e])
 
-            digest     = misc.sha256(f"{e}:%s:%s:%s" % (self.tz, self.dst_offset, self.events[e]))
-            event_name = "CS-Cron-%s-%s" % (self.context["GroupName"], digest[:10])
-            try:
-                self.event_names.append({
-                    "Name": event_name,
-                    "EventName": e,
-                    "Event": self.events[e],
-                    "Data": misc.parse_line_as_list_of_dict(self.events[e], leading_keyname="schedule")
-                })
-            except Exception as ex:
-                log.exception("Failed to parse Scheduler event '%s' (%s) : %s" % (e, self.events[e], ex))
+        # Create a dynamic event when backup is configured
+        backup_cron_spec = Cfg.get("cron.backup")
+        if len(self.context["MetadataAndBackupS3Path"]) and backup_cron_spec != "disabled":
+            _append_entry(periodic_key, f"{backup_cron_spec},interact:backup") 
 
     def get_ruledef_by_name(self, name):
         try:
@@ -227,20 +254,27 @@ class Scheduler:
                     except Exception as e:
                         log.exception("[WARNING] Failed to read 'TTL' value '%s'!" % (TTL))
 
+                    interact_str = "interact:"
                     params = dict(rule_def["Data"][0])
                     for k in params:
-                        if k in ["TTL", "schedule"]: continue
-                        Cfg.set(k, params[k], ttl=ttl)
+                        if k in ["TTL", "schedule"]: 
+                            continue
+                        if k.startswith(interact_str):
+                            path = k[len(interact_str):]
+                            self.context["o_interact"].internal_caller_handler(path)
+                        else:
+                            Cfg.set(k, params[k], ttl=ttl)
             return True
         return False
 
     def exports_metadata_and_backup(self, export_url):
+        now        = self.context["now"]
         account_id = self.context["ACCOUNT_ID"]
         group_name = self.context["GroupName"]
 
         # Export configuration 
-        self.scheduler_table.export_to_s3(f"{export_url}/backups", "scheduler")
-        self.scheduler_table.export_to_s3(f"{export_url}/backups", "scheduler", prefix="latest")
+        self.scheduler_table.export_to_s3(f"{export_url}/backups", "scheduler", prefix=f"archive/{now}-")
+        self.scheduler_table.export_to_s3(f"{export_url}/backups", "scheduler", prefix="latest-")
 
         # Export matadata
         self.scheduler_table.export_to_s3(f"{export_url}/metadata/scheduler", group_name, prefix="scheduler", athena_search_format=True)

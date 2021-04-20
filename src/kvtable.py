@@ -438,14 +438,13 @@ class KVTable():
         # Rebuild the dict representation
         self._build_dict()
 
-    def export_to_s3(self, url, suffix, prefix=None, athena_search_format=False):
+    def export_to_s3(self, url, suffix, prefix="", athena_search_format=False):
         account_id = self.context["ACCOUNT_ID"]
         region     = self.context["AWS_DEFAULT_REGION"]
         group_name = self.context["GroupName"]
         now        = self.context["now"]
-        prefix     = str(now) if prefix is None else prefix
         path       = (f"{url}/accountid={account_id}/region={region}/groupname={group_name}/"
-            f"{account_id}-{region}-{prefix}-{suffix}-cs-{group_name}")
+                         f"{prefix}{account_id}-{region}-{suffix}-cs-{group_name}")
         if not athena_search_format:
             misc.put_url(f"{path}.yaml", yaml.dump(self.get_dict()))
         else:
