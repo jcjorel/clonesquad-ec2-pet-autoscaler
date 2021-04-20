@@ -647,6 +647,23 @@ By default, the dashboard is enabled.
     #### UTILITY FUNCTIONS ########################
     ###############################################
 
+    def is_mainfleet_enabled(self, meta=None):
+        desired_instance_count_str = Cfg.get("ec2.schedule.desired_instance_count")
+        if desired_instance_count_str in ["undefined", ""]:
+            if meta is not None:
+                meta["Message"] = "All scheduling activities disabled in Main fleet as 'ec2.schedule.desired_instance_count' is set to value 'undefined'."
+            return False
+        desired_instance_count = self.desired_instance_count()
+        if (desired_instance_count < 0 and desired_instance_count != -1):
+            if meta is not None:
+                meta["Message"] = (f"Can not parse 'ec2.schedule.desired_instance_count' parameter value ('{desired_instance_count_str}') "
+                        "as an Integer equals to '-1', '>= 0' or a valid pourcentage: All scaling activities disabled in Main fleet until "
+                        "supplied value is remediated!")
+            return False
+        if meta is not None:
+            meta["Message"] = "Main fleet scaling enabled."
+        return True
+
     def get_min_instance_count(self):
         """ Return the minimum instance count linked to 'ec2.schedule.min_instance_count'.
         Especially, it converts percentage into an absolute number.
@@ -872,20 +889,17 @@ By default, the dashboard is enabled.
         """
         self.generate_instance_transition_events()
         self.manage_spot_events()
-        desired_instance_count = Cfg.get("ec2.schedule.desired_instance_count")
-        if desired_instance_count not in ["undefined", ""]:
-            if self.desired_instance_count() == -2:
-                log.warning(f"Can not parse 'ec2.schedule.desired_instance_count' parameter value ('{desired_instance_count}') "
-                        "as an Integer equals to '-1', '>= 0' or a valid pourcentage: All scaling activities disabled in Main fleet until "
-                        "supplied value is remediated!")
-            else:
-                self.shelve_extra_lighthouse_instances()
-                self.scale_desired()
-                self.scale_bounce()
-                self.scale_bounce_instances_with_issues()
-                self.scale_in_out()
+
+        meta = {}
+        if self.is_mainfleet_enabled(meta=meta):
+            self.shelve_extra_lighthouse_instances()
+            self.scale_desired()
+            self.scale_bounce()
+            self.scale_bounce_instances_with_issues()
+            self.scale_in_out()
         else:
-            log.info(f"All scheduling activities disabled in Main fleet as 'ec2.schedule.desired_instance_count' is set to value 'undefined'.")
+            log.info(meta["Message"])
+
         self.wakeup_burstable_instances()
         self.manage_excluded_instances()
         self.manage_subfleets()
