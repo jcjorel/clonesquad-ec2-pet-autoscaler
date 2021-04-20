@@ -98,13 +98,15 @@ system issues.
                  """
                  },
                  "ec2.schedule.desired_instance_count,Stable" : {
-                     "DefaultValue" : -1,
+                     "DefaultValue" : "undefined",
                      "Format"       : "IntegerOrPercentage", 
-                     "Description"  : """If set to -1, the autoscaler controls freely the number of running instances. Set to a value different than -1,
+                     "Description"  : """If set to `-1`, the autoscaler controls freely the number of running instances. Set to a value different than `-1`,
 the autoscaler is disabled and this value defines the number of serving (=running & healthy) instances to maintain at all time.
 The [`ec2.schedule.min_instance_count`](#ec2schedulemin_instance_count) is still authoritative and the 
 [`ec2.schedule.desired_instance_count`](#ec2scheduledesired_instance_count) parameter cannot bring
 the serving fleet size below this hard lower limit. 
+
+By default, the value is the string `undefined` meaning that the autoscaler is disabled.
 
 A typical usage for this key is to set it to `100%` to temporarily force all the instances to run at the same time to perform mutable maintenance
 (System and/or SW patching).
@@ -120,17 +122,6 @@ at its maximum size in a stable manner (i.e. even if there are impaired/unhealth
                  "ec2.schedule.state_ttl" : "hours=2",
                  "ec2.schedule.base_points" : 1000,
                  "ec2.schedule.assume_cpu_exhausted_burstable_instances_as_unuseable": "0",
-                 "ec2.schedule.disable,Stable": {
-                    "DefaultValue" : 0,
-                    "Format"        : "Bool",
-                    "Description"   : """Disable all scale or automations algorithm in the Main fleet. 
-
-Setting this parameter to '1' disables all scaling and automation algorithms in the Main fleet. While set, all Main fleet instances can be freely started 
-and stopped by the users without CloneSquad trying to manage them. 
-
-Note: It is semantically similar to the value `undefined` in subfleet configuration key [`subfleet.{SubfleetName}.state`](#subfleetsubfleetnamestate).
-                    """
-                 },
                  "ec2.schedule.scaleout.disable,Stable": {
                      "DefaultValue" : 0,
                     "Format"        : "Bool",
@@ -295,17 +286,6 @@ This delay is meant to let new instances to succeed their initialization.
 If an application takes a long time to be ready, it can be useful to increase this value.
                  """
                  },
-                 #"ec2.schedule.burstable_instance.max_cpu_credit_unhealthy_instances,Stable" : {
-                 #    "DefaultValue" : "1",
-                 #    "Format"       : "IntegerOrPercentage",
-                 #    "Description"  : """Maximum number of instances that could be considered, at a given time, as unhealthy because their CPU credit is exhausted.
-                 #
-                 # * Setting this parameter to `100%` will indicate that all burstable instances could marked as unhealthy at the same time.
-                 # * Setting this parameter to `0` will completely disable the ability to consider burstable instances as unhealthy. 
-
-                 # > To prevent a DDoS, burstable instances with exhausted CPU Credit balance are NOT marked as unhealthy when len(stopped_instance) - (ec2.scheduler.min_instance_count) <= 0.
-                 #    """
-                 #},
                  "ec2.schedule.burstable_instance.max_cpu_crediting_instances,Stable" : {
                      "DefaultValue" : "50%",
                      "Format"       : "IntegerOrPercentage",
@@ -680,10 +660,10 @@ By default, the dashboard is enabled.
         """ Return the desired instance count linked in 'ec2.schedule.desired_instance_count'.
         Especially, it converts percentage into an absolute number.
 
-        :return An integer (number of instances
+        :return An integer (number of instances)
         """
         instances = self.all_main_fleet_instances 
-        return Cfg.get_abs_or_percent("ec2.schedule.desired_instance_count", -1, len(instances))
+        return Cfg.get_abs_or_percent("ec2.schedule.desired_instance_count", -2, len(instances))
 
     def get_ready_for_operation_timeouted_instances(self):
         """ Return a list of instance ids that spent too much time in 'initializing' time.
@@ -892,12 +872,20 @@ By default, the dashboard is enabled.
         """
         self.generate_instance_transition_events()
         self.manage_spot_events()
-        if not Cfg.get_int("ec2.schedule.disable"):
-            self.shelve_extra_lighthouse_instances()
-            self.scale_desired()
-            self.scale_bounce()
-            self.scale_bounce_instances_with_issues()
-            self.scale_in_out()
+        desired_instance_count = Cfg.get("ec2.schedule.desired_instance_count")
+        if desired_instance_count not in ["undefined", ""]:
+            if self.desired_instance_count() == -2:
+                log.warning(f"Can not parse 'ec2.schedule.desired_instance_count' parameter value ('{desired_instance_count}') "
+                        "as an Integer equals to '-1', '>= 0' or a valid pourcentage: All scaling activities disabled in Main fleet until "
+                        "supplied value is remediated!")
+            else:
+                self.shelve_extra_lighthouse_instances()
+                self.scale_desired()
+                self.scale_bounce()
+                self.scale_bounce_instances_with_issues()
+                self.scale_in_out()
+        else:
+            log.info(f"All scheduling activities disabled in Main fleet as 'ec2.schedule.desired_instance_count' is set to value 'undefined'.")
         self.wakeup_burstable_instances()
         self.manage_excluded_instances()
         self.manage_subfleets()

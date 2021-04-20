@@ -91,7 +91,11 @@ automatically manage the membership of previousy created instances to these targ
 
 ## Initial Configuration
 
-The default configuration has autoscaling in/out active and a directive defined to keep the serving fleet with, at least, 2 serving/healthy instances. Vertical scaling is disabled; 'LightHouse' mode as well. In this default configuration, CloneSquad does not make distinction between Spot and On-Demand instances managing them as an homogenous fleet.
+The default configuration has all scaling activities disabled in all fleets. In the DynamoDB table `CloneSquad-test-Configuration`, to enable auto-scaling, create a record with these 2 items:
+* `Key` with the string value `ec2.schedule.desired_instance_count` ,
+* `Value` with the string value `-1`.
+
+A pre-defined directive is already set to keep the autoscaled serving fleet with, at least, 2 serving/healthy instances. Vertical scaling is disabled; 'LightHouse' mode as well. In this default configuration, CloneSquad does not make distinction between Spot and On-Demand instances managing them as an homogenous fleet.
 
 Better benefits can be obtained by using [vertical scaling](docs/SCALING.md#vertical-scaling) and instance type priorities.
 
