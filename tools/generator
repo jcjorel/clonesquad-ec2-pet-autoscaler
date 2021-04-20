@@ -85,8 +85,11 @@ def output_ddl(v, node, depth, output):
         if isinstance(v, dict):
             if node is not None:
                 output.append(f"{justify}{node}struct<")
-            for k in sorted(v.keys()):
-                output_ddl(v[k], k, depth + 1, output)
+            keys = sorted(v.keys())
+            o = []
+            for k in keys:
+                output_ddl(v[k], k, depth + 1, o)
+            output.extend(",\n".join(o))
             if node is not None:
                 output.append(f"{justify}    >")
         if isinstance(v, list):
