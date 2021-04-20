@@ -6,6 +6,7 @@ import json
 import pdb
 import argparse
 import logging
+import datetime
 from collections import defaultdict
 from logging import handlers
 log = logging.getLogger(sys.argv[0])
@@ -30,6 +31,15 @@ for l in input_lines:
     except Exception as e:
         log.warning(f"Can not decode line {i} as JSON document!")    
 
+def is_date(d):
+    try:
+        return datetime.datetime.strptime(d, '%Y-%m-%d %H:%M:%S.%f') is not None
+    except:
+        try:
+            return datetime.datetime.strptime(d, '%Y-%m-%d %H:%M:%S') is not None
+        except:
+            return False
+
 def encode_json(document, outputs):
     d = {}
     for k in document:
@@ -49,9 +59,15 @@ def encode_json(document, outputs):
                     encode_json(v[0], it)
                     d[k] = [it]
                 else:
-                    d[k] = [v[0].__class__]
+                    if is_date(v[0]):
+                        d[k] = [datetime.datetime]
+                    else:
+                        d[k] = [v[0].__class__]
         else:
-            item = v.__class__
+            if is_date(v):
+                item = datetime.datetime
+            else:
+                item = v.__class__
             d[k] = item
     outputs.update(d)
 
@@ -61,9 +77,43 @@ def process_documents(inputs, outputs):
             log.warning(f"JSON document must be a Dict! Ignoring")
             continue
         encode_json(l, outputs)
+
+def output_ddl(v, node, depth, output):
+        justify = "".ljust(4 * depth)
+        if node is not None and node != "":
+            node += ":"
+        if isinstance(v, dict):
+            if node is not None:
+                output.append(f"{justify}{node}struct<")
+            for k in sorted(v.keys()):
+                output_ddl(v[k], k, depth + 1, output)
+            if node is not None:
+                output.append(f"{justify}    >")
+        if isinstance(v, list):
+            output.append(f"{justify}{node}array<")
+            for l in v:
+                output_ddl(l, "", depth + 1, output)
+            output.append(f"{justify}    >")
+        if v == dict:
+            output.append(f"{justify}{node}struct<>")
+        if v == str:
+            output.append(f"{justify}{node}string")
+        if v == bool:
+            output.append(f"{justify}{node}bool")
+        if v == int:
+            output.append(f"{justify}{node}int")
+        if v == float:
+            output.append(f"{justify}{node}float")
+        if v == datetime.datetime:
+            output.append(f"{justify}{node}timestamp")
+
+
         
-outputs = {}
+document = {}
+process_documents(json_lines, document)
+output = []
 pdb.set_trace()
-process_documents(json_lines, outputs)
+output_ddl(document, None, 4, output)
+print("\n".join(output))
 
 
