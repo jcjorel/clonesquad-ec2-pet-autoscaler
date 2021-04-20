@@ -89,6 +89,7 @@ def output_ddl(v, node, depth, output):
             keys = sorted(v.keys())
             for k in keys:
                 output_ddl(v[k], k, depth + 1, o)
+            output.append(",\n".join(o))
             if node is not None:
                 output.append(f"{justify}    >")
         if isinstance(v, list):
@@ -108,7 +109,6 @@ def output_ddl(v, node, depth, output):
             o.append(f"{justify}{node}float")
         if v == datetime.datetime:
             o.append(f"{justify}{node}timestamp")
-        output.append(",\n".join(o))
 
 
         
