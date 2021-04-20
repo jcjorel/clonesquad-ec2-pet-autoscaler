@@ -660,6 +660,7 @@ Resources:
                   - !GetAtt GeneralParameters.MetadataSchedulerS3PathArn
                   - !GetAtt GeneralParameters.MetadataDiscoveryS3PathArn
                   - !GetAtt GeneralParameters.MetadataInstancesS3PathArn
+                  - !GetAtt GeneralParameters.MetadataVolumesS3PathArn
                 Action:
                   - 's3:PutObject'
                   - 's3:CreateMultipartUpload'
@@ -712,6 +713,7 @@ Resources:
                   - 'ec2:DescribeInternetGateways'
                   - 'ec2:DescribeSubnets'
                   - 'ec2:DescribeVpcs'
+                  - 'ec2:DescribeVolumes'
                   - 'events:DeleteRule'
                   - 'events:ListRules'
                   - 'events:PutRule'

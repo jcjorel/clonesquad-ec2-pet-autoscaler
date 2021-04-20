@@ -1355,6 +1355,48 @@ without any TargetGroup but another external health instance source exists).
 
 
 ###############################################
+#### BACKUP AND METADATA      #################
+###############################################
+
+
+    def exports_metadata_and_backup(self, export_url):
+        client                         = self.context["ec2.client"]
+        account_id, region, group_name = (self.context["ACCOUNT_ID"], self.context["AWS_DEFAULT_REGION"], self.context["GroupName"])
+        path                           = f"accountid={account_id}/region={region}/groupname={group_name}"
+
+        # Export instance specifications
+        instances = self.get_instances()
+        instance_serialized = []
+        for i in instances:
+            i["Hostname"] = self.get_instance_tags(i).get("Name")
+            instance_serialized.append(json.dumps(i, default=str))
+        misc.put_url(f"{export_url}/metadata/instances/{path}/{account_id}-{region}-managed-instances-cs-{group_name}.json", 
+                "\n".join(instance_serialized))
+
+        # Export volume specifications
+        volume_ids = []
+        for i in instances:
+            for v in i.get("BlockDeviceMappings", []):
+                if "Ebs" in v:
+                    if v["Ebs"]["VolumeId"] not in volume_ids:
+                        volume_ids.append(v["Ebs"]["VolumeId"])
+        volumes = []
+        v_ids   = volume_ids
+        while len(v_ids):
+            paginator = client.get_paginator('describe_volumes')
+            response_iterator = paginator.paginate(VolumeIds=v_ids[:500])
+            for response in response_iterator:
+                volumes.extend(response["Volumes"])
+            v_ids = v_ids[500:]    
+
+        volume_serialized = []
+        for vol in volumes:
+            volume_serialized.append(json.dumps(vol, default=str))
+        misc.put_url(f"{export_url}/metadata/volumes/{path}/{account_id}-{region}-managed-volumes-cs-{group_name}.json", 
+                "\n".join(volume_serialized))
+
+
+###############################################
 #### SPOT INSTANCE MANAGEMENT #################
 ###############################################
 
