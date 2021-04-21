@@ -1,3 +1,4 @@
+--WARNING: In the AWS Athena console, paste only one SQL statement at a time!
 CREATE EXTERNAL TABLE clonesquad_configuration (
         `Key` string,
         `MetadataRecordLastUpdatedAt` string,
@@ -6,4 +7,5 @@ CREATE EXTERNAL TABLE clonesquad_configuration (
 PARTITIONED BY (accountid string, region string, groupname string)
 ROW FORMAT serde 'org.apache.hive.hcatalog.data.JsonSerDe'
 LOCATION 's3://mybucket/mypath';
---MSCK REPAIR TABLE clonesquad_configuration;
+--After table creation, please run below SQL statement after each CloneSquad deployment.
+MSCK REPAIR TABLE clonesquad_configuration;

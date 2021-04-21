@@ -18,11 +18,14 @@ for table in * ; do
 	mv $table/* $table/archive/$seconds 2>/dev/null || true
 done
 for table in * ; do
-	(${launchdir}/tools/quick-and-dirty-aws-athena-ddl-generator-for-json `find $table -name '*.json' -print` \
-		--table-name "clonesquad_${table}" --partitioned-by "PARTITIONED BY (accountid string, region string, groupname string)" ;
-			echo "--MSCK REPAIR TABLE clonesquad_${table};" ) >${launchdir}/docs/metadata/clonesquad_${table}.ddl 
+	(	echo "--WARNING: In the AWS Athena console, paste only one SQL statement at a time!" 
+		${launchdir}/tools/quick-and-dirty-aws-athena-ddl-generator-for-json `find $table -name '*.json' -print` \
+			--table-name "clonesquad_${table}" --partitioned-by "PARTITIONED BY (accountid string, region string, groupname string)" 
+		echo "--After table creation, please run below SQL statement after each CloneSquad deployment."
+		echo "MSCK REPAIR TABLE clonesquad_${table};" ) >${launchdir}/docs/metadata/clonesquad_${table}.ddl 
 	${launchdir}/tools/quick-and-dirty-aws-athena-ddl-generator-for-json `find $table -name '*.json' -print` \
 		--table-name "clonesquad_${table}" --partitioned-by "PARTITIONED BY (accountid string, region string, groupname string)" \
 		--location ${S3_URL}/${table}
-	echo "--MSCK REPAIR TABLE clonesquad_${table};" 
+	echo "--After table creation, please run below SQL statement after each CloneSquad deployment."
+	echo "MSCK REPAIR TABLE clonesquad_${table};" 
 done
