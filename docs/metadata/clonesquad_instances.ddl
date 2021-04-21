@@ -38,6 +38,10 @@ CREATE EXTERNAL TABLE clonesquad_instances (
         `Monitoring` struct<
             `State`:string>,
         `NetworkInterfaces` array<struct<
+                `Association`:struct<
+                    `IpOwnerId`:string,
+                    `PublicDnsName`:string,
+                    `PublicIp`:string>,
                 `Attachment`:struct<
                     `AttachTime`:timestamp,
                     `AttachmentId`:string,
@@ -57,6 +61,10 @@ CREATE EXTERNAL TABLE clonesquad_instances (
                 `PrivateDnsName`:string,
                 `PrivateIpAddress`:string,
                 `PrivateIpAddresses`:array<struct<
+                        `Association`:struct<
+                            `IpOwnerId`:string,
+                            `PublicDnsName`:string,
+                            `PublicIp`:string>,
                         `Primary`:boolean,
                         `PrivateDnsName`:string,
                         `PrivateIpAddress`:string>>,
