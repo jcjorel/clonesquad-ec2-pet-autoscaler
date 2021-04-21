@@ -14,6 +14,7 @@ CREATE EXTERNAL TABLE clonesquad_volumes (
         `Size` bigint,
         `SnapshotId` string,
         `State` string,
+        `Throughput` bigint,
         `VolumeId` string,
         `VolumeType` string
 )
