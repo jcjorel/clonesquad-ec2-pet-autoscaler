@@ -1,5 +1,4 @@
 CREATE EXTERNAL TABLE clonesquad_discovery (
-        `AccountId` string,
         `AlarmStateEC2Table` string,
         `ApiGWConfiguration` string,
         `ApiGwVpcEndpointDNSEntry` string,
@@ -10,7 +9,6 @@ CREATE EXTERNAL TABLE clonesquad_discovery (
         `DiscoveryLambdaIamRoleArn` string,
         `DynamoDBConfiguration` string,
         `EventTable` string,
-        `GroupName` string,
         `InteractAPIGWUrl` string,
         `InteractApi` string,
         `InteractLambdaIamRoleArn` string,
@@ -34,8 +32,6 @@ CREATE EXTERNAL TABLE clonesquad_discovery (
         `Subfleets` array<string>,
         `TimeZone` string,
         `UserSuppliedJSONMetadata` string,
-        `X-Hello` string,
-        `X-World` string,
         `XRayDiagnosis` string
 )
 PARTITIONED BY (accountid string, region string, groupname string)
