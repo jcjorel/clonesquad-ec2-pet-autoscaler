@@ -86,11 +86,12 @@ def process_documents(inputs, outputs):
             continue
         encode_json(l, outputs)
 
-indent = 4
+indent      = 4
+start_depth = 2
 def output_ddl(v, node, depth, output):
-        justify = "".ljust(indent * depth)
+        justify = "".ljust(indent * (start_depth + depth))
         if node is not None and node != "":
-            node += ":"
+            node = f"`{node}`:" if depth > 1 else f"`{node}` "
         o = []
         if isinstance(v, dict):
             prefix = f"{node}struct<\n{justify}" if node is not None else ""
@@ -109,7 +110,7 @@ def output_ddl(v, node, depth, output):
         if v == str:
             output.append(f"{node}string")
         if v == bool:
-            output.append(f"{node}bool")
+            output.append(f"{node}boolean")
         if v == int:
             output.append(f"{node}bigint")
         if v == float:
@@ -122,9 +123,8 @@ def output_ddl(v, node, depth, output):
 document = {}
 process_documents(json_lines, document)
 output   = []
-depth    = 2
-output_ddl(document, None, depth, output)
-justify  = "".ljust(depth * indent)
+output_ddl(document, None, 0, output)
+justify  = "".ljust(start_depth * indent)
 print(f"CREATE EXTERNAL TABLE {args.table_name} (")
 print(justify + "\n".join(output))
 if args.partioned_by != "":
