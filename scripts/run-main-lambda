@@ -13,6 +13,7 @@ export CLONESQUAD_LOGLEVELS=${CLONESQUAD_LOGLEVELS:-"kvtable=INFO,notify=INFO,ta
 function on_exit() {
 	echo "Enable again Main Lambda function..."
 	echo 'override:app.disable: ""' | tools/cs-kvtable CloneSquad-$GroupName-Configuration import &>/dev/null
+	echo "Done."
 }
 trap on_exit EXIT
 
