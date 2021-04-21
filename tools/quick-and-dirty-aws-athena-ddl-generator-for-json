@@ -13,7 +13,7 @@ log = logging.getLogger(sys.argv[0])
 log.setLevel(logging.INFO)
 
 parser = argparse.ArgumentParser(description="Athena DDL Generator for JSON")
-parser.add_argument('input_file', help="Input file (JSON) to infer from a DDL.", type=str, nargs=1)
+parser.add_argument('input_file', help="Input file (JSON) to infer from a DDL.", type=str, nargs="+")
 parser.add_argument('--location', '-l', help="Data location (ex: s3://... format)", type=str, default="s3://mybucket/mypath")
 parser.add_argument('--partioned-by', '-p', help="PARTIONED BY statement", type=str, default="")
 parser.add_argument('--extra-ddl-parameter', '-x', help="Extra string to add to the generated DDL statement.", type=str, 
@@ -22,17 +22,22 @@ parser.add_argument('--table-name', '-n', help="Name of the table to generate.",
 
 args = parser.parse_args()
 
-input_file  = open(args.input_file[0])
-input_lines = input_file.readlines()
+# Read all input files in memory
+for input_file in args.input_file:
+    i_file  = open(input_file)
+    i_lines = i_file.readlines()
 
-json_lines  = []
-i           = 0
-for l in input_lines:
-    i += 1
-    try:
-        json_lines.append(json.loads(l))
-    except Exception as e:
-        log.warning(f"Can not decode line {i} as JSON document!")    
+    json_lines  = []
+    i           = 0
+    for l in i_lines:
+        i += 1
+        if l in ["", "\n"]:
+            continue
+        try:
+            json_lines.append(json.loads(l))
+        except Exception as e:
+            log.warning(f"Can not decode line {i} as a valid JSON document ({input_file})! : {e}")    
+    i_file.close()
 
 def is_date(d):
     try:
