@@ -6,12 +6,17 @@ if [ -z "$S3_URL" ] ; then
 	echo "Usage: $0 <S3 location>" ; exit 1
 fi
 
-tmpdir=$(mktemp -d)
+tmpdir=~/cs-meta
 mkdir -p $tmpdir/metadata
 aws s3 sync $S3_URL $tmpdir/metadata
 launchdir=$(pwd)
+seconds=$(date +%s)
 mkdir -p ${launchdir}/docs/metadata
 cd $tmpdir/metadata
+for table in * ; do
+	mkdir -p $table/archive/$seconds
+	mv $table/* $table/archive/$seconds 2>/dev/null || true
+done
 for table in * ; do
 	(${launchdir}/tools/quick-and-dirty-aws-athena-ddl-generator-for-json `find $table -name '*.json' -print` \
 		--table-name "clonesquad_${table}" --partitioned-by "PARTITIONED BY (accountid string, region string, groupname string)" ;
@@ -21,4 +26,3 @@ for table in * ; do
 		--location ${S3_URL}/${table}
 	echo "--MSCK REPAIR TABLE clonesquad_${table};" 
 done
-rm -fr $tmpdir

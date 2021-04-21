@@ -148,7 +148,8 @@ CREATE EXTERNAL TABLE clonesquad_instances (
                 `DefaultVCpus`:bigint,
                 `ValidCores`:array<bigint>,
                 `ValidThreadsPerCore`:array<bigint>>>,
-        `_LastStartAttemptTime` timestamp
+        `_LastStartAttemptTime` timestamp,
+        `_SubfleetName` string
 )
 PARTITIONED BY (accountid string, region string, groupname string)
 ROW FORMAT serde 'org.apache.hive.hcatalog.data.JsonSerDe'
