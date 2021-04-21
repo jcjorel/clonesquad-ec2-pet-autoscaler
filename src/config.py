@@ -431,6 +431,7 @@ def exports_metadata_and_backup(export_url):
 
     # Export configuration 
     table = _init["configuration_table"]
+    table.reread_table() # Ensure that we are in sync with the DynamoDB table
     table.export_to_s3(f"{export_url}/backups", "configuration", prefix=f"archive/{now}-")
     table.export_to_s3(f"{export_url}/backups", "configuration", prefix="latest-")
 

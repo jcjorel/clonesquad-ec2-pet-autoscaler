@@ -273,6 +273,7 @@ This setting control when Configuration/Scheduler DynamoDB tables are taken. It 
         group_name = self.context["GroupName"]
 
         # Export configuration 
+        self.scheduler_table.reread_table() # Ensure that we are in sync with the DynamoDB table 
         self.scheduler_table.export_to_s3(f"{export_url}/backups", "scheduler", prefix=f"archive/{now}-")
         self.scheduler_table.export_to_s3(f"{export_url}/backups", "scheduler", prefix="latest-")
 
