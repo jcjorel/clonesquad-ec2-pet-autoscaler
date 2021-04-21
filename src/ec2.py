@@ -1370,7 +1370,7 @@ without any TargetGroup but another external health instance source exists).
         instance_serialized = []
         for i in instances:
             i = copy.deepcopy(i)
-            i["Hostname"] = self.get_instance_tags(i).get("Name")
+            i["_Hostname"] = self.get_instance_tags(i).get("Name")
             misc.stringify_timestamps(i)
             instance_serialized.append(json.dumps(i, default=str))
         misc.put_url(f"{export_url}/metadata/instances/{path}/{account_id}-{region}-managed-instances-cs-{group_name}.json", 
