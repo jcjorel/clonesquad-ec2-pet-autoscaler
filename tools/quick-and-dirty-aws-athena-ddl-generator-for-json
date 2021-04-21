@@ -12,9 +12,10 @@ from logging import handlers
 log = logging.getLogger(sys.argv[0])
 log.setLevel(logging.INFO)
 
-parser = argparse.ArgumentParser(description="Athena DDL Generator")
-parser.add_argument('input_file', help="Input file (JSON).", type=str, nargs=1)
+parser = argparse.ArgumentParser(description="Athena DDL Generator for JSON")
+parser.add_argument('input_file', help="Input file (JSON) to infer from a DDL.", type=str, nargs=1)
 parser.add_argument('--location', '-l', help="Data location (ex: s3://... format)", type=str, default="s3://mybucket/mypath")
+parser.add_argument('--partioned-by', '-p', help="PARTIONED BY statement", type=str, default="")
 parser.add_argument('--extra-ddl-parameter', '-x', help="Extra string to add to the generated DDL statement.", type=str, 
         default="ROW FORMAT serde 'org.apache.hive.hcatalog.data.JsonSerDe'")
 parser.add_argument('--table-name', '-n', help="Name of the table to generate.", type=str, default="MyTable")
@@ -121,6 +122,8 @@ output_ddl(document, None, depth, output)
 justify  = "".ljust(depth * indent)
 print(f"CREATE EXTERNAL TABLE {args.table_name} (")
 print(justify + "\n".join(output))
+if args.partioned_by != "":
+    print(args.partioned_by)
 print(f")\n{args.extra_ddl_parameter}")
 print(f"LOCATION '{args.location}';")
 
