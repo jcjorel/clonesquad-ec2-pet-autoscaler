@@ -23,11 +23,11 @@ parser.add_argument('--table-name', '-n', help="Name of the table to generate.",
 args = parser.parse_args()
 
 # Read all input files in memory
+json_lines  = []
 for input_file in args.input_file:
     i_file  = open(input_file)
     i_lines = i_file.readlines()
 
-    json_lines  = []
     i           = 0
     for l in i_lines:
         i += 1
@@ -55,29 +55,29 @@ def encode_json(document, outputs):
             log.error("Can not encode Null parameter!")
             sys.exit(1)
         v    = document[k]
-        item = {}
         if isinstance(v, dict):
+            item = outputs.get(k, {})
             encode_json(v, item)
-            d[k] = item
+            outputs[k] = item
         elif isinstance(v, list):
-            d[k] = [str]
             if len(v):
                 if isinstance(v[0], dict):
-                    it = {}
+                    it = outputs[k][0] if len(outputs.get(k, [])) else {}
                     encode_json(v[0], it)
-                    d[k] = [it]
+                    outputs[k] = [it]
                 else:
                     if is_date(v[0]):
-                        d[k] = [datetime.datetime]
+                        outputs[k] = [datetime.datetime]
                     else:
-                        d[k] = [v[0].__class__]
+                        outputs[k] = [v[0].__class__]
+            else:
+                outputs[k] = [str]
         else:
             if is_date(v):
                 item = datetime.datetime
             else:
                 item = v.__class__
-            d[k] = item
-    outputs.update(d)
+            outputs[k] = item
 
 def process_documents(inputs, outputs):
     for l in inputs:
