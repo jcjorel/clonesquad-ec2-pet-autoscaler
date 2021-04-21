@@ -193,7 +193,7 @@ class Interact:
                     "interface": ["apigw", "sqs"],
                     "cache": "none",
                     "clients": [],
-                    "prerequisites": ["o_state", "o_ec2", "o_scheduler"],
+                    "prerequisites": ["o_state", "o_ec2", "o_ssm", "o_scheduler"],
                     "func": self.backup,
                 },
             }
@@ -212,7 +212,7 @@ class Interact:
 
         o_ec2 = self.context["o_ec2"]
         # Export metadata and backup
-        for d in [Cfg, o_ec2, self.context["o_scheduler"]]:
+        for d in [Cfg, o_ec2, self.context["o_scheduler"], self.context["o_ssm"]]:
             d.exports_metadata_and_backup(export_url)
 
         # Export discovery metadata

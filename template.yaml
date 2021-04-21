@@ -661,6 +661,7 @@ Resources:
                   - !GetAtt GeneralParameters.MetadataDiscoveryS3PathArn
                   - !GetAtt GeneralParameters.MetadataInstancesS3PathArn
                   - !GetAtt GeneralParameters.MetadataVolumesS3PathArn
+                  - !GetAtt GeneralParameters.MetadataMaintenanceWindowsS3PathArn
                 Action:
                   - 's3:PutObject'
                   - 's3:CreateMultipartUpload'

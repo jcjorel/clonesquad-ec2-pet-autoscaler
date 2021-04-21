@@ -616,6 +616,31 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
             names.extend(self.maintenance_windows["Names"][f"Subfleet.{fleet}"]["Names"])
         return [w for w in mws if w["Name"] in names]
 
+    def exports_metadata_and_backup(self, export_url):
+        if not Cfg.get_int("ssm.enable"):
+            log.log(log.NOTICE, "SSM support is currently disabled. Set ssm.enable to 1 to enabled it.")
+            return
+        account_id, region, group_name = (self.context["ACCOUNT_ID"], self.context["AWS_DEFAULT_REGION"], self.context["GroupName"])
+        path                           = f"accountid={account_id}/region={region}/groupname={group_name}"
+
+        fleets = [None]
+        fleets.extend(self.context["o_ec2"].get_subfleet_names())
+        mws    = []
+        for fleet in fleets:
+            meta = {}
+            mw_record= {
+                "Fleet": f"{fleet}" if fleet is not None else "__main__",
+                "MaintenanceWindows": self._get_maintenance_windows_for_fleet(fleet=fleet),
+                "MetadataRecordLastUpdatedAt": self.context["now"],
+                "IsMaintenanceTime": self.is_maintenance_time(fleet=fleet, meta=meta)
+            }
+            mw_record["NextMaintenanceWindowDetails"] = meta
+            mw_record = copy.deepcopy(mw_record)
+            misc.stringify_timestamps(mw_record)
+            mws.append(json.dumps(mw_record, default=str))
+        misc.put_url(f"{export_url}/metadata/maintenance-windows/{path}/{account_id}-{region}-maintenance-windows-cs-{group_name}.json", 
+                "\n".join(mws))
+
 
     def is_maintenance_time(self, fleet=None, meta=None):
         if not self.is_feature_enabled("maintenance_window"):

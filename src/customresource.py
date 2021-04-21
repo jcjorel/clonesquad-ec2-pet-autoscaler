@@ -239,6 +239,10 @@ def GeneralParameters_CreateOrUpdate(data, CloneSquadVersion=None, AccountId=Non
             "VarName": "MetadataVolumes",
             "Path": "metadata/volumes"
         },
+        {
+            "VarName": "MetadataMaintenanceWindows",
+            "Path": "metadata/maintenance-windows"
+        },
     ]
     for p in authorized_paths:
         varname, authpath   = (p["VarName"], p["Path"])
