@@ -14,8 +14,10 @@ log.setLevel(logging.INFO)
 
 parser = argparse.ArgumentParser(description="Athena DDL Generator")
 parser.add_argument('input_file', help="Input file (JSON).", type=str, nargs=1)
-parser.add_argument('--s3-url', '-s', help="Target S3 (s3://... format)", type=str, default="")
-parser.add_argument('--extra-ddl-parameter', '-x', help="Extra string to add to the generated DDL statement.", type=str, default="")
+parser.add_argument('--location', '-l', help="Data location (ex: s3://... format)", type=str, default="s3://mybucket/mypath")
+parser.add_argument('--extra-ddl-parameter', '-x', help="Extra string to add to the generated DDL statement.", type=str, 
+        default="ROW FORMAT serde 'org.apache.hive.hcatalog.data.JsonSerDe'")
+parser.add_argument('--table-name', '-n', help="Name of the table to generate.", type=str, default="MyTable")
 
 args = parser.parse_args()
 
@@ -41,7 +43,7 @@ def is_date(d):
             return False
 
 def encode_json(document, outputs):
-    d = {}
+    d = document
     for k in document:
         if k is None:
             log.error("Can not encode Null parameter!")
@@ -78,45 +80,47 @@ def process_documents(inputs, outputs):
             continue
         encode_json(l, outputs)
 
+indent = 4
 def output_ddl(v, node, depth, output):
-        justify = "".ljust(4 * depth)
+        justify = "".ljust(indent * depth)
         if node is not None and node != "":
             node += ":"
         o = []
         if isinstance(v, dict):
-            if node is not None:
-                output.append(f"{justify}{node}struct<")
+            prefix = f"{node}struct<\n{justify}" if node is not None else ""
             keys = sorted(v.keys())
             for k in keys:
                 output_ddl(v[k], k, depth + 1, o)
-            output.append(",\n".join(o))
-            if node is not None:
-                output.append(f"{justify}    >")
+            suffix = f">" if node is not None else ""
+            output.append(f"{prefix}%s{suffix}" % f",\n{justify}".join(o))
         if isinstance(v, list):
-            o.append(f"{justify}{node}array<")
+            prefix = f"{node}array<"
             for l in v:
-                output_ddl(l, "", depth + 1, output)
-            o.append(f"{justify}    >")
+                output_ddl(l, "", depth + 1, o)
+            output.append(f"{prefix}%s>" % f",\n{justify}".join(o))
         if v == dict:
-            o.append(f"{justify}{node}struct<>")
+            output.append(f"{node}struct<>")
         if v == str:
-            o.append(f"{justify}{node}string")
+            output.append(f"{node}string")
         if v == bool:
-            o.append(f"{justify}{node}bool")
+            output.append(f"{node}bool")
         if v == int:
-            o.append(f"{justify}{node}int")
+            output.append(f"{node}bigint")
         if v == float:
-            o.append(f"{justify}{node}float")
+            output.append(f"{node}float")
         if v == datetime.datetime:
-            o.append(f"{justify}{node}timestamp")
+            output.append(f"{node}timestamp")
 
 
         
 document = {}
 process_documents(json_lines, document)
-output = []
-pdb.set_trace()
-output_ddl(document, None, 4, output)
-print("\n".join(output))
-
+output   = []
+depth    = 2
+output_ddl(document, None, depth, output)
+justify  = "".ljust(depth * indent)
+print(f"CREATE EXTERNAL TABLE {args.table_name} (")
+print(justify + "\n".join(output))
+print(f")\n{args.extra_ddl_parameter}")
+print(f"LOCATION '{args.location}';")
 
