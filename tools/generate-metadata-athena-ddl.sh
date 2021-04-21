@@ -19,6 +19,6 @@ for table in * ; do
 	${launchdir}/tools/quick-and-dirty-aws-athena-ddl-generator-for-json `find $table -name '*.json' -print` \
 		--table-name "clonesquad_${table}" --partitioned-by "PARTITIONED BY (accountid string, region string, groupname string)" \
 		--location ${S3_URL}/${table}
-	echo "MSCK REPAIR TABLE clonesquad_${table};" 
+	echo "--MSCK REPAIR TABLE clonesquad_${table};" 
 done
 rm -fr $tmpdir

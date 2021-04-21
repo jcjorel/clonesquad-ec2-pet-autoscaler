@@ -34,6 +34,8 @@ CREATE EXTERNAL TABLE clonesquad_discovery (
         `Subfleets` array<string>,
         `TimeZone` string,
         `UserSuppliedJSONMetadata` string,
+        `X-Hello` string,
+        `X-World` string,
         `XRayDiagnosis` string
 )
 PARTITIONED BY (accountid string, region string, groupname string)
