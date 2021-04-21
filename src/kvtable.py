@@ -452,7 +452,7 @@ class KVTable():
             for k in self.get_keys():
                 item = self.get_item(k)
                 if item is None:
-                    log.warning(f"Detected a possible bug for item {k} during export to S3 ({url}!")
+                    log.warning(f"Detected a possible bug for item {k} during export to S3 ({url})!")
                     continue # Paranoid: How could it happen??
                 item = item.copy()
                 item["MetadataRecordLastUpdatedAt"] = now
