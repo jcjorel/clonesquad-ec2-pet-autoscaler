@@ -618,7 +618,8 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
             names.extend(subfleet_default_names)
         names.extend(default_names)
         names.extend(global_default_names)
-        return [w for w in mws if w["Name"] in names]
+        # Return a list of maintenance window object ordered by precedence
+        return sorted([w for w in mws if w["Name"] in names], key=lambda w: names.index(w["Name"]))
 
     def exports_metadata_and_backup(self, export_url):
         if not Cfg.get_int("ssm.enable"):
