@@ -611,13 +611,13 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
         subfleet_default_names = self.maintenance_windows["Names"]["__all__"]["Names"]
         mws                    = self.maintenance_windows["Windows"]
         names                  = []
-        names.extend(global_default_names)
-        names.extend(default_names)
         if fleet is None:
             names.extend(main_default_names)
         else:
-            names.extend(subfleet_default_names)
             names.extend(self.maintenance_windows["Names"][f"Subfleet.{fleet}"]["Names"])
+            names.extend(subfleet_default_names)
+        names.extend(default_names)
+        names.extend(global_default_names)
         return [w for w in mws if w["Name"] in names]
 
     def exports_metadata_and_backup(self, export_url):
@@ -661,6 +661,8 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
         # We compute a predictive jitter to avoid all subleets starting exactly at the same time
         group_name  = self.context["GroupName"]
 
+        # Step 1) We walk through all matching maintenace windows and compute the real start time taking into account
+        #   a jitter to avoid all fleets to start at the same time.
         fleets = [None]
         fleets.extend(self.o_ec2.get_subfleet_names())
         for fleet in fleets:
@@ -671,39 +673,41 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
 
             windows = copy.deepcopy(self._get_maintenance_windows_for_fleet(fleet=fleet))
             for w in windows:
-                window_id= w["WindowId"]
+                window_id = w["WindowId"]
+                state_key = f"ssm.events.maintenance_window.{window_id}"
+
                 if "NextExecutionTime" in w:
-                    end_time   = w["NextExecutionTime"] + timedelta(hours=int(w["Duration"]))
                     start_time = w["NextExecutionTime"] - start_ahead 
+                    end_time   = w["NextExecutionTime"] + timedelta(hours=int(w["Duration"]), seconds=30)
                     if now >= start_time and now < end_time:
                         # We are entering a new maintenance window period. Remember it...
-                        self.o_state.set_state(f"ssm.events.maintenance_window.last_next_execution_time.{window_id}", 
-                            start_time, TTL=self.ttl)
-                        self.o_state.set_state(f"ssm.events.maintenance_window.last_next_execution_duration.{window_id}", 
-                            w["Duration"], TTL=self.ttl)
+                        self.o_state.set_state_json(state_key, {
+                                "NextExecutionTime": start_time,
+                                "EndTime": end_time,
+                                "Duration": w["Duration"]
+                            }, TTL=self.ttl)
                     w["_FutureNextExecutionTime"] = w["NextExecutionTime"]
-                # SSM maintenance windows do not always have a NextExecutionTime field -=OR=- it contains the future
-                #  NextExecutionTime of the next iteration. In both case, we westore it from a backuped one.
-                next_execution_time = self.o_state.get_state_date(f"ssm.events.maintenance_window.last_next_execution_time.{window_id}", TTL=self.ttl)
-                if next_execution_time is not None:
-                    w["NextExecutionTime"] = next_execution_time
-                if "Duration" not in w:
-                    next_execution_duration = self.o_state.get_state(f"ssm.events.maintenance_window.last_next_execution_duration.{window_id}", TTL=self.ttl)
-                    if next_execution_duration is not None:
-                        w["Duration"] = next_execution_duration
 
-            # Select the closest maintenance window
-            valid_windows = [w for w in windows if "NextExecutionTime" in w and "Duration" in w]
+                # SSM maintenance windows do not always have a NextExecutionTime field -=OR=- it contains the future
+                #  NextExecutionTime of the next iteration. In both case, we restore it from a backuped one.
+                restored_window = self.o_state.get_state_json(state_key, TTL=self.ttl)
+                if restored_window is not None:
+                    w["NextExecutionTime"] = misc.str2utc(restored_window["NextExecutionTime"])
+                    w["_EndTime"]          = misc.str2utc(restored_window["EndTime"])
+                    if "Duration" not in w:
+                        w["Duration"] = restored_window["Duration"]
+
+            # Step 2) Select the closest maintenance window
+            valid_windows = [w for w in windows if "NextExecutionTime" in w and "Duration" in w and "_EndTime" in w]
             fleetname     = "Main" if fleet is None else fleet
             next_window   = None
             for w in sorted(valid_windows, key=lambda w: w["NextExecutionTime"]):
-                end_time   = w["NextExecutionTime"] + start_ahead + timedelta(hours=int(w["Duration"]),seconds=30)
-                start_time = w["NextExecutionTime"] 
+                start_time, end_time = (w["NextExecutionTime"], w["_EndTime"])
                 if now >= start_time and now < end_time:
-                    meta["MatchingWindow"] = w
+                    meta["MatchingWindow"]        = w
                     meta["MatchingWindowMessage"] = f"Found ACTIVE matching window for fleet {fleetname} : %s" % json.dumps(w, default=str)
-                    meta["StartTime"]      = w["NextExecutionTime"]
-                    meta["EndTime"]        = end_time
+                    meta["StartTime"]             = w["NextExecutionTime"]
+                    meta["EndTime"]               = end_time
                     self.is_maintenance_times[fleet] = {
                         "IsMaintenanceTime": True,
                         "Meta": meta
@@ -712,11 +716,11 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
                 if ("_FutureNextExecutionTime" in w and w["_FutureNextExecutionTime"] > now and 
                         (next_window is None or w["_FutureNextExecutionTime"] < next_window["_FutureNextExecutionTime"])):
                     next_window     = w
-            if next_window is not None:
-                meta["NextWindowMessage"] = (f"Next SSM Maintenance Window for {fleetname} fleet is '%s/%s in %s "
-                    f"(Fleet will start ahead at %s)." % (w["WindowId"], w["Name"], (w["_FutureNextExecutionTime"] - now), 
-                        w["_FutureNextExecutionTime"] - start_ahead))
             if fleet not in self.is_maintenance_times:
+                if next_window is not None:
+                    meta["NextWindowMessage"] = (f"Next SSM Maintenance Window for {fleetname} fleet is '%s/%s in %s "
+                        f"(Fleet will start ahead at %s)." % (w["WindowId"], w["Name"], (w["_FutureNextExecutionTime"] - now), 
+                            w["_FutureNextExecutionTime"] - start_ahead))
                 self.is_maintenance_times[fleet] = {
                     "IsMaintenanceTime": False,
                     "Meta": meta
@@ -770,7 +774,7 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
             if "NextWindowMessage" in meta:
                 log.log(log.NOTICE, meta["NextWindowMessage"])
         else:
-            log.log(log.NOTICE, f"Main fleet under Active Maintenance Window until %s : %s" % 
+            log.log(log.NOTICE, f"Main fleet under Active Maintenance Window up to %s : %s" % 
                     (meta["EndTime"], meta["MatchingWindow"]))
             min_instance_count = _set_tag(None, config, meta["MatchingWindow"])
             if min_instance_count is None:
