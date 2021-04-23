@@ -450,12 +450,11 @@ class KVTable():
         else:
             dump = []
             for k in self.get_keys():
-                item = self.get_item(k)
-                if item is None:
-                    log.warning(f"Detected a possible bug for item {k} during export to S3 ({url})!")
-                    continue # Paranoid: How could it happen??
-                item = item.copy()
-                item["MetadataRecordLastUpdatedAt"] = now
+                item = {
+                    "Key": k,
+                    "Value": self.get_kv(k),
+                    "MetadataRecordLastUpdatedAt": now
+                }
                 dump.append(json.dumps(item, default=str))
             misc.put_url(f"{path}.json", "\n".join(dump))
                 
