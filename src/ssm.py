@@ -730,7 +730,7 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
                     next_window     = w
             if fleet not in self.is_maintenance_times:
                 if next_window is not None:
-                    meta["NextWindowMessage"] = (f"Next SSM Maintenance Window for {fleetname} fleet is '%s/%s in %s "
+                    meta["NextWindowMessage"] = (f"Next SSM Maintenance Window for {fleetname} fleet is '%s / %s in %s "
                         f"(Fleet will start ahead at %s)." % (w["WindowId"], w["Name"], (w["_FutureNextExecutionTime"] - now), 
                             w["_FutureNextExecutionTime"] - start_ahead))
                 self.is_maintenance_times[fleet] = {
