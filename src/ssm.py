@@ -770,7 +770,6 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
         config = {}
         meta   = {}
         is_maintenance_time  = self.is_maintenance_time(meta=meta)
-        self._record_last_maintenance_window_time(is_maintenance_time)
 
         # Send events with SSM and notify users
         instances         = self.o_ec2.get_instances(State="pending,running", main_fleet_only=True)
@@ -798,7 +797,6 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
         for subfleet in self.o_ec2.get_subfleet_names():
             meta = {}
             is_maintenance_time = self.is_maintenance_time(fleet=subfleet, meta=meta)
-            self._record_last_maintenance_window_time(is_maintenance_time, fleet=subfleet)
             # Send events with SSM and notify users
             instances           = self.o_ec2.get_instances(State="running", instances=self.o_ec2.get_subfleet_instances(subfleet_name=subfleet))
             instance_ids        = [i["InstanceId"] for i in instances]
@@ -826,31 +824,4 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
 
     def ssm_maintenance_window_event(self, InstanceIds=None, EventClass=None, EventName=None, EventArgs=None):
         return {}
-
-    def _record_last_maintenance_window_time(self, is_maintenance_time, fleet=None):
-        now = self.context["now"]
-        if fleet is None:
-            fleet_key = "mainfleet"
-        else:
-            fleet_key = f"subfleet.{fleet}"
-        was_maintenance_time = self.o_state.get_state_int(f"ssm.events.maintenance_window.was_maintenance_time.{fleet_key}.last_state", default=None)
-        self.o_state.set_state(f"ssm.events.maintenance_window.was_maintenance_time.{fleet_key}.last_state", is_maintenance_time, TTL=self.ttl)
-        if is_maintenance_time != was_maintenance_time or was_maintenance_time is None:
-            if is_maintenance_time:
-                self.o_state.set_state(f"ssm.events.maintenance_window.was_maintenance_time.{fleet_key}.last_window_start", now, TTL=self.ttl)
-            else:
-                self.o_state.set_state(f"ssm.events.maintenance_window.was_maintenance_time.{fleet_key}.last_window_end", now, TTL=self.ttl)
-
-    def get_last_window_dates(self, fleet):
-        if fleet is None:
-            fleet_key = "mainfleet"
-        else:
-            fleet_key = f"subfleet.{fleet}"
-        start_date = self.o_state.get_state_date("ssm.events.maintenance_window.was_maintenance_time.{fleet_key}.last_window_start")
-        end_date   = self.o_state.get_state_date("ssm.events.maintenance_window.was_maintenance_time.{fleet_key}.last_window_end")
-        if end_date is not None and start_date is not None and end_date < start_date:
-            end_date = None
-        if end_date is not None and start_date is None:
-            end_date = None
-        return (start_date, end_date)
 
