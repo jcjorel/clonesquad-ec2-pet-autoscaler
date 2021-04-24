@@ -155,7 +155,7 @@ This setting overrides the value defined in [`ssm.feature.events.ec2.scaling_sta
 By default, all the subfleets is woken up by a maintenance window ([`subfleet.{SubfleetName}.state`](#subfleetsubfleetnamestate) is temprarily forced to `running`).
             """,
             },
-            "ssm.state.default_ttl": "hours=1",
+            "ssm.state.default_ttl": "hours=24",
             "ssm.state.command.default_ttl": "minutes=10",
             "ssm.state.command.result.default_ttl": "minutes=5",
             "ssm.feature.maintenance_window.start_ahead,Stable": {
@@ -336,11 +336,10 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
         # Perform maintenance window house keeping
         self.manage_maintenance_windows()
         if len(mws):
-            log.log(log.NOTICE, f"Found matching SSM maintenance windows: %s" % json.dumps(self.maintenance_windows["Windows"], default=str))
+            log.log(log.NOTICE, f"Detected valid SSM maintenance windows: %s" % json.dumps(self.maintenance_windows["Windows"], default=str))
        
         # Hard dependency toward EC2 module. We update the SSM instance initializing states
         self.o_ec2.update_ssm_initializing_states()
-
 
     def prepare_ssm(self):
         if not Cfg.get_int("ssm.enable"):
@@ -686,7 +685,7 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
         fleets = [None]
         fleets.extend(self.o_ec2.get_subfleet_names())
         for fleet in fleets:
-            meta    = {}
+            meta        = {}
             jitter_salt = int(misc.sha256(f"{group_name}:{fleet}")[:3], 16) / (16 * 16 * 16) * sa
             jitter      = Cfg.get_abs_or_percent("ssm.feature.maintenance_window.start_ahead.max_jitter", 0, jitter_salt)
             start_ahead = timedelta(seconds=(sa-jitter))
@@ -698,17 +697,16 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
                 state_key = f"ssm.events.maintenance_window.{window_id}"
                 if "NextExecutionTime" in w:
                     start_time = w["NextExecutionTime"] - start_ahead 
-                    end_time   = w["NextExecutionTime"] + timedelta(hours=int(w["Duration"]), seconds=30)
-                    if now >= start_time and now < end_time:
+                    end_time   = w["NextExecutionTime"] + timedelta(hours=int(w["Duration"]))
+                    if start_time <= now and now < end_time:
                         self.o_state.set_state(state_key, start_time, TTL=self.ttl)
                     w["_FutureNextExecutionTime"] = w["NextExecutionTime"]
                 w["_StartTime"] = self.o_state.get_state_date(state_key, TTL=self.ttl, default=misc.epoch())
                 w["_EndTime"]   = w["_StartTime"] + start_ahead + timedelta(hours=w.get("Duration", 1))
                 w["_ActivePeriod"]  = w["_StartTime"] <= now and now < w["_EndTime"]
                 if not w["_ActivePeriod"] and "NextExecutionTime" in w:
-                    w["_StartTime"] = w["NextExecutionTime"]
-                    w["_EndTime"]   = w["_StartTime"] + start_ahead + timedelta(hours=w.get("Duration", 1))
-                w["_ActivePeriod"]  = w["_StartTime"] <= now and now < w["_EndTime"]
+                    w["_StartTime"] = start_time
+                    w["_EndTime"]   = end_time
 
             # Step 2) Select the closest maintenance window
             valid_windows = [w for w in windows if "_EndTime" in w and w["_EndTime"] >= now]
@@ -730,6 +728,7 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
                     next_window     = w
             if fleet not in self.is_maintenance_times:
                 if next_window is not None:
+                    w = next_window
                     meta["NextWindowMessage"] = (f"Next SSM Maintenance Window for {fleetname} fleet is '%s / %s in %s "
                         f"(Fleet will start ahead at %s)." % (w["WindowId"], w["Name"], (w["_FutureNextExecutionTime"] - now), 
                             w["_FutureNextExecutionTime"] - start_ahead))

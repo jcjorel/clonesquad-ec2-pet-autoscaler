@@ -29,7 +29,10 @@ CREATE EXTERNAL TABLE clonesquad_maintenance-windows (
                         `Key`:string,
                         `Value`:string>>,
                 `WindowId`:string,
-                `_FutureNextExecutionTime`:timestamp>,
+                `_ActivePeriod`:boolean,
+                `_EndTime`:timestamp,
+                `_FutureNextExecutionTime`:timestamp,
+                `_StartTime`:timestamp>,
             `MatchingWindowMessage`:string,
             `NextWindowMessage`:string,
             `StartTime`:timestamp>

@@ -393,8 +393,9 @@ class KVTable():
         return item["Value"]
 
     def set_kv(self, key, value, partition=None, TTL=None):
-        now    = self.context["now"]
-        client = self.context["dynamodb.client"]
+        now      = self.context["now"]
+        now_secs = misc.seconds_from_epoch_utc(now=now)
+        client   = self.context["dynamodb.client"]
         if TTL is None:
             ttl = 0
         else:
@@ -407,12 +408,16 @@ class KVTable():
         #   expiration time
         if self.table_cache is not None:
             item = self.get_item(key, partition=partition)
-            now  = self.context["now"]
-            if (item is not None and "ExpirationTime" in item and 
-                    item["Value"] == str(value) and 
-                    (misc.seconds_from_epoch_utc() + (ttl/2) ) < int(item["ExpirationTime"])):
-                log.debug("KVtable: Optimized write to '%s' with value '%s'" % (k, value))
-                return
+            if item is not None and "ExpirationTime" in item and item["Value"] == str(value):
+                if (now_secs + (ttl/2)) < int(item["ExpirationTime"]):
+                    # Renew the ExpirationTime (Important for aggregated keys)
+                    item["ExpirationTime"] = int(now_secs + ttl)
+                    self.table_cache_dirty = True
+                    log.debug(f"KVtable: Optimized write to '{k}' with value '{value}'")
+                    return
+                else:
+                    log.debug(f"KVtable: Key {k} needs refresh (TTL passed mid-life)")
+                    # Fall through...
 
         if not self.is_aggregated_key(k):
             KVTable.set_kv_direct(k, value, self.table_name, TTL=ttl, context=self.context)
@@ -420,12 +425,12 @@ class KVTable():
         # Update cache
         if self.table_cache is None: # KV_Table not yet initialized
             return
-        expiration_time = misc.seconds_from_epoch_utc(now=now) + ttl
+        expiration_time = now_secs + ttl
         new_item = {
                 "Key": k,
                 "Value": str(value),
                 "ExpirationTime": int(expiration_time)
-                 }
+            }
 
         if item is not None:
             if str(value) == "":

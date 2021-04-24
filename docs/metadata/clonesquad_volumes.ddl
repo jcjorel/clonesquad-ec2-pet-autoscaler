@@ -11,6 +11,7 @@ CREATE EXTERNAL TABLE clonesquad_volumes (
         `CreateTime` timestamp,
         `Encrypted` boolean,
         `Iops` bigint,
+        `KmsKeyId` string,
         `MultiAttachEnabled` boolean,
         `Size` bigint,
         `SnapshotId` string,
