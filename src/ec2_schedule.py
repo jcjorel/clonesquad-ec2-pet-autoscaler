@@ -1007,10 +1007,7 @@ By default, the dashboard is enabled.
         cw.set_metric("NbOfInstanceInInitialState", len(self.get_initial_instances()) if fl_size > 0 else None)
         cw.set_metric("NbOfInstanceInUnuseableState", len(instances_with_issues) if fl_size > 0 else None)
         cw.set_metric("NbOfCPUCreditExhaustedInstances", len(exhausted_cpu_credits) if fl_size > 0 else None)
-        if self.ssm.is_feature_enabled("maintenance_window") and fl_size > 0:
-            cw.set_metric("SSM.MaintenanceWindow", self.ssm.is_maintenance_time(fleet=None))
-        else:
-            cw.set_metric("SSM.MaintenanceWindow", None)
+        cw.set_metric("SSM.MaintenanceWindow", self.ssm.is_maintenance_time(fleet=None) if fl_size > 0 else None)
         subfleet_count = len(subfleet_instances)
         # Send metrics only if there are fleet instances
         cw.set_metric("Subfleet.EC2.Size", len(subfleet_instances) if subfleet_count else None)
