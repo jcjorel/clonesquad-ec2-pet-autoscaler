@@ -765,9 +765,10 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
                         log.warning(f"On SSM MaintenanceWindow objection %s/%s, tag '{config_tag}.{t}' does not refer "
                             "to an existing configuration key!!" % (mw["WindowId"], mw["Name"]))
                         continue
-                    mainfleet_parameter = fleet is None and t.startswith("ec2.schedule.")
-                    subfleet_parameter  = fleet is not None and (t.startswith(f"subfleet.{fleet}.") or t.startswith(f"subfleet.__all__."))
-                    if mainfleet_parameter or subfleet_parameter or (not mainfleet_parameter and not subfleet_parameter):
+                    mainfleet_parameter = t.startswith("ec2.schedule.")
+                    subfleet_parameter  = (t.startswith(f"subfleet.{fleet}.") or t.startswith(f"subfleet.__all__."))
+                    if ((fleet is None and mainfleet_parameter) or (fleet is not None and subfleet_parameter) 
+                            or (not mainfleet_parameter and not subfleet_parameter)):
                         config[f"override:{t}"] = tags[t]
             return min_instance_count
         config = {}
