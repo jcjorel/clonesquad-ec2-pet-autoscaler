@@ -69,6 +69,7 @@ def fix_sam_bugs():
         ctx["AWS_LAMBDA_LOG_GROUP_NAME"] = "/aws/lambda/CloneSquad-Main-%s" % ctx["GroupName"]
         ctx["SSMLogGroup"] = "/aws/lambda/CloneSquad-SSM-%s" % ctx["GroupName"]
         ctx["CloneSquadVersion"] = "--Development--"
+        ctx["InstallTime"] = str(misc.utc_now())
 
 
 # Special treatment while started from SMA invoke loval

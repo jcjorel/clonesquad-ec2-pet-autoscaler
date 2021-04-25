@@ -10,6 +10,7 @@ CREATE EXTERNAL TABLE clonesquad_discovery (
         `DiscoveryLambdaIamRoleArn` string,
         `DynamoDBConfiguration` string,
         `EventTable` string,
+        `InstallTime` string,
         `InteractAPIGWUrl` string,
         `InteractApi` string,
         `InteractLambdaIamRoleArn` string,

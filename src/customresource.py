@@ -189,6 +189,8 @@ def DynamoDBParameters_CreateOrUpdate(data, CloneSquadVersion=None, AccountId=No
 
 def GeneralParameters_CreateOrUpdate(data, CloneSquadVersion=None, AccountId=None, Region=None, 
         GroupName=None, LoggingS3Path=None, MetadataAndBackupS3Path=None):
+    data["InstallTime"] = str(misc.utc_now())
+
     def _check_and_format_s3_path(envname, url):
         if url.startswith("s3://"):
             path  = url[5:]

@@ -47,7 +47,8 @@ This setting control when Configuration/Scheduler DynamoDB tables are taken. It 
 
 > Setting this parameter to `disabled` will disable the feature even if the Cloudformation parameter `MetadataAndBackupS3Path` is defined.
             """
-            }
+            },
+            "cron.backup.inhibit_delay_after_install": "hours=1"
         })
 
 
@@ -189,6 +190,7 @@ This setting control when Configuration/Scheduler DynamoDB tables are taken. It 
         return f"cron(%s %s {dom} {month} {dow} {year})" % (converts[0], converts[1])
 
     def load_event_definitions(self):
+        now = self.context["now"]
         def _append_entry(e, param, event_name=None):
             event_name  = f"CS-Cron-{group_name}"
             event_name += "-" + misc.sha256(f"{e}:%s:%s:%s" % (self.tz, self.dst_offset, param))[:10]
@@ -220,9 +222,18 @@ This setting control when Configuration/Scheduler DynamoDB tables are taken. It 
             _append_entry(e, self.events[e])
 
         # Create a dynamic event when backup is configured
-        backup_cron_spec = Cfg.get("cron.backup")
-        if len(self.context["MetadataAndBackupS3Path"]) and backup_cron_spec != "disabled":
-            _append_entry(periodic_key, f"{backup_cron_spec},interact:backup") 
+        if len(self.context["MetadataAndBackupS3Path"]):
+            inhibit_delay_after_install = Cfg.get_duration_secs("cron.backup.inhibit_delay_after_install")
+            install_time                = misc.str2utc(self.context["InstallTime"])
+            delay_since_last_install    = now - install_time
+            enable_delay                = (install_time + timedelta(seconds=inhibit_delay_after_install)) - now
+            backup_cron_spec            = Cfg.get("cron.backup")
+            if backup_cron_spec != "disabled":
+                if delay_since_last_install.total_seconds() < inhibit_delay_after_install:
+                    log.info(f"Configuration/Scheduler backup cron job is temporarily disabled as latest CloneSquad install "
+                            f"time ({install_time}) is too close. Backup Cron job will be automatically enabled in {enable_delay}.")
+                else:
+                    _append_entry(periodic_key, f"{backup_cron_spec},interact:backup") 
 
     def get_ruledef_by_name(self, name):
         try:

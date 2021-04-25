@@ -803,6 +803,7 @@ Resources:
                   DynamoDBConfiguration:                      !Ref DynamoDBConfiguration
                   PermissionsBoundary:                        !Ref PermissionsBoundary
                   XRayDiagnosis:                              !Ref XRayDiagnosis
+                  InstallTime:                                !GetAtt GeneralParameters.InstallTime
               Events:
                 Schedule:
                   Type: Schedule
@@ -938,6 +939,7 @@ Resources:
                   DynamoDBConfiguration:                      !Ref DynamoDBConfiguration
                   PermissionsBoundary:                        !Ref PermissionsBoundary
                   XRayDiagnosis:                              !Ref XRayDiagnosis
+                  InstallTime:                                !GetAtt GeneralParameters.InstallTime
 
     InteractFunction:
             Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
@@ -996,6 +998,7 @@ Resources:
                   DynamoDBConfiguration:                      !Ref DynamoDBConfiguration
                   PermissionsBoundary:                        !Ref PermissionsBoundary
                   XRayDiagnosis:                              !Ref XRayDiagnosis
+                  InstallTime:                                !GetAtt GeneralParameters.InstallTime
               Events:
                 SQS:
                   Type: SQS
