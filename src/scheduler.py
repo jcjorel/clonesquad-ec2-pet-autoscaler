@@ -233,6 +233,7 @@ This setting control when Configuration/Scheduler DynamoDB tables are taken. It 
                     log.info(f"Configuration/Scheduler backup cron job is temporarily disabled as latest CloneSquad install "
                             f"time ({install_time}) is too close. Backup Cron job will be automatically enabled in {enable_delay}.")
                 else:
+                    backup_cron_spec = self.process_cron_expression(backup_cron_spec) # localcron() support
                     _append_entry(periodic_key, f"{backup_cron_spec},interact:backup") 
 
     def get_ruledef_by_name(self, name):
