@@ -220,6 +220,7 @@ class Interact:
         path      = f"accountid={account_id}/region={region}/groupname={group_name}"
         discovery = misc.discovery(self.context, via_discovery_lambda=True)
         discovery["MetadataRecordLastUpdatedAt"] = now
+        discovery["InstallTime"]                 = misc.str2utc(discovery["InstallTime"])
         discovery["Subfleets"]                   = o_ec2.get_subfleet_names()
         misc.stringify_timestamps(discovery)
         misc.put_url(f"{export_url}/metadata/discovery/{path}/{account_id}-{region}-discovery-cs-{group_name}.json", 
