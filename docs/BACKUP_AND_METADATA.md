@@ -25,13 +25,13 @@ A backup and metadata generation can also be triggered on-demand with the [`back
 
 # Metadata (CMDB-like feature)
 
-The metadata generation capability is an essential building block to ease governance of many CloneSquad deployment inside an AWS Organization. Properly configured to export their metadata in a shared centralized S3 bucket, the metadata produced by all CloneSquad deployments can be queried with AWS Athena and provide a single-pane of glass solution to accomodate many management use-cases.
+The metadata generation capability is an essential building block to ease governance of many CloneSquad deployment inside an AWS Organization. Properly configured to export their metadata in a shared centralized S3 bucket, the metadata produced by all CloneSquad deployments can be queried with [AWS Athena](https://aws.amazon.com/athena/) and provide a *single-pane of glass* solution to accomodate many management use-cases.
 
 ## Getting started with CloneSquad Metadata (CMDB)
 
-1) Configure all your CloneSquad deployments with the same [`MetadataAndBackupS3Path`](DEPLOYMENT_REFERENCE.md#metadataandbackups3path) value pointed to a single shared S3 bucket. 
-2) Got in the AWS Athena Console and execute each of the DDL scripts provided [in this directory](metadata/). **IMPORTANT: The DDL S3 Location must be replaced with the value `{MetadataAndBackupS3Path}/metadata`** (ex: s3://cs-cmdb-bucket/somehierarchy/**metadata**)
-3) Do not forget to call `MSCK REPAIR TABLE <table_name>;` each time a new CloneSquad deployment is performed (or configure an AWS Glue crawler to remediate this automatically).
+1) Configure all your CloneSquad deployments with the same [`MetadataAndBackupS3Path`](DEPLOYMENT_REFERENCE.md#metadataandbackups3path) value pointing to a single shared S3 bucket (Bucket policy must allow CloneSquad deployments to push files in it). 
+2) Got in the AWS Athena Console and execute each of the DDL scripts provided [in this directory](metadata/). **IMPORTANT: Take care to replace the DDL S3 Location template field with the value `{MetadataAndBackupS3Path}/metadata`** (ex: s3://cs-cmdb-bucket/somehierarchy/**metadata**)
+3) **Do not forget** to call `MSCK REPAIR TABLE <table_name>;` each time a new CloneSquad deployment is performed (or configure an AWS Glue crawler to remediate this automatically).
 
 ## CMDB tables
 
@@ -43,7 +43,7 @@ The provided tables are:
 * `clonesquad_instances` table: Contains ec2.describle_instances() output as seen by all CloneSquad deployements. It is a data rich table about managed instances. As it is JSON based, user must deal with the nested nature of the records.
 * `clonesquad_maintenace-windows` table: Contains SSM Maintenance Window objects applicable to all CloneSquad deployements.
 
-Thanks to AWS Athena powerful query features, the user can build complex SQL statements joining and filtering one or all of this tables to get insights about effective usage of CloneSquad in an AWS Organization.
+Thanks to AWS Athena powerful query features, the user can build complex SQL statements joining and filtering one or all of these tables to get insights about effective usage of CloneSquad at AWS Organization scale.
 
 Ex: Create the `displayallhostnames`view by joining the `clonesquad_discovery` and `clonesquad_instances` to display all managed instances by Display name, the API GW URL controlling each them, the CloneSquad version, etc...
 
