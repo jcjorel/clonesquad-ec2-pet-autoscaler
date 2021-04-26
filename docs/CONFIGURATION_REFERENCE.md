@@ -300,7 +300,7 @@ Format       :  [String](#String)
 
 Cron job specification for [Backup and Metadata](BACKUP_AND_METADATA.md) generation.
 
-This setting control when Configuration/Scheduler DynamoDB tables are backuped. It also defines when the Metadata files, queriable with AWS Athena, are generated.
+This setting control when Configuration/Scheduler DynamoDB tables are backuped. It also defines when the Metadata files, queriable with AWS Athena, are generated. The format follows the `cron(...)` and `localcron(...)` keywords as defined in the [scheduler documentation](SCHEDULER.md).
 
 By default, an hourly cron job is defined.
 
