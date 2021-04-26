@@ -18,7 +18,7 @@ Backups are also archived with a time-based name at this location: `{MetadataAnd
 
 > Important: It is recommended to set a [S3 lifecycle policy](https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lifecycle-mgmt.html) on this archive S3 path to avoid an infinite cumulative retention of backups.
 
-As soon as the deployment parameter [`MetadataAndBackupS3Path`](DEPLOYMENT_REFERENCE.md#metadataandbackups3path) is defined, an hourly backup and metdata generation is automatically configured. This automation can be disabled by setting the key [`cron.backup`](CONFIGURATION_MANAGEMENT.md#cronbackup) to `disabled`. This key can also be used to change the periodicity (See [scheduler documentation](SCHEDULER.md) for `cron()` and `localcron()` format).
+As soon as the deployment parameter [`MetadataAndBackupS3Path`](DEPLOYMENT_REFERENCE.md#metadataandbackups3path) is defined, an hourly backup and metdata generation is automatically configured. This automation can be disabled by setting the key [`cron.backup`](CONFIGURATION_REFERENCE.md#cronbackup) to `disabled`. This key can also be used to change the periodicity (See [scheduler documentation](SCHEDULER.md) for `cron()` and `localcron()` format).
 
 A backup and metadata generaiton can also be triggered on-demand with the [`backup` API](INTERACTING.md#api-backup).
 
