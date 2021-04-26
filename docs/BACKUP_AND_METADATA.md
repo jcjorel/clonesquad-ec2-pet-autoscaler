@@ -14,7 +14,7 @@ When a backup is generated, these files are pushed into the `{MetadataAndBackupS
 * `latest-{AccountId}-{Region}-configuration-cs-test.yaml`: YAML file export ready for import through [`configuration` API](INTERACTING.md#api-configuration)
 * `latest-{AccountId}-{Region}-scheduler-cs-test.yaml`: YAML file export ready for import through [`scheduler` API](INTERACTING.md#api-scheduler)
 
-Backups are also archived with a time-based name at this location: *[`MetadataAndBackupS3Path`](DEPLOYMENT_REFERENCE.md#metadataandbackups3path)/backups/accountid={AccountId}/region={Region}/groupname={GroupName}/archive/*
+Backups are also archived with a time-based name at this location: `{MetadataAndBackupS3Path}/backups/accountid={AccountId}/region={Region}/groupname={GroupName}/archive/`.
 
 > Important: It is recommended to set a [S3 lifecycle policy](https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lifecycle-mgmt.html) on this archive S3 path to avoid an infinite cumulative retention of backups.
 
