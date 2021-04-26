@@ -694,7 +694,7 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
             windows = copy.deepcopy(self._get_maintenance_windows_for_fleet(fleet=fleet))
             for w in windows:
                 window_id = w["WindowId"]
-                state_key = f"ssm.events.maintenance_window.{window_id}"
+                state_key = f"ssm.events.maintenance_window.{window_id}.{fleet}"
                 if "NextExecutionTime" in w:
                     start_time = w["NextExecutionTime"] - start_ahead 
                     end_time   = w["NextExecutionTime"] + timedelta(hours=int(w["Duration"]))
