@@ -258,6 +258,19 @@ knows that it can't start now. Ex: Instance in `error`or `spot interrupted`).
 * `discovery`: A dict of Environment variables passed to the Interact Lambda function (see [template.yaml](../template.yaml)). This can used to locate various technical resources used by CloneSquad.
 * `identity`: The `event["requestContext"]["identity"]` structure of the API Gateway Lambda context.
 
+## API `backup`
+
+This api requests a synchronous [backup and metadata](BACKUP_AND_METADATA.md) generation to the S3 location defined in [MetadataAndBackupS3Path]()..
+
+* Callable from : `API Gateway` and `SQS Queue`
+
+**Synopsis:**
+
+	# awscurl https://pq264fab39.execute-api.eu-west-3.amazonaws.com/v1/backup
+	Exported Configuration/Scheduler backups and metadata to s3://<MetadataAndBackupS3Path>.
+
+**Return value:**
+
 ## API `notify/ackevent`
 
 * Callable from : SQS Queue

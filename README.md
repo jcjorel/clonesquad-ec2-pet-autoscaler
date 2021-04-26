@@ -41,6 +41,7 @@ and **per region** depending on your autoscaling needs.*
 	- Integrated [event scheduler](docs/SCHEDULER.md) ('cron' or 'rate' based) for complex scaling scenario,
 	- [API Gateway](docs/INTERACTING.md#interacting-with-clonesquad) to monitor and manage a CloneSquad deployment,
 	- [Events & Notifications](docs/EVENTS_AND_NOTIFICATIONS.md) (Lambda/SQS/SNS targets) framework enabling users to react to Squad events (ex: Register a just-started instance to an external monitoring solution and/or DNS),
+	- [Backup and Metadata](docs/BACKUP_AND_METADATA.md) management (with integrated CMDB feature).
 
 > **IMPORTANT REMARK**: This solution aims to ease handling of **'Pet'** machines when you have to do so (very frequent after a pure *Lift&Shift*
 migration into the Cloud). The author strongly advises to always consider managing resources as **'Cattle'** (with IaC, AutoScaling Groups, Stateless...).

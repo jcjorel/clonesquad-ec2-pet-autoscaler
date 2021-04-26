@@ -70,6 +70,20 @@ VpcId.
 	- *Note: Comas MUST be backslashed!*
 
 
+## `MetadataAndBackupS3Path`
+
+**Required: No**   
+**Format: String**
+
+	MetadataAndBackupS3Path=s3://<bucketname>/<directorypath>
+
+S3 location where to send [configuration backups and metadata](BACKUP_AND_METADATA.md).
+
+These data are generated on-demand (through the [API Gateway](INTERACTING.md")) or periodically with a [cron settings](BACKUP_AND_METADATA.md).
+
+> Note: Setting this parameter automatically activate a hourly backup and metadata generation. Please see documentation if this behavior needs to be modified.
+
+
 ## `LoggingS3Path`
 
 **Required: No**   
@@ -77,10 +91,9 @@ VpcId.
 
 	LoggingS3Path=s3://<bucketname>/<objectpath>
 
-Location where to send Debug reports.
+S3 location where to send Debug reports.
 
 When specified, on critical error (ex: Python exception), CloneSquad will generate a debug report as a Zip file that will be pushed in this S3 path.
-
 
 ## `UserNotificationArns`
 
