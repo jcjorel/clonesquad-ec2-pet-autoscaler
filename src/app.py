@@ -175,7 +175,7 @@ def main_handler_entrypoint(event, context):
     no_is_called_too_early = False
     # Manage Spot interruption as fast as we can
     if sqs.process_sqs_records(ctx, event, function=ec2.manage_spot_notification, function_arg=ctx):
-        log.info("Managed Spot Interruption SQS record!")
+        log.info("Managed EC2 Spot notification SQS record!")
         # Force to run now disregarding `app.run_period` as we have at least one Spot instance to 
         #   remove from target groups immediatly
         no_is_called_too_early = True

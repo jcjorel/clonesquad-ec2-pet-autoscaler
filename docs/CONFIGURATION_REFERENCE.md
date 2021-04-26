@@ -123,6 +123,21 @@ Cloudwatch GetMetricData, DynamoDB queries...)
 
 
 
+### backup.cron
+Default Value: `cron(0 * * * ? *)`   
+Format       :  [String](#String)
+
+Cron job specification for [Backup and Metadata](BACKUP_AND_METADATA.md) generation.
+
+This setting control when Configuration/Scheduler DynamoDB tables are backuped. It also defines when the Metadata files, queriable with AWS Athena, are generated. The format follows the `cron(...)` and `localcron(...)` keywords as defined in the [scheduler documentation](SCHEDULER.md).
+
+By default, an hourly cron job is defined.
+
+> Setting this parameter to `disabled` will disable this backup and metadata generation feature even if the Cloudformation parameter [`MetadataAndBackupS3Path`](DEPLOYMENT_REFERENCE.md#metadataandbackups3path) is defined.
+            
+
+
+
 ### cloudwatch.alarm00.configuration_url
 Default Value: ``   
 Format       :  [MetaString](#MetaString)
@@ -291,21 +306,6 @@ customization directly inside the Lambda delivery should override file 'internal
 This key is evaluated again after each URL parsing meaning that a layer can redefine the 'config.loaded_files' to load further
 YAML files.
                  
-
-
-
-### cron.backup
-Default Value: `cron(0 * * * ? *)`   
-Format       :  [String](#String)
-
-Cron job specification for [Backup and Metadata](BACKUP_AND_METADATA.md) generation.
-
-This setting control when Configuration/Scheduler DynamoDB tables are backuped. It also defines when the Metadata files, queriable with AWS Athena, are generated. The format follows the `cron(...)` and `localcron(...)` keywords as defined in the [scheduler documentation](SCHEDULER.md).
-
-By default, an hourly cron job is defined.
-
-> Setting this parameter to `disabled` will disable this backup and metadata generation feature even if the Cloudformation parameter [`MetadataAndBackupS3Path`](DEPLOYMENT_REFERENCE.md#metadataandbackups3path) is defined.
-            
 
 
 

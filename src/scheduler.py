@@ -38,7 +38,7 @@ class Scheduler:
             "cron.max_rules_per_batch": "10",
             "scheduler.cache.max_age": "seconds=60",
             "cron.disable": "0",
-            "cron.backup,Stable": {
+            "backup.cron,Stable": {
                 "DefaultValue": "cron(0 * * * ? *)",
                 "Format": "String",
                 "Description": """Cron job specification for [Backup and Metadata](BACKUP_AND_METADATA.md) generation.
@@ -50,7 +50,7 @@ By default, an hourly cron job is defined.
 > Setting this parameter to `disabled` will disable this backup and metadata generation feature even if the Cloudformation parameter [`MetadataAndBackupS3Path`](DEPLOYMENT_REFERENCE.md#metadataandbackups3path) is defined.
             """
             },
-            "cron.backup.inhibit_delay_after_install": "hours=1"
+            "backup.cron.inhibit_delay_after_install": "hours=1"
         })
 
 
@@ -225,11 +225,11 @@ By default, an hourly cron job is defined.
 
         # Create a dynamic event when backup is configured
         if len(self.context["MetadataAndBackupS3Path"]):
-            inhibit_delay_after_install = Cfg.get_duration_secs("cron.backup.inhibit_delay_after_install")
+            inhibit_delay_after_install = Cfg.get_duration_secs("backup.cron.inhibit_delay_after_install")
             install_time                = misc.str2utc(self.context["InstallTime"])
             delay_since_last_install    = now - install_time
             enable_delay                = (install_time + timedelta(seconds=inhibit_delay_after_install)) - now
-            backup_cron_spec            = Cfg.get("cron.backup")
+            backup_cron_spec            = Cfg.get("backup.cron")
             if backup_cron_spec != "disabled":
                 if delay_since_last_install.total_seconds() < inhibit_delay_after_install:
                     log.info(f"Configuration/Scheduler backup cron job is temporarily disabled as latest CloneSquad install "
