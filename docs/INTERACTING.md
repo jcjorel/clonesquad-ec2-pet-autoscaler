@@ -271,6 +271,8 @@ This api requests a synchronous [backup and metadata](BACKUP_AND_METADATA.md) ge
 
 **Return value:**
 
+None
+
 ## API `notify/ackevent`
 
 * Callable from : SQS Queue
