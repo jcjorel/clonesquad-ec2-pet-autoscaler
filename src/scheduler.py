@@ -45,7 +45,7 @@ class Scheduler:
 
 This setting control when Configuration/Scheduler DynamoDB tables are taken. It also updates the Metadata queriable with Athena.
 
-> Setting this parameter to `disabled` will disable the feature even if the Cloudformation parameter `MetadataAndBackupS3Path` is defined.
+> Setting this parameter to `disabled` will disable the feature even if the Cloudformation parameter [`MetadataAndBackupS3Path`](DEPLOYMENT_REFERENCE.md#metadataandbackups3path) is defined.
             """
             },
             "cron.backup.inhibit_delay_after_install": "hours=1"
