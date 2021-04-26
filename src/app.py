@@ -81,7 +81,7 @@ if misc.is_sam_local() or __name__ == '__main__':
 
 # Avoid client initialization time during event processsing
 misc.initialize_clients(["ec2", "cloudwatch", "events", "sqs", "sns", "dynamodb",  "ssm", "lambda",
-    "elbv2", "rds", "resourcegroupstaggingapi", "transfer"], ctx)
+    "elbv2", "rds", "resourcegroupstaggingapi", "transfer", "organizations"], ctx)
 log.debug("End of preambule.")
 
 @xray_recorder.capture(name="app.init")
@@ -313,7 +313,7 @@ def discovery_handler(event, context):
     log.info("Processing start (version=%s)" % (ctx.get("CloneSquadVersion")))
     discovery = misc.discovery(ctx)
     log.debug(discovery)
-    return discovery
+    return json.loads(json.dumps(discovery, default=str))
 
 def interact_handler(event, context):
     log.log(log.NOTICE, "Handler start.")

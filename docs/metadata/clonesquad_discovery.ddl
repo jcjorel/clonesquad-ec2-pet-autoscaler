@@ -1,5 +1,11 @@
 --WARNING: In the AWS Athena console, paste only one SQL statement at a time!
 CREATE EXTERNAL TABLE clonesquad_discovery (
+        `AccountArn` string,
+        `AccountEmail` string,
+        `AccountJoinedMethod` string,
+        `AccountJoinedTimestamp` timestamp,
+        `AccountName` string,
+        `AccountStatus` string,
         `AlarmStateEC2Table` string,
         `ApiGWConfiguration` string,
         `ApiGwVpcEndpointDNSEntry` string,

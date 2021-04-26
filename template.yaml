@@ -738,6 +738,7 @@ Resources:
                   - 'ssm:ListCommandInvocations'
                   - 'ssm:ListTagsForResource'
                   - 'ssm:SendCommand'
+                  - 'organizations:DescribeAccount'
 
     MainFunction:
             Type: AWS::Serverless::Function 
@@ -893,6 +894,10 @@ Resources:
               Layers:
                   - !Ref CloneSquadLayer
                   - !Ref CloneSquadDependencyLayer
+              Policies:
+                  - AWSLambdaBasicExecutionRole 
+                  - AWSXRayDaemonWriteAccess
+                  - AWSOrganizationsReadOnlyAccess # Needed to get AWS Account details
               FunctionName: !Sub "CloneSquad-Discovery-${GroupName}"
               MemorySize: 128
               Environment:

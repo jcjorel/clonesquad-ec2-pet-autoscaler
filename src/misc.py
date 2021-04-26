@@ -424,7 +424,6 @@ def discovery(ctx, via_discovery_lambda=False):
             Payload=bytes('', "utf-8")
         )
         discovery = json.loads(str(response["Payload"].read(), "utf-8"))
-        return discovery
     else:
         context = ctx.copy()
         for k in ctx.keys():
@@ -439,8 +438,19 @@ def discovery(ctx, via_discovery_lambda=False):
         if "CLONESQUAD_LOGLEVELS" in context:
             context["LogLevels"] = context["CLONESQUAD_LOGLEVELS"]
             del context["CLONESQUAD_LOGLEVELS"]
+
         if context["TimeZone"] == "":
             context["TimeZone"] = "UTC"
+
+        # Get additional information (if we have enough rights to do so)
+        try:
+            response = ctx["organizations.client"].describe_account(AccountId=context["AccountId"])
+            account = response["Account"]
+            for k in [k for k in account.keys() if k not in ["Id"]]:
+                context[f"Account{k}"] = account[k]
+        except Exception as e:
+            log.log(log.NOTICE, "Got exception while retrieving AWS Account details (IAM permission issue?) [It is a "
+                f"minor event and will be safely ignored]: {e}")
 
         user_metadata = context["UserSuppliedJSONMetadata"]
         try:
@@ -452,5 +462,12 @@ def discovery(ctx, via_discovery_lambda=False):
                 log.warning(f"'UserSuppliedJSONMetadata' CloudFormation template parameter must be a JSON dict! Ignoring supplied data...")
         except Exception as e:
             log.warning(f"Can not parse 'UserSuppliedJSONMetadata' CloudFormation template parameter as valid JSON document: {e}")
-        return json.loads(json.dumps(context, default=str))
+        discovery = json.loads(json.dumps(context, default=str))
+
+    # Convert back some fields to date objects
+    discovery["InstallTime"]                = str2utc(str(discovery["InstallTime"]))
+    if "AccountJoinedTimestamp" in discovery:
+        discovery["AccountJoinedTimestamp"] = str2utc(str(discovery["AccountJoinedTimestamp"]))
+
+    return discovery
 
