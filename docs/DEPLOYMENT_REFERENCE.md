@@ -70,6 +70,18 @@ VpcId.
 	- *Note: Comas MUST be backslashed!*
 
 
+## `UserSuppliedJSONMetadata`
+
+**Required: No**   
+**Format: String**
+
+	UserSuppliedJSONMetadata={"Hello": "the", "world": "!!"}
+
+This JSON snippet only purpose is to be forwarded and stored in the AWS Athena `clonesquad_discovery` table (see [discovery metadata](BACKUP_AND_METADATA.md)).
+
+Typical usage for this parameter is to add user specific data that would be queriable in the CloneSquad centralized CMDB.
+
+
 ## `MetadataAndBackupS3Path`
 
 **Required: No**   
