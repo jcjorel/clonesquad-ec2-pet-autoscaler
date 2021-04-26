@@ -188,4 +188,13 @@ Ex: Activate maximum verbosity of logs in all modules.
 Specify an optional IAM policy ARN as boundary for all roles created by the CloudFormation template.
 
 
+## `EBSVolumeKMSKeys`
+
+**Required: No**   
+**Format: Coma separated list of KMS key ARNs**
+
+By default, CloneSquad Lambda functions have access to all KMS Keys in order to start any EC2 instances with an EBS encrypted volume.
+Setting this value with a coma-separated list of KMS key ARNs will restrict these broad access to the listed keys only.
+
+
 
