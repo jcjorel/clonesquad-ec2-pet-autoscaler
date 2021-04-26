@@ -91,7 +91,7 @@ Typical usage for this parameter is to add user specific data that would be quer
 
 S3 location where to send [configuration backups and metadata](BACKUP_AND_METADATA.md).
 
-These data are generated on-demand (through the [API Gateway](INTERACTING.md#api-backup")) or periodically with a [cron setting](CONFIGURATION_REFERENCE.md#cronbackup).
+These data are generated on-demand (through the [API Gateway](INTERACTING.md#api-backup)) or periodically with a [cron setting](CONFIGURATION_REFERENCE.md#cronbackup).
 
 > Note: **Setting this parameter enables automatically an hourly backup and metadata generation**. Please [see documentation](BACKUP_AND_METADATA.md) if this behavior needs to be modified.
 
