@@ -9,7 +9,7 @@ CloneSquad comes with **configuration backup** and **metadata** export capabilit
 
 # Configuration Backup
 
-When a backup is generated, files are pushed in the `{MetadataAndBackupS3Path}/backups/accountid={AccountId}/region={Region}/groupname={GroupName}/` S3 folder:
+When a backup is generated, these files are pushed into the `{MetadataAndBackupS3Path}/backups/accountid={AccountId}/region={Region}/groupname={GroupName}/` S3 folder:
 
 * `latest-{AccountId}-{Region}-configuration-cs-test.yaml`: YAML file export ready for import through [`configuration` API](INTERACTING.md#api-configuration)
 * `latest-{AccountId}-{Region}-scheduler-cs-test.yaml`: YAML file export ready for import through [`scheduler` API](INTERACTING.md#api-scheduler)
