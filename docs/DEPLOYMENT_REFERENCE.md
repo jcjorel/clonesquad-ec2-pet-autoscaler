@@ -79,7 +79,7 @@ VpcId.
 
 S3 location where to send [configuration backups and metadata](BACKUP_AND_METADATA.md).
 
-These data are generated on-demand (through the [API Gateway](INTERACTING.md")) or periodically with a [cron settings](BACKUP_AND_METADATA.md).
+These data are generated on-demand (through the [API Gateway](INTERACTING.md#api-backup")) or periodically with a [cron settings](BACKUP_AND_METADATA.md).
 
 > Note: Setting this parameter automatically activate a hourly backup and metadata generation. Please see documentation if this behavior needs to be modified.
 
