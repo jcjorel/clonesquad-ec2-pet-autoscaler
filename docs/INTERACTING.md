@@ -260,7 +260,7 @@ knows that it can't start now. Ex: Instance in `error`or `spot interrupted`).
 
 ## API `backup`
 
-This api requests a synchronous [backup and metadata](BACKUP_AND_METADATA.md) generation to the S3 location defined in [MetadataAndBackupS3Path]()..
+This api requests a synchronous [backup and metadata](BACKUP_AND_METADATA.md) generation to the S3 location defined in [MetadataAndBackupS3Path]().
 
 * Callable from : `API Gateway` and `SQS Queue`
 
