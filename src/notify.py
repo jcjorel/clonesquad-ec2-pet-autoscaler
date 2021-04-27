@@ -1,6 +1,7 @@
 import os
 import sys
 import boto3
+from botocore.config import Config
 import json
 import pdb
 import re
@@ -468,7 +469,8 @@ improve CloneSquad over time by allowing easy sharing of essential data for remo
     @xray_recorder.capture()
     def call_sqs(self, arn, region, account_id, service_path, content, e):
         misc.initialize_clients(["sqs"], self.context)
-        client = self.context["sqs.client"]
+        current_region = self.context["AWS_DEFAULT_REGION"]
+        client = self.context["sqs.client"] if current_region == region else boto3.client("sqs", config=Config(region_name=region))
         queue_url = f"https://sqs.{region}.amazonaws.com/{account_id}/{service_path}"
         log.info(f"Notifying to SQS Queue '{arn}' ({queue_url}) for event '{e}'...")
         args = {
@@ -485,7 +487,8 @@ improve CloneSquad over time by allowing easy sharing of essential data for remo
     @xray_recorder.capture()
     def call_sns(self, arn, region, account_id, service_path, content, e):
         misc.initialize_clients(["sns"], self.context)
-        client = self.context["sns.client"]
+        current_region = self.context["AWS_DEFAULT_REGION"]
+        client = self.context["sns.client"] if current_region == region else boto3.client("sns", config=Config(region_name=region))
         log.info("Notifying to SNS Topic '%s' for event '%s'..." % (arn, e))
         response = client.publish(
             TopicArn=arn,
