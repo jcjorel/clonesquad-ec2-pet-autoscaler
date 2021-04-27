@@ -245,7 +245,7 @@ def main_handler_entrypoint(event, context):
     #issues = ctx["o_ec2_schedule"].get_instances_with_issues()
     #if False and len(issues):
     #    do_stop = False
-    #    pdb.set_trace()
+    #    pdb.set_trace() # Debug
     #    issues = ctx["o_ec2_schedule"].get_instances_with_issues()
     #    if do_stop:
     #        ctx["o_ec2"].stop_instances(issues)

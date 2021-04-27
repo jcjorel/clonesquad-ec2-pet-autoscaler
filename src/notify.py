@@ -86,13 +86,14 @@ def record_call_extended(records_args, is_success_func, f, *args, **kwargs):
             log.exception("Failed to persist aggregated date!")
         xray_recorder.end_subsegment()
 
-    if (not need_longterm_record and not need_longterm_record) or this.notify_mgr is None or this.do_not_notify:
+    if (not need_shortterm_record and not need_longterm_record) or this.notify_mgr is None or this.do_not_notify:
         log.debug(f"Do not write Event in event table: need_longterm_record={need_longterm_record}, need_shortterm_record={need_shortterm_record}, "
                 f"notify_mgr=%s, do_not_notify={do_not_notify}" % this.notify_mgr)
         if managed_exception is not None:
             raise managed_exception
         return r
 
+    # At this point, we want to keep track of this event
     ctx = this.notify_mgr.context
 
     try:
@@ -348,8 +349,8 @@ improve CloneSquad over time by allowing easy sharing of essential data for remo
             if arn == "":
                 continue
 
-            m = re.search("^arn:[a-z]+:([a-z]+):([-a-z0-9]+):([0-9]+):(.+)", arn)
-            if len(m.groups()) < 4:
+            m = re.search("^arn:[a-z]+:([a-z]+):([-a-z0-9]*):([0-9]+)[:|/](.+)", arn)
+            if m is None or len(m.groups()) < 4:
                 log.warning("Failed to parse User supplied notification ARN '%s'!" % arn)
                 continue
             notification_message[arn]                 = {}
@@ -468,13 +469,10 @@ improve CloneSquad over time by allowing easy sharing of essential data for remo
     def call_sqs(self, arn, region, account_id, service_path, content, e):
         misc.initialize_clients(["sqs"], self.context)
         client = self.context["sqs.client"]
-        response = client.get_queue_url(
-            QueueName=service_path,
-            QueueOwnerAWSAccountId=account_id
-        )
-        log.info("Notifying to SQS Queue '%s' for event '%s'..." % (arn, e))
+        queue_url = f"https://sqs.{region}.amazonaws.com/{account_id}/{service_path}"
+        log.info(f"Notifying to SQS Queue '{arn}' ({queue_url}) for event '{e}'...")
         args = {
-                "QueueUrl": response["QueueUrl"],
+                "QueueUrl": queue_url,
                 "MessageBody": content
             }
         if service_path.endswith(".fifo"):

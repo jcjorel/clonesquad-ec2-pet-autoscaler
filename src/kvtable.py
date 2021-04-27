@@ -491,7 +491,7 @@ if __name__ == '__main__':
             },
         ])
         table.reread_table()
-        pdb.set_trace()
+        pdb.set_trace() # Debug
         log.info("Before: %s" % table.get_kv("unit.tests.aggregates.test1", TTL=30))
         table.set_kv("unit.tests.aggregates.test1", "Hello the world!", TTL=30)
         log.info("After: %s" % table.get_kv("unit.tests.aggregates.test1", TTL=30))

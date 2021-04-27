@@ -1,6 +1,8 @@
 v0.20.0(not yet released):
 - (Improvment/Major) Added 'Metadata and Backup export to S3' feature. 
 - (Improvment/Major) COMPATIBILITY BREACH: `ec2.schedule.desired_instance_count` default value is now `undefined` (instead of `-1`) meaning all scaling activities are now disabled by default (Change implemented to make reliable CloneSquad reinstall use-case and align Main fleet with Subfleet management behaviors).
+- (Bug/major) 'UserNotificationArns' CloudFormation template parameter can now contain IAM role role to autorize for access to the Ack SQS Queue (Required when ack comes from another account principal).
+- (Bug/Major) Regression since v0.18.0: Some notifications may not be sent as expected.
 - (Bug/Major) Give KMS rights to the Main Lambda to allow start of EC2 instances with encrypted volumes. Added 'EBSVolumeKMSKeys' parameters to restrict access to specific KMS keys.
 - (Bug/Major) Fixed too restricted Main Lambda IAM policy forbidding start of instances with AMI controlled by AWS License Manager.
 - (Bug/Minor) On rare circumstances, 'BlockNewConnectionToPorts' can received a message due to iptables lock. '-w 10' option is added to every iptables call to wait for lock release.
