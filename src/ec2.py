@@ -1069,6 +1069,7 @@ without any TargetGroup but another external health instance source exists).
                 meta[f"last_{action}_date"] = date if (date is None or last_start_date is None or date >= last_start_date) else None
                 if date is not None and (newest_action_date is None or newest_action_date < date):
                     newest_action_date = date
+            meta["last_start_date"]  = last_start_date
             meta["last_action_date"] = newest_action_date
 
         state = self.scaling_states.get(instance_id, {"raw": default, "state_no_excluded": default, "state": default})
@@ -1083,12 +1084,17 @@ without any TargetGroup but another external health instance source exists).
         if default_date is None: default_date = self.context["now"]
 
         if value != "":
-            meta           = {} if meta is None else meta
-            previous_value = self.get_scaling_state(instance_id, meta=meta, do_not_return_excluded=True)
-            date           = meta["last_action_date"] if not force and previous_value == value else default_date
+            meta                  = {} if meta is None else meta
+            previous_value             = self.get_scaling_state(instance_id, meta=meta, do_not_return_excluded=True)
+            date                       = meta["last_action_date"] if not force and previous_value == value else default_date
             meta[f"last_{value}_date"] = date
-            meta[f"last_action_date"] = date
-            self.set_state(f"ec2.instance.scaling.last_{value}_date.{instance_id}", date, TTL=ttl)
+            meta["last_action_date"]   = date
+            previous_action_date       = self.get_state_date(f"ec2.instance.scaling.last_{value}_date.{instance_id}", TTL=ttl)
+            # The following condition is focused on cost reduction. We know that the 'draining' state is marked multiple times
+            #  by upper algorithms so we try to optimize when to write this specific state.
+            if (value not in ["draining"] or previous_action_date is None or "last_start_date" not in meta 
+                or previous_action_date <= meta["last_start_date"]):
+                self.set_state(f"ec2.instance.scaling.last_{value}_date.{instance_id}", date, TTL=ttl)
         else:
             # Remove all state keys
             for action in ["action", "draining", "error", "bounced"]:

@@ -45,7 +45,7 @@ The provided tables are:
 
 Thanks to AWS Athena powerful query features, the user can build complex SQL statements joining and filtering one or all of these tables to get insights about effective usage of CloneSquad at AWS Organization scale.
 
-Ex: Create the `displayallhostnames`view by joining the `clonesquad_discovery` and `clonesquad_instances` to display all managed instances by Display name, the API GW URL controlling each them, the CloneSquad version, etc...
+Ex: Create the `displayallhostnames` view by joining the `clonesquad_discovery` and `clonesquad_instances` tables to display all managed instances by Display name, API GW URL controlling each them, CloneSquad version, etc...
 
 ```sql
 CREATE OR REPLACE VIEW displayallhostnames AS

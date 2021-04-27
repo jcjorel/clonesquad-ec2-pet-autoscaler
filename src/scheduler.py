@@ -45,9 +45,10 @@ class Scheduler:
 
 This setting control when Configuration/Scheduler DynamoDB tables are backuped. It also defines when the Metadata files, queriable with AWS Athena, are generated. The format follows the `cron(...)` and `localcron(...)` keywords as defined in the [scheduler documentation](SCHEDULER.md).
 
-By default, an hourly cron job is defined.
+By default, an hourly cron job is defined. Set this setting to `disabled` value to disable this automation.
 
-> Setting this parameter to `disabled` will disable this backup and metadata generation feature even if the Cloudformation parameter [`MetadataAndBackupS3Path`](DEPLOYMENT_REFERENCE.md#metadataandbackups3path) is defined.
+> The CloudFormation template parameter [`MetadataAndBackupS3Path`](DEPLOYMENT_REFERENCE.md#metadataandbackups3path) must be defined as prerequisite. 
+
             """
             },
             "backup.cron.inhibit_delay_after_install": "hours=1"

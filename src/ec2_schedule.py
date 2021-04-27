@@ -726,7 +726,6 @@ By default, the dashboard is enabled.
             - Instances that have EC2 status as 'impaired' or 'unhealthy',
             - Instances that have been AZ evicted (either manually or autoamtically due to AWS signalling an AZ is unavailable),
             - Spot instances are signaled and 'rebalance recommended' or 'interrupted',
-            - Burstable instances that have CPU Credit exhausted.
         :return A list if instance ids
         """
         active_instances        = self.pending_running_instances
@@ -745,21 +744,6 @@ By default, the dashboard is enabled.
             instance = self.ec2.get_instance_by_id(i)
             if instance["State"]["Name"] == "running" and i not in instances_with_issue_ids:
                 instances_with_issue_ids.append(i)
-
-        #if Cfg.get_int("ec2.schedule.assume_cpu_exhausted_burstable_instances_as_unuseable"):
-            # CPU credit "issues"
-        #    exhausted_cpu_instances = sorted([ i["InstanceId"] for i in self.cpu_exhausted_instances])
-        #    all_instances           = self.all_instances
-        #    max_i                   = len(all_instances)
-        #    for i in exhausted_cpu_instances:
-        #        if max_i <= 0:
-        #            break
-        #        if i in instances_with_issue_ids:
-        #            continue
-        #        if self.ssm.is_maintenance_time(fleet=self.o_ec2.get_subfleet_name_for_instance(i)):
-        #            continue
-        #        instances_with_issue_ids.append(i)
-        #        max_i -= 1
 
         # Add faulty instances that go beyond their time for 'ready_for_operation' and 'ready_for_shutdown' event
         instances_with_issue_ids.extend([i for i in self.ready_for_operation_timeouted_instances if i not in instances_with_issue_ids])
