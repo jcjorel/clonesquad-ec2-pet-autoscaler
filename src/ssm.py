@@ -192,7 +192,7 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
 
         self.o_state.register_aggregates([
             {
-                "Prefix": "ssm.events",
+                "Prefix": "ssm.events.",
                 "Compress": True,
                 "DefaultTTL": Cfg.get_duration_secs("ssm.state.default_ttl"),
                 "Exclude" : []
