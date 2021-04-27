@@ -87,7 +87,7 @@
             "x": 0,
             "y": 22,
             "width": 24,
-            "height": 35,
+            "height": 25,
             "properties": {
 		"query": "SOURCE '{AWS_LAMBDA_LOG_GROUP_NAME}' | fields @timestamp, @message\n| filter @message like /^\\[(INFO|ERROR|WARNING)\\]/\n| sort @timestamp desc\n| limit 250",
 		"region": "{AWS_DEFAULT_REGION}",
