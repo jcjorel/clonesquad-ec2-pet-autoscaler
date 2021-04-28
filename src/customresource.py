@@ -7,6 +7,7 @@ import pdb
 import sys
 import time
 import json
+import yaml
 import boto3
 from crhelper import CfnResource
 import logging
@@ -188,14 +189,23 @@ def DynamoDBParameters_CreateOrUpdate(data, CloneSquadVersion=None, AccountId=No
                 raise ValueError("Failed to parse DynamoDBParameters keyword '%s' with value '%s'!" % (c, config[0][c]))
 
 def GeneralParameters_CreateOrUpdate(data, CloneSquadVersion=None, AccountId=None, Region=None, 
-        GroupName=None, LoggingS3Path=None, MetadataAndBackupS3Path=None, InteractSQSQueueIAMPolicyCondition=None):
+        GroupName=None, LoggingS3Path=None, MetadataAndBackupS3Path=None, InteractSQSQueueIAMPolicySpec=None):
     data["InstallTime"] = str(misc.utc_now())
 
-    if InteractSQSQueueIAMPolicyCondition not in [None, "None"]:
+    data["InteractSQSQueueIAMPolicy.Principal"] = {
+            "AWS": AccountId
+        }
+    data["InteractSQSQueueIAMPolicy.Condition"] = {}
+    if InteractSQSQueueIAMPolicySpec not in [None, "None"]:
         try:
-            data["InteractSQSQueueIAMPolicyCondition"] = json.loads(InteractSQSQueueIAMPolicyCondition)
+            policy = json.loads(InteractSQSQueueIAMPolicySpec)
+            if "Principal" in policy:
+                data["InteractSQSQueueIAMPolicy.Principal"] = policy["Principal"]
+            if "Condition" in policy:
+                data["InteractSQSQueueIAMPolicy.Condition"] = policy["Condition"]
         except Exception as e:
-            raise ValueError(f"Failed to parse 'InteractSQSQueueIAMPolicyCondition' as JSON document.")
+            raise ValueError(f"Failed to parse 'InteractSQSQueueIAMPolicy' as JSON document.")
+        log.info(f'SQS policy modified with user supplied policy snippet: {policy}')
 
     def _check_and_format_s3_path(envname, url):
         if url.startswith("s3://"):

@@ -41,10 +41,10 @@ Parameters:
     Default: "None"
     Description: "(Optional) Comma seperated list of user provided ARNs (Lambda, SQS, SNS) to receive real-time notifications (TargetGroup Register/Deregister events, instances start/stop...)"
 
-  InteractSQSQueueIAMPolicyCondition: 
+  InteractSQSQueueIAMPolicy: 
     Type: String
     Default: "None"
-    Description: "(Optional) An IAM Policy JSON text to use as `Condition:` statement to restrict access to the InteractSQSQueue."
+    Description: "(Optional) An IAM Policy JSON text to use as 'Principal:' and 'Condition:' statements to restrict access to the InteractSQSQueue."
 
   LoggingS3Path:
     Type: String
@@ -108,9 +108,6 @@ Conditions:
     HasApiGWEndpointConfiguration:         !Not [ !Equals [ !Ref ApiGWEndpointConfiguration, ""]]
     HasPermissionsBoundary:                !Not [ !Equals [ !Ref PermissionsBoundary, ""]]
     HasEBSVolumeKMSKeys:                   !Not [ !Equals [ !Join ["", !Ref EBSVolumeKMSKeys], ""]]
-    HasInteractSQSQueueIAMPolicyCondition: !Not [ !Or [ 
-        !Equals [ !Ref InteractSQSQueueIAMPolicyCondition, "None"], 
-        !Equals [ !Ref InteractSQSQueueIAMPolicyCondition, ""]]]
 
 
 Resources:
@@ -637,7 +634,7 @@ Resources:
               GroupName: !Ref GroupName
               LoggingS3Path: !Ref LoggingS3Path
               MetadataAndBackupS3Path: !Ref MetadataAndBackupS3Path
-              InteractSQSQueueIAMPolicyCondition: !Ref InteractSQSQueueIAMPolicyCondition
+              InteractSQSQueueIAMPolicySpec: !Ref InteractSQSQueueIAMPolicy
               CloneSquadVersion: "--Development--"
 
     CloneSquadPolicyDocument:
@@ -1069,9 +1066,8 @@ Resources:
                 - "SQS:SendMessage" 
               Effect: "Allow"
               Resource: !GetAtt InteractQueue.Arn
-              Principal: 
-                AWS: "*"
-              Condition: !If [ HasInteractSQSQueueIAMPolicyCondition, !GetAtt GeneralParameters.InteractSQSQueueIAMPolicyCondition, !Ref "AWS::NoValue"]
+              Principal: !GetAtt GeneralParameters.InteractSQSQueueIAMPolicy.Principal
+              Condition: !GetAtt GeneralParameters.InteractSQSQueueIAMPolicy.Condition
             - Sid: "CloneSquad-Interact-SQS-policy"
               Action: 
                 - "sqs:*" 

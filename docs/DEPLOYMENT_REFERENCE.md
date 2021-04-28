@@ -195,8 +195,14 @@ Specify an optional IAM policy ARN as boundary for all roles created by the Clou
 Specify an optional IAM policy condition in the IAM policy protecting the InteractSQSQueue. This queue is used to acknowledge Events sent to
 targets listed in [`UserNotificationArns`](UserNotificationArns).
 
-By defaut, any authenticated AWS principals (from any AWS account) is allowed to send a message to this queue. This parameter allows to define
-a `Condition:` statement to restrict these defaut accesses.
+By defaut, only current AWS Account principals are allowed to send a message to this queue. This parameter allows to define
+`Principal:` and `Condition:` statements to restrict these default accesses.
+
+As an example, this JSON document can be inlined in this parameter to allow access to any account in the AWS Organization Id named `o-xxxxxxxxxx`:
+
+```json
+{"Principal":{"AWS":"*"},"Condition":{"StringEquals":{"aws:PrincipalOrgID":"o-xxxxxxxxxx"}}}
+```
 
 
 ## `EBSVolumeKMSKeys`
