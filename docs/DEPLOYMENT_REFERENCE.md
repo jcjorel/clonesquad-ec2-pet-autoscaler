@@ -187,7 +187,7 @@ Ex: Activate maximum verbosity of logs in all modules.
 
 Specify an optional IAM policy ARN as boundary for all roles created by the CloudFormation template.
 
-## `InteractSQSQueueIAMPolicyCondition`
+## `InteractSQSQueueIAMPolicy`
 
 **Required: No**   
 **Format: JSON document**
