@@ -204,7 +204,7 @@ class Interact:
     def backup(self, context, event, response, cacheddata):
         now        = self.context["now"]
         export_url = self.context["MetadataAndBackupS3Path"]
-        if export_url is None or export_url == "":
+        if export_url in [None, "", "None"]:
             response["statusCode"] = 500
             response["body"]       = (f"Can not backup configuration and metadata! Please fillin 'MetadataAndBackupS3Path' CloudFormation "
                 "parameter with a valid S3 bucket path!")

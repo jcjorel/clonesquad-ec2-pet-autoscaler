@@ -263,13 +263,14 @@ def GeneralParameters_CreateOrUpdate(data, CloneSquadVersion=None, AccountId=Non
             "Path": "metadata/maintenance-windows"
         },
     ]
-    for p in authorized_paths:
-        varname, authpath   = (p["VarName"], p["Path"])
-        logging_bucket_name = f"clonesquad-metada-and-backup-s3-path-bucket-name-{AccountId}-{Region}"
-        logging_key_name    = authpath
-        fullpath            = f"{MetadataAndBackupS3Path}/{authpath}/accountid={AccountId}/region={Region}/groupname={GroupName}"
-        logging_bucket_name, logging_key_name = _check_and_format_s3_path("MetadataAndBackupS3Path", fullpath)
-        data[f"{varname}S3PathArn"] = f"arn:aws:s3:::{logging_bucket_name}/{logging_key_name}" 
+    if MetadataAndBackupS3Path not in ["", "None", None]:
+        for p in authorized_paths:
+            varname, authpath   = (p["VarName"], p["Path"])
+            logging_bucket_name = f"clonesquad-metada-and-backup-s3-path-bucket-name-{AccountId}-{Region}"
+            logging_key_name    = authpath
+            fullpath            = f"{MetadataAndBackupS3Path}/{authpath}/accountid={AccountId}/region={Region}/groupname={GroupName}"
+            logging_bucket_name, logging_key_name = _check_and_format_s3_path("MetadataAndBackupS3Path", fullpath)
+            data[f"{varname}S3PathArn"] = f"arn:aws:s3:::{logging_bucket_name}/{logging_key_name}" 
 
 def call(event, context):
     parameters    = event["ResourceProperties"].copy()
