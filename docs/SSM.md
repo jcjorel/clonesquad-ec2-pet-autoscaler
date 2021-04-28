@@ -52,7 +52,7 @@ One can change the default behaviors implied by a Maintenance Window period.
 
 Temporary MW settings can be modified through tags on the MW objects: All tags starting with the string `clonesquad:config:` will be considered as overriding directives.
 
-By default, entering a MW period means that `ec2.schedule.min_instance_count` and `ec2.schedule.desired_instance_count` configuration settings are both temporary overriden with the string value `100%`: This makes all instances start (including LightHouse ones). **This default behavior can be disabled by setting the tag `clonesquad:config:disable-default-config` to `True` on the SSM Maintenance Window object.**
+By default, entering a MW period means that `ec2.schedule.min_instance_count` and `ec2.schedule.desired_instance_count` configuration settings are both temporary overriden with the string value `100%`: This makes all instances start (including LightHouse ones). **This default behavior can be disabled by setting the tag `clonesquad:config:disable-default-config` to `True` on SSM Maintenance Window objects.**
 
 Tagging the MW object may be used to change these default settings (but also any other valid settings as-well).
 
