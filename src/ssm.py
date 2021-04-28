@@ -747,7 +747,7 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
             if "Tags" in mw:
                 tags = {}
                 for t in mw["Tags"]:
-                    if t["Key"] == f"{prefix}disable-default-configuration":
+                    if t["Key"] == f"{config_tag}disable-default-configuration":
                         disable_default_config = t["Value"] in ["True", "true"]
                         continue
                     if t["Key"].startswith(config_tag):
