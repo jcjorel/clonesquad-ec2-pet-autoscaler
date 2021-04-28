@@ -224,12 +224,13 @@ def GeneralParameters_CreateOrUpdate(data, CloneSquadVersion=None, AccountId=Non
             return (logging_bucket_name, logging_key_name)
         elif url not in ["", "None"] and len(url):
             raise ValueError(f"{envname} must start with s3://! : {url}")
+        return (None, None)
 
     # Manage LoggingS3Path
     logging_bucket_name = f"clonesquad-logging-s3-path-bucket-name-{AccountId}-{Region}"
     logging_key_name    = "is-not-configured"
     logging_bucket_name, logging_key_name = _check_and_format_s3_path("LoggingS3Path", LoggingS3Path)
-    data["LoggingS3PathArn"] = f"arn:aws:s3:::{logging_bucket_name}/{logging_key_name}"
+    data["LoggingS3PathArn"] = f"arn:aws:s3:::{logging_bucket_name}/{logging_key_name}" 
 
     # Manage MetadataAndBackupS3Path
     authorized_paths = [
@@ -268,7 +269,7 @@ def GeneralParameters_CreateOrUpdate(data, CloneSquadVersion=None, AccountId=Non
         logging_key_name    = authpath
         fullpath            = f"{MetadataAndBackupS3Path}/{authpath}/accountid={AccountId}/region={Region}/groupname={GroupName}"
         logging_bucket_name, logging_key_name = _check_and_format_s3_path("MetadataAndBackupS3Path", fullpath)
-        data[f"{varname}S3PathArn"] = f"arn:aws:s3:::{logging_bucket_name}/{logging_key_name}"
+        data[f"{varname}S3PathArn"] = f"arn:aws:s3:::{logging_bucket_name}/{logging_key_name}" 
 
 def call(event, context):
     parameters    = event["ResourceProperties"].copy()
