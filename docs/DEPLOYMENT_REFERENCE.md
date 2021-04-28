@@ -187,6 +187,17 @@ Ex: Activate maximum verbosity of logs in all modules.
 
 Specify an optional IAM policy ARN as boundary for all roles created by the CloudFormation template.
 
+## `InteractSQSQueueIAMPolicyCondition`
+
+**Required: No**   
+**Format: JSON document**
+
+Specify an optional IAM policy condition in the IAM policy protecting the InteractSQSQueue. This queue is used to acknowledge Events sent to
+targets listed in [`UserNotificationArns`](UserNotificationArns).
+
+By defaut, any authenticated AWS principals (from any AWS account) is allowed to send a message to this queue. This parameter allows to define
+a `Condition:` statement to restrict these defaut accesses.
+
 
 ## `EBSVolumeKMSKeys`
 

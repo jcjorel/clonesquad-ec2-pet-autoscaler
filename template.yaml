@@ -41,6 +41,11 @@ Parameters:
     Default: "None"
     Description: "(Optional) Comma seperated list of user provided ARNs (Lambda, SQS, SNS) to receive real-time notifications (TargetGroup Register/Deregister events, instances start/stop...)"
 
+  InteractSQSQueueIAMPolicyCondition: 
+    Type: String
+    Default: "None"
+    Description: "(Optional) An IAM Policy JSON text to use as `Condition:` statement to restrict access to the InteractSQSQueue."
+
   LoggingS3Path:
     Type: String
     Default: "None"
@@ -99,10 +104,13 @@ Parameters:
     Description: "(Debug) Trace CloneSquad to get visibility into execution time and associated costs"
 
 Conditions:
-    HasCustomizationZipParameters: !Not [ !Equals [ !Ref CustomizationZipParameters, ""]]
-    HasApiGWEndpointConfiguration: !Not [ !Equals [ !Ref ApiGWEndpointConfiguration, ""]]
-    HasPermissionsBoundary:        !Not [ !Equals [ !Ref PermissionsBoundary, ""]]
-    HasEBSVolumeKMSKeys:           !Not [ !Equals [ !Join ["", !Ref EBSVolumeKMSKeys], ""]]
+    HasCustomizationZipParameters:         !Not [ !Equals [ !Ref CustomizationZipParameters, ""]]
+    HasApiGWEndpointConfiguration:         !Not [ !Equals [ !Ref ApiGWEndpointConfiguration, ""]]
+    HasPermissionsBoundary:                !Not [ !Equals [ !Ref PermissionsBoundary, ""]]
+    HasEBSVolumeKMSKeys:                   !Not [ !Equals [ !Join ["", !Ref EBSVolumeKMSKeys], ""]]
+    HasInteractSQSQueueIAMPolicyCondition: !Not [ !Or [ 
+        !Equals [ !Ref InteractSQSQueueIAMPolicyCondition, "None"], 
+        !Equals [ !Ref InteractSQSQueueIAMPolicyCondition, ""]]]
 
 
 Resources:
@@ -138,22 +146,24 @@ Resources:
                 - "sqs:SendMessage" 
               Effect: "Allow"
               Resource: !GetAtt MainQueue.Arn
-              Principal: "*"
+              Principal: 
+                AWS: "*"
               Condition:  
                 ArnLike: 
                   aws:SourceArn:
-                  - !GetAtt MainFunction.Arn
-                  - !GetAtt SNSMgrFunction.Arn
+                  - !GetAtt MainFunctionRole.Arn
+                  - !GetAtt SNSMgrFunctionRole.Arn
             - Sid: "CloneSquad-Main-SQS-policy"
               Action: 
                 - "sqs:*" 
               Effect: "Allow"
               Resource: !GetAtt MainQueue.Arn
-              Principal: "*"
+              Principal: 
+                AWS: "*"
               Condition:  
                 ArnLike: 
                   aws:SourceArn:
-                  - !GetAtt MainFunction.Arn
+                  - !GetAtt MainFunctionRole.Arn
 
     DynamoDBParameters:
             Type: "Custom::CustomResourceFunction"
@@ -627,6 +637,7 @@ Resources:
               GroupName: !Ref GroupName
               LoggingS3Path: !Ref LoggingS3Path
               MetadataAndBackupS3Path: !Ref MetadataAndBackupS3Path
+              InteractSQSQueueIAMPolicyCondition: !Ref InteractSQSQueueIAMPolicyCondition
               CloneSquadVersion: "--Development--"
 
     CloneSquadPolicyDocument:
@@ -1058,19 +1069,21 @@ Resources:
                 - "SQS:SendMessage" 
               Effect: "Allow"
               Resource: !GetAtt InteractQueue.Arn
-              Principal: "*"
-              Condition:  
-                ArnLike: 
-                  aws:SourceArn: !Split [",", !Sub "${UserNotificationArns}" ]
+              Principal: 
+                AWS: "*"
+              Condition: !If [ HasInteractSQSQueueIAMPolicyCondition, !GetAtt GeneralParameters.InteractSQSQueueIAMPolicyCondition, !Ref "AWS::NoValue"]
             - Sid: "CloneSquad-Interact-SQS-policy"
               Action: 
                 - "sqs:*" 
               Effect: "Allow"
               Resource: !GetAtt InteractQueue.Arn
-              Principal: "*"
+              Principal: 
+                AWS: "*"
               Condition:  
                 ArnLike: 
-                  aws:SourceArn: !GetAtt InteractFunction.Arn
+                  aws:SourceArn: 
+                    - !GetAtt InteractFunctionRole.Arn
+                    - !GetAtt MainFunctionRole.Arn
 
     PermissionForSchedulerEvents:
             Type: AWS::Lambda::Permission

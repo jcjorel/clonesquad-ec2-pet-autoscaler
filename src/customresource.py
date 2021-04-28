@@ -188,8 +188,14 @@ def DynamoDBParameters_CreateOrUpdate(data, CloneSquadVersion=None, AccountId=No
                 raise ValueError("Failed to parse DynamoDBParameters keyword '%s' with value '%s'!" % (c, config[0][c]))
 
 def GeneralParameters_CreateOrUpdate(data, CloneSquadVersion=None, AccountId=None, Region=None, 
-        GroupName=None, LoggingS3Path=None, MetadataAndBackupS3Path=None):
+        GroupName=None, LoggingS3Path=None, MetadataAndBackupS3Path=None, InteractSQSQueueIAMPolicyCondition=None):
     data["InstallTime"] = str(misc.utc_now())
+
+    if InteractSQSQueueIAMPolicyCondition not in [None, "None"]:
+        try:
+            data["InteractSQSQueueIAMPolicyCondition"] = json.loads(InteractSQSQueueIAMPolicyCondition)
+        except Exception as e:
+            raise ValueError(f"Failed to parse 'InteractSQSQueueIAMPolicyCondition' as JSON document.")
 
     def _check_and_format_s3_path(envname, url):
         if url.startswith("s3://"):
