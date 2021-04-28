@@ -742,10 +742,14 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
         """
         config_tag = "clonesquad:config:"
         def _set_tag(fleet, config, mw):
-            min_instance_count = None
+            min_instance_count     = None
+            disable_default_config = False
             if "Tags" in mw:
                 tags = {}
                 for t in mw["Tags"]:
+                    if t["Key"] == f"{prefix}disable-default-configuration":
+                        disable_default_config = t["Value"] in ["True", "true"]
+                        continue
                     if t["Key"].startswith(config_tag):
                         tags[t["Key"][len(config_tag):]] = t["Value"]
                 if fleet is None:
@@ -770,7 +774,7 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
                     if ((fleet is None and mainfleet_parameter) or (fleet is not None and subfleet_parameter) 
                             or (not mainfleet_parameter and not subfleet_parameter)):
                         config[f"override:{t}"] = tags[t]
-            return min_instance_count
+            return (min_instance_count, disable_default_config)
         config = {}
         meta   = {}
         is_maintenance_time  = self.is_maintenance_time(meta=meta)
@@ -790,12 +794,16 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
         else:
             log.log(log.NOTICE, f"Main fleet under Active Maintenance Window up to %s : %s / %s" % 
                     (meta["EndTime"], meta["MatchingWindow"]["Name"], meta["MatchingWindow"]["WindowId"]))
-            min_instance_count = _set_tag(None, config, meta["MatchingWindow"])
-            if min_instance_count is None:
-                min_instance_count = Cfg.get("ssm.feature.maintenance_window.mainfleet.ec2.schedule.min_instance_count")
-            config["override:ec2.schedule.min_instance_count"] = min_instance_count
-            if min_instance_count == "100%":
-                config["override:ec2.schedule.desired_instance_count"] = "100%"
+            min_instance_count, disable_default_config = _set_tag(None, config, meta["MatchingWindow"])
+            if disable_default_config:
+                log.log(log.NOTICE, f"SSM Maintenance Window tag 'clonesquad:config:disable-default-config' detected. "
+                        f"Default configuration for Main fleet is disabled.")
+            else:
+                if min_instance_count is None:
+                    min_instance_count = Cfg.get("ssm.feature.maintenance_window.mainfleet.ec2.schedule.min_instance_count")
+                config["override:ec2.schedule.min_instance_count"] = min_instance_count
+                if min_instance_count == "100%":
+                    config["override:ec2.schedule.desired_instance_count"] = "100%"
 
         # Subfleet Maintenance window management
         for subfleet in self.o_ec2.get_subfleet_names():
@@ -814,14 +822,18 @@ In order to ensure that instances are up and ready when a SSM Maintenance Window
             else:
                 log.log(log.NOTICE, f"Subfleet '{subfleet}' fleet under Active Maintenance Window up to %s : %s / %s" % 
                     (meta["EndTime"], meta["MatchingWindow"]["Name"], meta["MatchingWindow"]["WindowId"]))
-                min_instance_count = _set_tag(subfleet, config, meta["MatchingWindow"])
-                if min_instance_count is None:
-                    min_instance_count = Cfg.get(f"ssm.feature.maintenance_window.subfleet.{subfleet}.ec2.schedule.min_instance_count")
-                config[f"override:subfleet.{subfleet}.ec2.schedule.min_instance_count"] = min_instance_count
-                if min_instance_count == "100%":
-                    config[f"override:subfleet.{subfleet}.ec2.schedule.desired_instance_count"] = "100%"
-                if Cfg.get_int("ssm.feature.maintenance_window.subfleet.{SubfleetName}.force_running"):
-                    config[f"override:subfleet.{subfleet}.state"] = "running"
+                min_instance_count, disable_default_config = _set_tag(subfleet, config, meta["MatchingWindow"])
+                if disable_default_config:
+                    log.log(log.NOTICE, f"SSM Maintenance Window tag 'clonesquad:config:disable-default-config' detected. "
+                            f"Default configuration for subfleet '{subfleet}' is disabled.")
+                else:
+                    if min_instance_count is None:
+                        min_instance_count = Cfg.get(f"ssm.feature.maintenance_window.subfleet.{subfleet}.ec2.schedule.min_instance_count")
+                    config[f"override:subfleet.{subfleet}.ec2.schedule.min_instance_count"] = min_instance_count
+                    if min_instance_count == "100%":
+                        config[f"override:subfleet.{subfleet}.ec2.schedule.desired_instance_count"] = "100%"
+                    if Cfg.get_int("ssm.feature.maintenance_window.subfleet.{SubfleetName}.force_running"):
+                        config[f"override:subfleet.{subfleet}.state"] = "running"
 
         # Register SSM Maintenance Window configuration override
         Cfg.register(config, layer="SSM Maintenance Window override", create_layer_when_needed=True)
