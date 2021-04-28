@@ -9,6 +9,7 @@ v0.20.0(not yet released):
 - (Bug/Major) Fixed too restricted Main Lambda IAM policy forbidding start of instances with AMI controlled by AWS License Manager.
 - (Bug/Minor) On rare circumstances, 'BlockNewConnectionToPorts' can receive an error message due to iptables lock. '-w 10' option is added to every iptables call to wait for lock release.
 - (Bug/Minor) Reduced the maximum number of instance starts in a single Main Lambda execution (from 50 to 25 to be less aggressive with the EC2 API): Users with more than 25 instances per fleet will see a full 100% fleet start only after multiple Main Lambda executions.
+- (Bug/Minor) Allow '%' character in scheduler entry name.
 
 v0.19.0:
 - (Improvment/Major) COMPATIBILITY BREACH: In order to reduce the size on screen and improve subfleet dashboard readability, the subfleet metrics are shortened ("Subfleet." prefix is removed).

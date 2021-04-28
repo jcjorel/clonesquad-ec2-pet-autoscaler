@@ -195,8 +195,8 @@ By default, an hourly cron job is defined. Set this setting to `disabled` value 
     def load_event_definitions(self):
         now = self.context["now"]
         def _append_entry(e, param, event_name=None):
-            event_name  = f"CS-Cron-{group_name}"
-            event_name += "-" + misc.sha256(f"{e}:%s:%s:%s" % (self.tz, self.dst_offset, param))[:10]
+            event_name  = f"CS-Cron-{group_name}-"
+            event_name += misc.sha256(f"%s:%s:%s:%s" % (e, self.tz, self.dst_offset, param))[:10]
             try:
                 self.event_names.append({
                     "Name": event_name,
