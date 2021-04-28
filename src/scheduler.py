@@ -60,7 +60,7 @@ By default, an hourly cron job is defined. Set this setting to `disabled` value 
             return
 
         # Get Timezone related info 
-        self.local_now  = arrow.get(misc.local_now()) # Get local time (with local timezone)
+        self.local_now  = arrow.get(misc.local_now(self.context)) # Get local time (with local timezone)
         self.utc_offset = self.local_now.utcoffset()
         self.dst_offset = self.local_now.dst()
         self.tz         = self.local_now.strftime("%Z")

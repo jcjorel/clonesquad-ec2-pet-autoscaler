@@ -101,7 +101,7 @@ def is_direct_launch():
 def utc_now():
     return datetime.now(tz=timezone.utc) # datetime.utcnow()
 
-def local_now():
+def local_now(ctx):
     timezones  = yaml.safe_load(get_url("internal:region-timezones.yaml"))
     tz         = os.getenv("TimeZone") 
     tz         = timezones.get(ctx["AWS_DEFAULT_REGION"]) if (tz is None or tz == "") else tz
