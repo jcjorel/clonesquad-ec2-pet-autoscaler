@@ -287,7 +287,11 @@ def call(event, context):
 
     log.info("Calling helper function '%s'(%s)..." % (function_name, parameters))
     function       = globals()[function_name]
-    function(helper.Data, **parameters)
+    try:
+        function(helper.Data, **parameters)
+    except Exception as e:
+        log.exception(f"Got Exception in {function_name}!")
+        raise e
     log.info("Data: %s" % helper.Data)
     print("Data: %s" % Dbg.pprint(helper.Data))
 
