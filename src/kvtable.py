@@ -379,7 +379,7 @@ class KVTable():
                 'ExpirationTime' : {
                     'N': str(expiration_time)
                 }})
-            log.log(log.NOTICE, f"DynamoDB({table_name}): Writing key '{key}' (TTL={TTL}, size=%s)" % len(str(value)))
+            log.log(log.NOTICE, f"DynamoDB({table_name}): Writing key '%s' (TTL={TTL}, size=%s)" % (key, len(str(value))))
 
             response = client.put_item(
                 TableName=table_name,
