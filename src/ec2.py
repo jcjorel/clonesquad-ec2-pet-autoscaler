@@ -34,6 +34,7 @@ from datetime import datetime
 from datetime import timedelta
 from collections import defaultdict
 from botocore.exceptions import ClientError
+import copy
 
 import misc
 import kvtable
@@ -595,6 +596,7 @@ without any TargetGroup but another external health instance source exists).
 
         def _check_response(need_longterm_record, response, ex):
             nonlocal max_startable_instances
+            nonlocal InstanceIds
             log.debug(Dbg.pprint(response))
             if ex is None:
                 metadata = response["ResponseMetadata"]
@@ -635,6 +637,15 @@ without any TargetGroup but another external health instance source exists).
                         log.warning(f"Failed to start instance due to 'InsufficientInstanceCapacity' error: {ex}")
                         need_shortterm_record  = False
                         need_longterm_record   = False
+                    if ex.response['Error']['Code'] == 'InternalError':
+                        if len(InstanceIds) == 1:
+                            log.warning(f"Received error while trying to start to start instance {InstanceIds} due to "
+                                "'InternalError' error: {ex}. If encrypted volumes are used, a possible cause is a lack of "
+                                "permissions to the KMS EKS used by EBS volumes connected to the EC2 instance.")
+                            need_shortterm_record  = True
+                        else:
+                            need_shortterm_record  = False
+                        need_longterm_record   = False
                 except:
                     pass
 
@@ -659,15 +670,17 @@ without any TargetGroup but another external health instance source exists).
             log.info("Starting instances %s..." % to_start)
             response = None
             try:
+                InstanceIds=to_start
                 response = R_xt(_check_response, lambda args, kwargs, r: r["ResponseMetadata"]["HTTPStatusCode"] == 200,
-                    client.start_instances, InstanceIds=to_start
+                    client.start_instances, InstanceIds=InstanceIds
                 )
             except Exception as e:
                 log.log(log.NOTICE, f"Got Exception while trying to start instance(s) '{to_start}' : {e}. Trying again one-by-one...")
                 for i in to_start:
                     try:
+                        InstanceIds=[i]
                         response = R_xt(_check_response, lambda args, kwargs, r: r["ResponseMetadata"]["HTTPStatusCode"] == 200,
-                            client.start_instances, InstanceIds=[i]
+                            client.start_instances, InstanceIds=InstanceIds
                         )
                     except ClientError as e:
                         if e.response['Error']['Code'] != 'IncorrectSpotRequestState':
@@ -836,8 +849,9 @@ without any TargetGroup but another external health instance source exists).
         if instance is None:
             return default
         tags = {}
-        for t in instance["Tags"]:
-            tags[t["Key"]] = t["Value"]
+        if "Tags" in instance:
+            for t in instance["Tags"]:
+                tags[t["Key"]] = t["Value"]
         return tags
 
 
@@ -1055,6 +1069,7 @@ without any TargetGroup but another external health instance source exists).
                 meta[f"last_{action}_date"] = date if (date is None or last_start_date is None or date >= last_start_date) else None
                 if date is not None and (newest_action_date is None or newest_action_date < date):
                     newest_action_date = date
+            meta["last_start_date"]  = last_start_date
             meta["last_action_date"] = newest_action_date
 
         state = self.scaling_states.get(instance_id, {"raw": default, "state_no_excluded": default, "state": default})
@@ -1069,12 +1084,17 @@ without any TargetGroup but another external health instance source exists).
         if default_date is None: default_date = self.context["now"]
 
         if value != "":
-            meta           = {} if meta is None else meta
-            previous_value = self.get_scaling_state(instance_id, meta=meta, do_not_return_excluded=True)
-            date           = meta["last_action_date"] if not force and previous_value == value else default_date
+            meta                  = {} if meta is None else meta
+            previous_value             = self.get_scaling_state(instance_id, meta=meta, do_not_return_excluded=True)
+            date                       = meta["last_action_date"] if not force and previous_value == value else default_date
             meta[f"last_{value}_date"] = date
-            meta[f"last_action_date"] = date
-            self.set_state(f"ec2.instance.scaling.last_{value}_date.{instance_id}", date, TTL=ttl)
+            meta["last_action_date"]   = date
+            previous_action_date       = self.get_state_date(f"ec2.instance.scaling.last_{value}_date.{instance_id}", TTL=ttl)
+            # The following condition is focused on cost reduction. We know that the 'draining' state is marked multiple times
+            #  by upper algorithms so we try to optimize when to write this specific state.
+            if (value not in ["draining"] or previous_action_date is None or "last_start_date" not in meta 
+                or previous_action_date <= meta["last_start_date"]):
+                self.set_state(f"ec2.instance.scaling.last_{value}_date.{instance_id}", date, TTL=ttl)
         else:
             # Remove all state keys
             for action in ["action", "draining", "error", "bounced"]:
@@ -1339,6 +1359,55 @@ without any TargetGroup but another external health instance source exists).
                 }
             s_metrics.append(stat)
         return s_metrics
+
+
+###############################################
+#### BACKUP AND METADATA      #################
+###############################################
+
+
+    def exports_metadata_and_backup(self, export_url):
+        client                         = self.context["ec2.client"]
+        account_id, region, group_name = (self.context["ACCOUNT_ID"], self.context["AWS_DEFAULT_REGION"], self.context["GroupName"])
+        path                           = f"accountid={account_id}/region={region}/groupname={group_name}"
+
+        # Export instance specifications
+        instances = self.get_instances()
+        instance_serialized = []
+        for i in instances:
+            i = copy.deepcopy(i)
+            i["_Hostname"] = self.get_instance_tags(i).get("Name")
+            subfleet       = self.get_instance_tags(i).get("clonesquad:subfleet-name")
+            if subfleet is not None:
+                i["_SubfleetName"] = subfleet
+            misc.stringify_timestamps(i)
+            instance_serialized.append(json.dumps(i, default=str))
+        misc.put_url(f"{export_url}/metadata/instances/{path}/{account_id}-{region}-managed-instances-cs-{group_name}.json", 
+                "\n".join(instance_serialized))
+
+        # Export volume specifications
+        volume_ids = []
+        for i in instances:
+            for v in i.get("BlockDeviceMappings", []):
+                if "Ebs" in v:
+                    if v["Ebs"]["VolumeId"] not in volume_ids:
+                        volume_ids.append(v["Ebs"]["VolumeId"])
+        volumes = []
+        v_ids   = volume_ids
+        while len(v_ids):
+            paginator = client.get_paginator('describe_volumes')
+            response_iterator = paginator.paginate(VolumeIds=v_ids[:500])
+            for response in response_iterator:
+                volumes.extend(response["Volumes"])
+            v_ids = v_ids[500:]    
+
+        volume_serialized = []
+        for vol in volumes:
+            vol = copy.deepcopy(vol)
+            misc.stringify_timestamps(vol)
+            volume_serialized.append(json.dumps(vol, default=str))
+        misc.put_url(f"{export_url}/metadata/volumes/{path}/{account_id}-{region}-managed-volumes-cs-{group_name}.json", 
+                "\n".join(volume_serialized))
 
 
 ###############################################

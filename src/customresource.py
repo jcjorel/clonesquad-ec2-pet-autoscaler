@@ -7,6 +7,7 @@ import pdb
 import sys
 import time
 import json
+import yaml
 import boto3
 from crhelper import CfnResource
 import logging
@@ -29,6 +30,7 @@ try:
     pass
 except Exception as e:
     helper.init_failure(e)
+
 
 def get_policy_content(url, account_id, region, api_gw_id=None):
     content = misc.get_url(url)
@@ -81,7 +83,7 @@ def generate_igress_sg_rule(trusted_clients):
     return rule
     
 
-def ApiGWVpcEndpointParameters_CreateOrUpdate(data, AccountId=None, Region=None, ApiGWId=None,
+def ApiGWVpcEndpointParameters_CreateOrUpdate(data, CloneSquadVersion=None, AccountId=None, Region=None, ApiGWId=None,
         ApiGWConfiguration=None, ApiGWEndpointConfiguration=None, DefaultGWVpcEndpointPolicyURL=None):
 
     endpoint_config = misc.parse_line_as_list_of_dict(ApiGWEndpointConfiguration, with_leading_string=False)
@@ -138,7 +140,7 @@ def ApiGWVpcEndpointParameters_CreateOrUpdate(data, AccountId=None, Region=None,
         raise ValueError("Unknown keywords in ApiGWVpcEndpointParameters '%s'!" % edp.keys())
 
 
-def ApiGWParameters_CreateOrUpdate(data, AccountId=None, Region=None, Dummy=None,
+def ApiGWParameters_CreateOrUpdate(data, CloneSquadVersion=None, AccountId=None, Region=None, Dummy=None,
         ApiGWConfiguration=None, ApiGWEndpointConfiguration=None, DefaultGWPolicyURL=None):
     data["GWType"]   = "REGIONAL"
     data["GWPolicy"] = get_policy_content(DefaultGWPolicyURL, AccountId, Region)
@@ -162,7 +164,7 @@ def ApiGWParameters_CreateOrUpdate(data, AccountId=None, Region=None, Dummy=None
     log.info(Dbg.pprint(data["GWPolicy"]))
     data["EndpointConfiguration.Type"] = data["GWType"]
 
-def DynamoDBParameters_CreateOrUpdate(data, AccountId=None, Region=None, 
+def DynamoDBParameters_CreateOrUpdate(data, CloneSquadVersion=None, AccountId=None, Region=None, 
         DynamoDBConfiguration=None):
 
     config = misc.parse_line_as_list_of_dict(DynamoDBConfiguration, with_leading_string=False)
@@ -186,22 +188,91 @@ def DynamoDBParameters_CreateOrUpdate(data, AccountId=None, Region=None,
             except Exception as e:
                 raise ValueError("Failed to parse DynamoDBParameters keyword '%s' with value '%s'!" % (c, config[0][c]))
 
-def GeneralParameters_CreateOrUpdate(data, AccountId=None, Region=None, 
-        LoggingS3Path=None):
+def GeneralParameters_CreateOrUpdate(data, CloneSquadVersion=None, AccountId=None, Region=None, 
+        GroupName=None, LoggingS3Path=None, MetadataAndBackupS3Path=None, InteractSQSQueueIAMPolicySpec=None):
+    data["InstallTime"] = str(misc.utc_now())
+
+    data["InteractSQSQueueIAMPolicy.Principal"] = {
+            "AWS": AccountId
+        }
+    data["InteractSQSQueueIAMPolicy.Condition"] = {}
+    if InteractSQSQueueIAMPolicySpec not in [None, "None"]:
+        try:
+            policy = json.loads(InteractSQSQueueIAMPolicySpec)
+            if "Principal" in policy:
+                data["InteractSQSQueueIAMPolicy.Principal"] = policy["Principal"]
+            if "Condition" in policy:
+                data["InteractSQSQueueIAMPolicy.Condition"] = policy["Condition"]
+        except Exception as e:
+            raise ValueError(f"Failed to parse 'InteractSQSQueueIAMPolicy' as JSON document.")
+        log.info(f'SQS policy modified with user supplied policy snippet: {policy}')
+
+    def _check_and_format_s3_path(envname, url):
+        if url.startswith("s3://"):
+            path  = url[5:]
+            parts = path.split("/", 1)
+            logging_bucket_name = parts[0]
+            logging_key_name    = parts[1] if len(parts) > 1 else ""
+            logging_key_name    = "/".join([s for s in logging_key_name.split("/") if s != ""]) # Remove extra slashes
+            if logging_key_name == "":
+                logging_key_name = "*"
+            else:
+                if not logging_key_name.endswith("/") and not logging_key_name.endswith("*"):
+                    logging_key_name += "/*"
+                if logging_key_name.endswith("/"):
+                    logging_key_name += "*"
+            return (logging_bucket_name, logging_key_name)
+        elif url not in ["", "None"] and len(url):
+            raise ValueError(f"{envname} must start with s3://! : {url}")
+        return (None, None)
+
+    # Manage LoggingS3Path
     logging_bucket_name = f"clonesquad-logging-s3-path-bucket-name-{AccountId}-{Region}"
     logging_key_name    = "is-not-configured"
-    if LoggingS3Path.startswith("s3://"):
-        path  = LoggingS3Path[5:]
-        parts = path.split("/", 1)
-        logging_bucket_name = parts[0]
-        logging_key_name    = parts[1] if len(parts) > 1 else ""
-        if not logging_key_name.endswith("/") and not logging_key_name.endswith("*"):
-            logging_key_name += "/*"
-        if logging_key_name.endswith("/"):
-            logging_key_name += "*"
-    elif LoggingS3Path not in ["", "None"] and len(LoggingS3Path):
-        raise ValueError("LoggingS3Path must start with s3://! : {LoggingS3Path}")
-    data["LoggingS3PathArn"] = f"arn:aws:s3:::{logging_bucket_name}/{logging_key_name}"
+    logging_bucket_name, logging_key_name = _check_and_format_s3_path("LoggingS3Path", LoggingS3Path)
+    data["LoggingS3PathArn"] = f"arn:aws:s3:::{logging_bucket_name}/{logging_key_name}" 
+
+    # Manage MetadataAndBackupS3Path
+    authorized_paths = [
+        {
+            "VarName": "Backup",
+            "Path": "backups"
+        },
+        {
+            "VarName": "MetadataConfiguration",
+            "Path": "metadata/configuration"
+        },
+        {
+            "VarName": "MetadataScheduler",
+            "Path": "metadata/scheduler"
+        },
+        {
+            "VarName": "MetadataDiscovery",
+            "Path": "metadata/discovery"
+        },
+        {
+            "VarName": "MetadataInstances",
+            "Path": "metadata/instances"
+        },
+        {
+            "VarName": "MetadataVolumes",
+            "Path": "metadata/volumes"
+        },
+        {
+            "VarName": "MetadataMaintenanceWindows",
+            "Path": "metadata/maintenance-windows"
+        },
+    ]
+    for p in authorized_paths:
+        varname, authpath   = (p["VarName"], p["Path"])
+        if MetadataAndBackupS3Path not in ["", "None", None]:
+            logging_bucket_name = f"clonesquad-metada-and-backup-s3-path-bucket-name-{AccountId}-{Region}"
+            logging_key_name    = authpath
+            fullpath            = f"{MetadataAndBackupS3Path}/{authpath}/accountid={AccountId}/region={Region}/groupname={GroupName}"
+            logging_bucket_name, logging_key_name = _check_and_format_s3_path("MetadataAndBackupS3Path", fullpath)
+        else:
+            logging_bucket_name, logging_key_name = (f"not-configured-{AccountId}-{Region}", authpath)
+        data[f"{varname}S3PathArn"] = f"arn:aws:s3:::{logging_bucket_name}/{logging_key_name}" 
 
 def call(event, context):
     parameters    = event["ResourceProperties"].copy()
@@ -220,7 +291,11 @@ def call(event, context):
 
     log.info("Calling helper function '%s'(%s)..." % (function_name, parameters))
     function       = globals()[function_name]
-    function(helper.Data, **parameters)
+    try:
+        function(helper.Data, **parameters)
+    except Exception as e:
+        log.exception(f"Got Exception in {function_name}!")
+        raise e
     log.info("Data: %s" % helper.Data)
     print("Data: %s" % Dbg.pprint(helper.Data))
 

@@ -11,7 +11,6 @@ sys.path.append(CODE_DIR)
 CLONESQUAD_DEPENDENCY_DIR = abspath(os.getenv("CLONESQUAD_DEPENDENCY_DIR"))
 sys.path.append(CLONESQUAD_DEPENDENCY_DIR)
 
-import sys
 import pdb
 import misc
 import argparse
@@ -19,6 +18,12 @@ import debug as Dbg
 
 import yaml
 import re
+
+import logging
+from logging import handlers
+LOG_LEVEL = logging.INFO
+logger = logging.getLogger(sys.argv[0])
+logger.setLevel(LOG_LEVEL)
 
 parser = argparse.ArgumentParser(description="CloudFormation template patch tool (S3 absolute references to Parameters)")
 parser.add_argument('template_file', help="CloudFormation template file to patch", type=str, nargs=1)
@@ -68,6 +73,11 @@ with open(args.template_file[0]) as f:
                             "Bucket": select_customization_parameter(0, args.s3_bucket),
                             "Key": select_customization_parameter(1, prefix_and_key)
                         }
+
+        # Patch custom resource with version to force CloudFormation update
+        if "CloneSquadVersion" in properties:
+            properties["CloneSquadVersion"] = args.version
+
         # Patch Lambda Environment variable with version
         if "Environment" in properties and "Variables" in properties["Environment"]:
             envs = properties["Environment"]["Variables"]

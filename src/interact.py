@@ -12,6 +12,7 @@ import re
 import kvtable
 import traceback
 import urllib.parse
+from collections import defaultdict
 
 from aws_xray_sdk.core import xray_recorder
 from aws_xray_sdk.core import patch_all
@@ -188,10 +189,46 @@ class Interact:
                     "prerequisites": ["o_state"],
                     "func": self.control_reschedulenow,
                 },
+                "backup"  : {
+                    "interface": ["apigw", "sqs"],
+                    "cache": "none",
+                    "clients": [],
+                    "prerequisites": ["o_state", "o_ec2", "o_ssm", "o_scheduler"],
+                    "func": self.backup,
+                },
             }
 
     def get_prerequisites(self):
         return
+
+    def backup(self, context, event, response, cacheddata):
+        now        = self.context["now"]
+        export_url = self.context["MetadataAndBackupS3Path"]
+        if export_url in [None, "", "None"]:
+            response["statusCode"] = 500
+            response["body"]       = (f"Can not backup configuration and metadata! Please fillin 'MetadataAndBackupS3Path' CloudFormation "
+                "parameter with a valid S3 bucket path!")
+            return False
+
+        o_ec2 = self.context["o_ec2"]
+        # Export metadata and backup
+        for d in [Cfg, o_ec2, self.context["o_scheduler"], self.context["o_ssm"]]:
+            d.exports_metadata_and_backup(export_url)
+
+        # Export discovery metadata
+        account_id, region, group_name = (self.context["ACCOUNT_ID"], self.context["AWS_DEFAULT_REGION"], self.context["GroupName"])
+        path      = f"accountid={account_id}/region={region}/groupname={group_name}"
+        discovery = misc.discovery(self.context, via_discovery_lambda=True)
+        discovery["MetadataRecordLastUpdatedAt"] = now
+        discovery["Subfleets"]                   = o_ec2.get_subfleet_names()
+        misc.stringify_timestamps(discovery)
+        misc.put_url(f"{export_url}/metadata/discovery/{path}/{account_id}-{region}-discovery-cs-{group_name}.json", 
+                json.dumps(discovery, default=str))
+
+        response["statusCode"] = 200
+        response["body"]       = f"Exported Configuration/Scheduler backups and metadata to {export_url}."
+        log.info(response["body"])
+        return False
 
     def control_instances(self, context, event, response, cacheddata):
         path = event["path"].split("/")[-1:][0]
@@ -337,7 +374,7 @@ class Interact:
         response["statusCode"]   = 200
         discovery = {
                 "identity": event["requestContext"]["identity"],
-                "discovery": misc.discovery(self.context)
+                "discovery": misc.discovery(self.context, via_discovery_lambda=True)
             }
         response["body"]         = Dbg.pprint(discovery)
         return True
@@ -358,6 +395,7 @@ class Interact:
         response["statusCode"] = 200
         is_yaml                 = "format" in event and event["format"].lower() == "yaml"
         with_maintenance_window = "with_maintenance_window" in event and event["with_maintenance_window"].lower() == "true"
+        restore_mode            = "restore" in event and event["restore"].lower() == "true"
         if with_maintenance_window:
             # We load the EC2 and SSM modules to inherit their override parameters if a SSM Maintenance Window is active
             misc.load_prerequisites(self.context, ["o_ec2", "o_ssm"])
@@ -365,7 +403,7 @@ class Interact:
         if "httpMethod" in event and event["httpMethod"] == "POST":
             try:
                 c = yaml.safe_load(event["body"]) if is_yaml else json.loads(event["body"])
-                Cfg.import_dict(c)
+                Cfg.import_dict(c, clean_stale_keys=restore_mode)
                 response["body"] = "Ok (%d key(s) processed)" % len(c.keys())
             except Exception as e:
                 response["statusCode"] = 500
@@ -413,12 +451,13 @@ class Interact:
     def scheduler_dump(self, context, event, response, cacheddata):
         scheduler_table = kvtable.KVTable(self.context, self.context["SchedulerTable"])
         scheduler_table.reread_table()
-        is_yaml = "format" in event and event["format"] == "yaml"
+        is_yaml      = "format" in event and event["format"].lower() == "yaml"
+        restore_mode = "restore" in event and event["restore"].lower() == "true"
         response["statusCode"] = 200
         if "httpMethod" in event and event["httpMethod"] == "POST":
             try:
                 c = yaml.safe_load(event["body"]) if is_yaml else json.loads(event["body"])
-                scheduler_table.set_dict(c)
+                scheduler_table.set_dict(c, clean_stale_keys=restore_mode)
                 response["body"] = "Ok (%d key(s) processed)" % len(c.keys())
             except Exception as e:
                 response["statusCode"] = 500
@@ -461,6 +500,33 @@ class Interact:
         # Look up for regex command match.
         candidates = [ c for c in self.commands.keys() if ("*" in c or "(" in c) and re.match(c, path) ]
         return self.commands[candidates[0]] if len(candidates) else None
+
+    def internal_caller_handler(self, path):
+        """ Method to call interact module internally. 
+
+        It is the way to call interact methods from within the Lambda function (ex: Scheduler) by simulating 
+        an API call.
+        """
+        event = {
+            "path": path,
+            "httpMethod": "GET",
+            "queryStringParameters": {}
+        }
+        if "?" in path:
+            p, qs     = path.split("?", 1)
+            qs_parsed = urllib.parse.parse_qs(qs)
+            for s in qs_parsed:
+                event["queryStringParameters"][s] = qs_parsed[s][-1:][0] # Keep only the latest occurence
+            event["path"] = p
+
+        context = {
+            "requestContext": {
+                "identity": defaultdict(dict)
+            }
+        }
+        response = {}
+        self.handler(event, context, response)
+        log.info(f"Internal call {event}: {response}")
 
     def handler(self, event, context, response):
         global query_cache

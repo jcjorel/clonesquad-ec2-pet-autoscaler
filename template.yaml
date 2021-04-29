@@ -41,10 +41,20 @@ Parameters:
     Default: "None"
     Description: "(Optional) Comma seperated list of user provided ARNs (Lambda, SQS, SNS) to receive real-time notifications (TargetGroup Register/Deregister events, instances start/stop...)"
 
+  InteractSQSQueueIAMPolicy: 
+    Type: String
+    Default: "None"
+    Description: "(Optional) An IAM Policy JSON text to use as 'Principal:' and 'Condition:' statements to restrict access to the InteractSQSQueue."
+
   LoggingS3Path:
     Type: String
     Default: "None"
     Description: "(Optional) S3 Path for detailed logging (s3://<bucket_name>/<path>)"
+
+  MetadataAndBackupS3Path:
+    Type: String
+    Default: "None"
+    Description: "(Optional) S3 Path for configuration backups and metadata exports (s3://<bucket_name>/<path>.)"
 
   ApiGWConfiguration:
     Type: String
@@ -74,7 +84,17 @@ Parameters:
   PermissionsBoundary:
     Type: String
     Default: ""
-    Description: "(Optional) IAM boundary to apply to all created roles."
+    Description: "(Optional) IAM boundary to apply to all created roles (IAM policy ARN format)."
+
+  EBSVolumeKMSKeys:
+    Type: CommaDelimitedList
+    Default: ""
+    Description: "(Optional) KMS Key ARNs used by EBS volumes attached to EC2 managed instances. Used to restrict CloneSquad permissions toward KMS keys."
+
+  UserSuppliedJSONMetadata:
+    Type: String
+    Default: ""
+    Description: "(Optional) User supplied free text. This field only purpose is to be available in <MetadataAndBackupS3Path>/metadata/discovery/.../metadata.json file and be queriable with Athena."
 
 
   XRayDiagnosis:
@@ -84,9 +104,10 @@ Parameters:
     Description: "(Debug) Trace CloneSquad to get visibility into execution time and associated costs"
 
 Conditions:
-    HasCustomizationZipParameters: !Not [ !Equals [ !Ref CustomizationZipParameters, ""]]
-    HasApiGWEndpointConfiguration: !Not [ !Equals [ !Ref ApiGWEndpointConfiguration, ""]]
-    HasPermissionsBoundary:        !Not [ !Equals [ !Ref PermissionsBoundary, ""]]
+    HasCustomizationZipParameters:         !Not [ !Equals [ !Ref CustomizationZipParameters, ""]]
+    HasApiGWEndpointConfiguration:         !Not [ !Equals [ !Ref ApiGWEndpointConfiguration, ""]]
+    HasPermissionsBoundary:                !Not [ !Equals [ !Ref PermissionsBoundary, ""]]
+    HasEBSVolumeKMSKeys:                   !Not [ !Equals [ !Join ["", !Ref EBSVolumeKMSKeys], ""]]
 
 
 Resources:
@@ -122,22 +143,24 @@ Resources:
                 - "sqs:SendMessage" 
               Effect: "Allow"
               Resource: !GetAtt MainQueue.Arn
-              Principal: "*"
+              Principal: 
+                AWS: "*"
               Condition:  
                 ArnLike: 
                   aws:SourceArn:
-                  - !GetAtt MainFunction.Arn
-                  - !GetAtt SNSMgrFunction.Arn
+                  - !GetAtt MainFunctionRole.Arn
+                  - !GetAtt SNSMgrFunctionRole.Arn
             - Sid: "CloneSquad-Main-SQS-policy"
               Action: 
                 - "sqs:*" 
               Effect: "Allow"
               Resource: !GetAtt MainQueue.Arn
-              Principal: "*"
+              Principal: 
+                AWS: "*"
               Condition:  
                 ArnLike: 
                   aws:SourceArn:
-                  - !GetAtt MainFunction.Arn
+                  - !GetAtt MainFunctionRole.Arn
 
     DynamoDBParameters:
             Type: "Custom::CustomResourceFunction"
@@ -147,6 +170,7 @@ Resources:
               AccountId: !Ref AWS::AccountId
               Region: !Ref AWS::Region
               DynamoDBConfiguration: !Ref DynamoDBConfiguration
+              CloneSquadVersion: "--Development--"
 
     ConfigTable: 
       Type: AWS::DynamoDB::Table
@@ -537,7 +561,7 @@ Resources:
               Helper: ApiGWParameters
               AccountId: !Ref AWS::AccountId
               Region: !Ref AWS::Region
-              Dummy: "0"
+              CloneSquadVersion: "--Development--"
               ApiGWConfiguration: !Ref ApiGWConfiguration
               ApiGWEndpointConfiguration: !Ref ApiGWEndpointConfiguration
               DefaultGWPolicyURL: "internal:api-gw-default-policy.json"
@@ -569,6 +593,7 @@ Resources:
               ApiGWEndpointConfiguration: !Ref ApiGWEndpointConfiguration
               ApiGWId: !Ref InteractApi
               DefaultGWVpcEndpointPolicyURL: "internal:api-gw-default-endpoint-policy.json"
+              CloneSquadVersion: "--Development--"
 
     ApiGWVpcEndpoints:
         Type: AWS::EC2::VPCEndpoint
@@ -606,7 +631,11 @@ Resources:
               Helper: GeneralParameters
               AccountId: !Ref AWS::AccountId
               Region: !Ref AWS::Region
+              GroupName: !Ref GroupName
               LoggingS3Path: !Ref LoggingS3Path
+              MetadataAndBackupS3Path: !Ref MetadataAndBackupS3Path
+              InteractSQSQueueIAMPolicySpec: !Ref InteractSQSQueueIAMPolicy
+              CloneSquadVersion: "--Development--"
 
     CloneSquadPolicyDocument:
         Type: 'AWS::IAM::Policy'
@@ -621,8 +650,26 @@ Resources:
             Version: "2012-10-17"
             Statement:
               - Effect: Allow
+                Resource: !If [HasEBSVolumeKMSKeys, !Ref EBSVolumeKMSKeys, "*"]
+                Action:
+                  - 'kms:CreateGrant'
+                  - 'kms:RevokeGrant'
+                  - 'kms:ListGrants'
+                  - 'kms:GenerateDataKey*'
+                  - 'kms:ReEncrypt*'
+                  - 'kms:Encrypt'
+                  - 'kms:Decrypt'
+                  - 'kms:DescribeKey'
+              - Effect: Allow
                 Resource: 
                   - !GetAtt GeneralParameters.LoggingS3PathArn
+                  - !GetAtt GeneralParameters.BackupS3PathArn
+                  - !GetAtt GeneralParameters.MetadataConfigurationS3PathArn
+                  - !GetAtt GeneralParameters.MetadataSchedulerS3PathArn
+                  - !GetAtt GeneralParameters.MetadataDiscoveryS3PathArn
+                  - !GetAtt GeneralParameters.MetadataInstancesS3PathArn
+                  - !GetAtt GeneralParameters.MetadataVolumesS3PathArn
+                  - !GetAtt GeneralParameters.MetadataMaintenanceWindowsS3PathArn
                 Action:
                   - 's3:PutObject'
                   - 's3:CreateMultipartUpload'
@@ -646,7 +693,6 @@ Resources:
                   StringEquals: 
                       "aws:ResourceTag/clonesquad:group-name": !Ref GroupName
                 Action:
-                  - 'ec2:StartInstances'
                   - 'ec2:StopInstances'
                   - 'rds:StartDBCluster'
                   - 'rds:StartDBInstance'
@@ -664,6 +710,7 @@ Resources:
                   - 'sqs:DeleteMessage'
                   - 'sns:Publish'
                   - 's3:GetObject'
+                  - 'ec2:StartInstances' # We have to give full StartInstances access to succeed starting Licence Manager controlled instances
                   - 'ec2:DescribeAvailabilityZones'
                   - 'ec2:DescribeInstances'
                   - 'ec2:DescribeInstanceStatus'
@@ -675,13 +722,13 @@ Resources:
                   - 'ec2:DescribeInternetGateways'
                   - 'ec2:DescribeSubnets'
                   - 'ec2:DescribeVpcs'
+                  - 'ec2:DescribeVolumes'
                   - 'events:DeleteRule'
                   - 'events:ListRules'
                   - 'events:PutRule'
                   - 'events:PutTargets'
                   - 'events:RemoveTargets'
                   - 'iam:PassRole'
-                  - 'kms:Decrypt'
                   - 'cloudwatch:DeleteAlarms'
                   - 'cloudwatch:DescribeAlarms'
                   - 'cloudwatch:DeleteDashboards'
@@ -699,6 +746,7 @@ Resources:
                   - 'ssm:ListCommandInvocations'
                   - 'ssm:ListTagsForResource'
                   - 'ssm:SendCommand'
+                  - 'organizations:DescribeAccount'
 
     MainFunction:
             Type: AWS::Serverless::Function 
@@ -741,12 +789,30 @@ Resources:
                   LongTermEventTable:                         !Ref LongTermEventTable
                   ConfigurationURLs:                          !Ref ConfigurationURLs
                   LoggingS3Path:                              !Ref LoggingS3Path
+                  MetadataAndBackupS3Path:                    !Ref MetadataAndBackupS3Path
                   TimeZone:                                   !Ref TimeZone
                   SSMLogGroup:                                !Sub "/aws/lambda/CloneSquad-SSM-${GroupName}"
                   AWS_XRAY_SDK_ENABLED:                       !Ref XRayDiagnosis
                   CLONESQUAD_LOGLEVELS:                       !Ref LogLevels
                   ACCOUNT_ID:                                 !Ref "AWS::AccountId"
                   CloneSquadVersion:                          "--Development--"
+                  UserSuppliedJSONMetadata:                   !Ref UserSuppliedJSONMetadata
+                  MainLambdaIamRoleArn:                       !GetAtt MainFunctionRole.Arn
+                  InteractLambdaIamRoleArn:                   !GetAtt InteractFunctionRole.Arn
+                  DiscoveryLambdaIamRoleArn:                  !GetAtt DiscoveryFunctionRole.Arn
+                  InternalERRORMainAlarmArn:                  !GetAtt InternalERRORMainAlarm.Arn
+                  InternalWARNINGMainAlarmArn:                !GetAtt InternalWARNINGMainAlarm.Arn
+                  InternalERRORInteractAlarmArn:              !GetAtt InternalERRORInteractAlarm.Arn
+                  InternalWARNINGInteractAlarmArn:            !GetAtt InternalWARNINGInteractAlarm.Arn
+                  LackOfCPUCreditAlarmArn:                    !GetAtt LackOfCPUCreditAlarm.Arn
+                  CustomizationZipParameters:                 !Ref CustomizationZipParameters
+                  LambdaMemorySize:                           !Ref LambdaMemorySize
+                  LogRetentionDuration:                       !Ref LogRetentionDuration
+                  ApiGWConfiguration:                         !Ref ApiGWConfiguration
+                  DynamoDBConfiguration:                      !Ref DynamoDBConfiguration
+                  PermissionsBoundary:                        !Ref PermissionsBoundary
+                  XRayDiagnosis:                              !Ref XRayDiagnosis
+                  InstallTime:                                !GetAtt GeneralParameters.InstallTime
               Events:
                 Schedule:
                   Type: Schedule
@@ -804,6 +870,7 @@ Resources:
                   CLONESQUAD_LOGLEVELS:                       !Ref LogLevels
                   ACCOUNT_ID:                                 !Ref "AWS::AccountId"
                   CloneSquadVersion:                          "--Development--"
+                  UserSuppliedJSONMetadata:                   !Ref UserSuppliedJSONMetadata
               Events:
                 ScaleUpTopic:
                   Type: SNS
@@ -835,6 +902,10 @@ Resources:
               Layers:
                   - !Ref CloneSquadLayer
                   - !Ref CloneSquadDependencyLayer
+              Policies:
+                  - AWSLambdaBasicExecutionRole 
+                  - AWSXRayDaemonWriteAccess
+                  - AWSOrganizationsReadOnlyAccess # Needed to get AWS Account details
               FunctionName: !Sub "CloneSquad-Discovery-${GroupName}"
               MemorySize: 128
               Environment:
@@ -856,14 +927,32 @@ Resources:
                   InteractAPIGWUrl:                           !Sub "https://${InteractApi}.execute-api.${AWS::Region}.amazonaws.com/v1/"
                   MainFunctionArn:                            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:CloneSquad-Main-${GroupName}"
                   InteractApi:                                !Ref InteractApi
+                  MetadataAndBackupS3Path:                    !Ref MetadataAndBackupS3Path
                   TimeZone:                                   !Ref TimeZone
                   CLONESQUAD_LOGLEVELS:                       !Ref LogLevels
                   ACCOUNT_ID:                                 !Ref "AWS::AccountId"
                   CloneSquadVersion:                          "--Development--"
+                  UserSuppliedJSONMetadata:                   !Ref UserSuppliedJSONMetadata
+                  MainLambdaIamRoleArn:                       !GetAtt MainFunctionRole.Arn
+                  InteractLambdaIamRoleArn:                   !GetAtt InteractFunctionRole.Arn
+                  DiscoveryLambdaIamRoleArn:                  !GetAtt DiscoveryFunctionRole.Arn
+                  InternalERRORMainAlarmArn:                  !GetAtt InternalERRORMainAlarm.Arn
+                  InternalWARNINGMainAlarmArn:                !GetAtt InternalWARNINGMainAlarm.Arn
+                  InternalERRORInteractAlarmArn:              !GetAtt InternalERRORInteractAlarm.Arn
+                  InternalWARNINGInteractAlarmArn:            !GetAtt InternalWARNINGInteractAlarm.Arn
+                  LackOfCPUCreditAlarmArn:                    !GetAtt LackOfCPUCreditAlarm.Arn
                   ApiGwVpcEndpointDNSEntry: !If 
                         - HasApiGWEndpointConfiguration 
                         - !Select [ 1, !Split [ ":", !Select [ 0, !GetAtt ApiGWVpcEndpoints.DnsEntries]]]
                         - !GetAtt ApiGWParameters.VpcEndpointDNS
+                  CustomizationZipParameters:                 !Ref CustomizationZipParameters
+                  LambdaMemorySize:                           !Ref LambdaMemorySize
+                  LogRetentionDuration:                       !Ref LogRetentionDuration
+                  ApiGWConfiguration:                         !Ref ApiGWConfiguration
+                  DynamoDBConfiguration:                      !Ref DynamoDBConfiguration
+                  PermissionsBoundary:                        !Ref PermissionsBoundary
+                  XRayDiagnosis:                              !Ref XRayDiagnosis
+                  InstallTime:                                !GetAtt GeneralParameters.InstallTime
 
     InteractFunction:
             Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
@@ -882,6 +971,7 @@ Resources:
               Policies:
                   - AWSLambdaBasicExecutionRole 
                   - AWSXRayDaemonWriteAccess
+                  - AWSLambdaRole 
               Environment:
                 Variables:
                   PYTHONPATH:                                 "/opt:/opt/site-packages"
@@ -898,12 +988,30 @@ Resources:
                   SchedulerTable:                             !Ref SchedulerTable
                   ConfigurationURLs:                          !Ref ConfigurationURLs
                   LoggingS3Path:                              !Ref LoggingS3Path
+                  MetadataAndBackupS3Path:                    !Ref MetadataAndBackupS3Path
                   InteractQueue:                              !Ref InteractQueue
                   MainFunctionArn:                            !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:CloneSquad-Main-${GroupName}"
                   TimeZone:                                   !Ref TimeZone
                   CLONESQUAD_LOGLEVELS:                       !Ref LogLevels
                   ACCOUNT_ID:                                 !Ref "AWS::AccountId"
                   CloneSquadVersion:                          "--Development--"
+                  UserSuppliedJSONMetadata:                   !Ref UserSuppliedJSONMetadata
+                  MainLambdaIamRoleArn:                       !GetAtt MainFunctionRole.Arn
+                  InteractLambdaIamRoleArn:                   !GetAtt InteractFunctionRole.Arn
+                  DiscoveryLambdaIamRoleArn:                  !GetAtt DiscoveryFunctionRole.Arn
+                  InternalERRORMainAlarmArn:                  !GetAtt InternalERRORMainAlarm.Arn
+                  InternalWARNINGMainAlarmArn:                !GetAtt InternalWARNINGMainAlarm.Arn
+                  InternalERRORInteractAlarmArn:              !GetAtt InternalERRORInteractAlarm.Arn
+                  InternalWARNINGInteractAlarmArn:            !GetAtt InternalWARNINGInteractAlarm.Arn
+                  LackOfCPUCreditAlarmArn:                    !GetAtt LackOfCPUCreditAlarm.Arn
+                  CustomizationZipParameters:                 !Ref CustomizationZipParameters
+                  LambdaMemorySize:                           !Ref LambdaMemorySize
+                  LogRetentionDuration:                       !Ref LogRetentionDuration
+                  ApiGWConfiguration:                         !Ref ApiGWConfiguration
+                  DynamoDBConfiguration:                      !Ref DynamoDBConfiguration
+                  PermissionsBoundary:                        !Ref PermissionsBoundary
+                  XRayDiagnosis:                              !Ref XRayDiagnosis
+                  InstallTime:                                !GetAtt GeneralParameters.InstallTime
               Events:
                 SQS:
                   Type: SQS
@@ -958,19 +1066,20 @@ Resources:
                 - "SQS:SendMessage" 
               Effect: "Allow"
               Resource: !GetAtt InteractQueue.Arn
-              Principal: "*"
-              Condition:  
-                ArnLike: 
-                  aws:SourceArn: !Split [",", !Sub "${UserNotificationArns}" ]
+              Principal: !GetAtt GeneralParameters.InteractSQSQueueIAMPolicy.Principal
+              Condition: !GetAtt GeneralParameters.InteractSQSQueueIAMPolicy.Condition
             - Sid: "CloneSquad-Interact-SQS-policy"
               Action: 
                 - "sqs:*" 
               Effect: "Allow"
               Resource: !GetAtt InteractQueue.Arn
-              Principal: "*"
+              Principal: 
+                AWS: "*"
               Condition:  
                 ArnLike: 
-                  aws:SourceArn: !GetAtt InteractFunction.Arn
+                  aws:SourceArn: 
+                    - !GetAtt InteractFunctionRole.Arn
+                    - !GetAtt MainFunctionRole.Arn
 
     PermissionForSchedulerEvents:
             Type: AWS::Lambda::Permission

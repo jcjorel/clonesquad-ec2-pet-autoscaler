@@ -41,6 +41,7 @@ and **per region** depending on your autoscaling needs.*
 	- Integrated [event scheduler](docs/SCHEDULER.md) ('cron' or 'rate' based) for complex scaling scenario,
 	- [API Gateway](docs/INTERACTING.md#interacting-with-clonesquad) to monitor and manage a CloneSquad deployment,
 	- [Events & Notifications](docs/EVENTS_AND_NOTIFICATIONS.md) (Lambda/SQS/SNS targets) framework enabling users to react to Squad events (ex: Register a just-started instance to an external monitoring solution and/or DNS),
+	- [Backup and Metadata](docs/BACKUP_AND_METADATA.md) management (with integrated CMDB feature).
 
 > **IMPORTANT REMARK**: This solution aims to ease handling of **'Pet'** machines when you have to do so (very frequent after a pure *Lift&Shift*
 migration into the Cloud). The author strongly advises to always consider managing resources as **'Cattle'** (with IaC, AutoScaling Groups, Stateless...).
@@ -91,7 +92,11 @@ automatically manage the membership of previousy created instances to these targ
 
 ## Initial Configuration
 
-The default configuration has autoscaling in/out active and a directive defined to keep the serving fleet with, at least, 2 serving/healthy instances. Vertical scaling is disabled; 'LightHouse' mode as well. In this default configuration, CloneSquad does not make distinction between Spot and On-Demand instances managing them as an homogenous fleet.
+The default configuration has all scaling activities disabled in all fleets. In the DynamoDB table `CloneSquad-test-Configuration`, to enable auto-scaling, create a record with these 2 items:
+* `Key` with the string value `ec2.schedule.desired_instance_count` ,
+* `Value` with the string value `-1`.
+
+A pre-defined directive is already set to keep the autoscaled serving fleet with, at least, 2 serving/healthy instances. Vertical scaling is disabled; 'LightHouse' mode as well. In this default configuration, CloneSquad does not make distinction between Spot and On-Demand instances managing them as an homogenous fleet.
 
 Better benefits can be obtained by using [vertical scaling](docs/SCALING.md#vertical-scaling) and instance type priorities.
 

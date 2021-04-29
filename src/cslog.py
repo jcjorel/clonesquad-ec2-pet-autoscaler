@@ -33,17 +33,17 @@ def logger(name):
     logger.propagate = False
 
     # create console handler and set level to debug
-    ch = logging.StreamHandler()
-    ch.setLevel(log_level)
+    logger.ch = logging.StreamHandler()
+    logger.ch.setLevel(log_level)
 
     # create formatter
     extra_logging = "%(asctime)s - " if is_sam_local else ""
     formatter = logging.Formatter("[%%(levelname)s] %s%%(filename)s:%%(lineno)d - %%(message)s" % extra_logging)
 
     # add formatter to ch
-    ch.setFormatter(formatter)
+    logger.ch.setFormatter(formatter)
 
     # add ch to logger
-    logger.addHandler(ch)
+    logger.addHandler(logger.ch)
     return logger
 

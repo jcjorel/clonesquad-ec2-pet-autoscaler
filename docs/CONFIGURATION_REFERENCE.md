@@ -123,6 +123,22 @@ Cloudwatch GetMetricData, DynamoDB queries...)
 
 
 
+### backup.cron
+Default Value: `cron(0 * * * ? *)`   
+Format       :  [String](#String)
+
+Cron job specification for [Backup and Metadata](BACKUP_AND_METADATA.md) generation.
+
+This setting control when Configuration/Scheduler DynamoDB tables are backuped. It also defines when the Metadata files, queriable with AWS Athena, are generated. The format follows the `cron(...)` and `localcron(...)` keywords as defined in the [scheduler documentation](SCHEDULER.md).
+
+By default, an hourly cron job is defined. Set this setting to `disabled` value to disable this automation.
+
+> The CloudFormation template parameter [`MetadataAndBackupS3Path`](DEPLOYMENT_REFERENCE.md#metadataandbackups3path) must be defined as prerequisite. 
+
+            
+
+
+
 ### cloudwatch.alarm00.configuration_url
 Default Value: ``   
 Format       :  [MetaString](#MetaString)
@@ -440,14 +456,16 @@ This flag enables an automatic wakeup of stopped instances before the one-week l
 
 
 ### ec2.schedule.desired_instance_count
-Default Value: `-1`   
+Default Value: `undefined`   
 Format       :  [IntegerOrPercentage](#IntegerOrPercentage)
 
-If set to -1, the autoscaler controls freely the number of running instances. Set to a value different than -1,
+If set to `-1`, the autoscaler controls freely the number of running instances. Set to a value different than `-1`,
 the autoscaler is disabled and this value defines the number of serving (=running & healthy) instances to maintain at all time.
 The [`ec2.schedule.min_instance_count`](#ec2schedulemin_instance_count) is still authoritative and the 
 [`ec2.schedule.desired_instance_count`](#ec2scheduledesired_instance_count) parameter cannot bring
 the serving fleet size below this hard lower limit. 
+
+By default, the value is the string `undefined` meaning that the autoscaler is disabled.
 
 A typical usage for this key is to set it to `100%` to temporarily force all the instances to run at the same time to perform mutable maintenance
 (System and/or SW patching).
@@ -457,20 +475,6 @@ at its maximum size in a stable manner (i.e. even if there are impaired/unhealth
 
 > **Important tip related to LightHouse instances**:  In a maintenance use-case, users may require to have all instances **including LightHouse ones** up and running; setting both [`ec2.schedule.desired_instance_count`](#ec2scheduledesired_instance_count) and [`ec2.schedule.min_instance_count`](#ec2schedulemin_instance_count) to the string value `100%` will start ALL instances.
                      
-
-
-
-### ec2.schedule.disable
-Default Value: `0`   
-Format       :  [Bool](#Bool)
-
-Disable all scale or automations algorithm in the Main fleet. 
-
-Setting this parameter to '1' disables all scaling and automation algorithms in the Main fleet. While set, all Main fleet instances can be freely started 
-and stopped by the users without CloneSquad trying to manage them. 
-
-Note: It is semantically similar to the value `undefined` in subfleet configuration key [`subfleet.{SubfleetName}.state`](#subfleetsubfleetnamestate).
-                    
 
 
 

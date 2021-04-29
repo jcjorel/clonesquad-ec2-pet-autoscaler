@@ -1,0 +1,134 @@
+#!/usr/bin/python3
+#
+import os
+import sys
+import json
+import pdb
+import argparse
+import logging
+import datetime
+from collections import defaultdict
+from logging import handlers
+log = logging.getLogger(sys.argv[0])
+log.setLevel(logging.INFO)
+
+parser = argparse.ArgumentParser(description="Athena DDL Generator for JSON")
+parser.add_argument('input_file', help="Input file (JSON) to infer from a DDL.", type=str, nargs="+")
+parser.add_argument('--location', '-l', help="Data location (ex: s3://... format)", type=str, default="s3://mybucket/mypath")
+parser.add_argument('--partitioned-by', '-p', help="PARTIONED BY statement", type=str, default="")
+parser.add_argument('--extra-ddl-parameter', '-x', help="Extra string to add to the generated DDL statement.", type=str, 
+        default="ROW FORMAT serde 'org.apache.hive.hcatalog.data.JsonSerDe'")
+parser.add_argument('--table-name', '-n', help="Name of the table to generate.", type=str, default="MyTable")
+
+args = parser.parse_args()
+
+# Read all input files in memory
+json_lines  = []
+for input_file in args.input_file:
+    i_file  = open(input_file)
+    i_lines = i_file.readlines()
+
+    i           = 0
+    for l in i_lines:
+        i += 1
+        if l in ["", "\n"]:
+            continue
+        try:
+            json_lines.append(json.loads(l))
+        except Exception as e:
+            log.warning(f"Can not decode line {i} as a valid JSON document ({input_file})! : {e}")    
+    i_file.close()
+
+def is_date(d):
+    try:
+        return datetime.datetime.strptime(d, '%Y-%m-%d %H:%M:%S.%f') is not None
+    except:
+        try:
+            return datetime.datetime.strptime(d, '%Y-%m-%d %H:%M:%S') is not None
+        except:
+            return False
+
+def encode_json(document, outputs):
+    d = document
+    for k in document:
+        if k is None:
+            log.error("Can not encode Null parameter!")
+            sys.exit(1)
+        v    = document[k]
+        if isinstance(v, dict):
+            item = outputs.get(k, {})
+            encode_json(v, item)
+            outputs[k] = item
+        elif isinstance(v, list):
+            if len(v):
+                if isinstance(v[0], dict):
+                    it = outputs[k][0] if len(outputs.get(k, [])) else {}
+                    encode_json(v[0], it)
+                    outputs[k] = [it]
+                else:
+                    if is_date(v[0]):
+                        outputs[k] = [datetime.datetime]
+                    else:
+                        outputs[k] = [v[0].__class__]
+            else:
+                outputs[k] = [str]
+        else:
+            if is_date(v):
+                item = datetime.datetime
+            else:
+                item = v.__class__
+            outputs[k] = item
+
+def process_documents(inputs, outputs):
+    for l in inputs:
+        if not isinstance(l, dict):
+            log.warning(f"JSON document must be a Dict! Ignoring")
+            continue
+        encode_json(l, outputs)
+
+indent      = 4
+start_depth = 2
+def output_ddl(v, node, depth, output):
+        justify = "".ljust(indent * (start_depth + depth))
+        if node is not None and node != "":
+            node = f"`{node}`:" if depth > 1 else f"`{node}` "
+        o = []
+        if isinstance(v, dict):
+            prefix = f"{node}struct<\n{justify}" if node is not None else ""
+            keys = sorted(v.keys())
+            for k in keys:
+                output_ddl(v[k], k, depth + 1, o)
+            suffix = f">" if node is not None else ""
+            output.append(f"{prefix}%s{suffix}" % f",\n{justify}".join(o))
+        if isinstance(v, list):
+            prefix = f"{node}array<"
+            for l in v:
+                output_ddl(l, "", depth + 1, o)
+            output.append(f"{prefix}%s>" % f",\n{justify}".join(o))
+        if v == dict:
+            output.append(f"{node}struct<>")
+        if v == str:
+            output.append(f"{node}string")
+        if v == bool:
+            output.append(f"{node}boolean")
+        if v == int:
+            output.append(f"{node}bigint")
+        if v == float:
+            output.append(f"{node}float")
+        if v == datetime.datetime:
+            output.append(f"{node}timestamp")
+
+
+        
+document = {}
+process_documents(json_lines, document)
+output   = []
+output_ddl(document, None, 0, output)
+justify  = "".ljust(start_depth * indent)
+print(f"CREATE EXTERNAL TABLE {args.table_name} (")
+print(justify + "\n".join(output) + "\n)")
+if args.partitioned_by != "":
+    print(args.partitioned_by)
+print(f"{args.extra_ddl_parameter}")
+print(f"LOCATION '{args.location}';")
+

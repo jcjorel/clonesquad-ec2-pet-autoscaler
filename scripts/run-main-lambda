@@ -13,11 +13,12 @@ export CLONESQUAD_LOGLEVELS=${CLONESQUAD_LOGLEVELS:-"kvtable=INFO,notify=INFO,ta
 function on_exit() {
 	echo "Enable again Main Lambda function..."
 	echo 'override:app.disable: ""' | tools/cs-kvtable CloneSquad-$GroupName-Configuration import &>/dev/null
+	echo "Done."
 }
 trap on_exit EXIT
 
 echo "Disable Main Lambda function..."
 echo "override:app.disable: 1" | tools/cs-kvtable CloneSquad-$GroupName-Configuration import &>/dev/null
 
-.venv/bin/python3 src/app.py $*
+time .venv/bin/python3 src/app.py $*
 

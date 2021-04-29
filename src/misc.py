@@ -3,6 +3,7 @@ import sys
 import re
 import hashlib
 import json
+import yaml
 import math
 
 import gzip
@@ -18,6 +19,7 @@ from botocore.config import Config
 from datetime import datetime
 from datetime import timezone
 from datetime import timedelta
+import dateutil
 import requests
 from requests_file import FileAdapter
 from collections import defaultdict
@@ -98,6 +100,47 @@ def is_direct_launch():
 
 def utc_now():
     return datetime.now(tz=timezone.utc) # datetime.utcnow()
+
+def local_now(ctx):
+    timezones  = yaml.safe_load(get_url("internal:region-timezones.yaml"))
+    tz         = os.getenv("TimeZone") 
+    tz         = timezones.get(ctx["AWS_DEFAULT_REGION"]) if (tz is None or tz == "") else tz
+    tz         = tz if tz else "UTC"
+    return datetime.now(tz=dateutil.tz.gettz(tz))
+
+def athena_timestamp_format(date):
+    """ Return a timestamp with timezone
+    """
+    date_str = str(date).split("+")[0]
+    return f"{date_str} %s" % date.strftime("%Z")
+
+def stringify_timestamps(struct, utc_naive=True, athena_timestamp=False):
+    """ This function walkthough the 'struct' and stringify all datetime objects encountered
+        either with standard date + timezone format, UTC naive or an AWS Athena compatible one with TZ.
+    """
+    if isinstance(struct, dict):
+        for k in struct:
+            if isinstance(struct[k], dict) or isinstance(struct[k], list):
+                stringify_timestamps(struct[k], athena_timestamp=athena_timestamp)
+            elif isinstance(struct[k], datetime):
+                if utc_naive:
+                    struct[k] = str(struct[k]).split("+")[0]
+                elif athena_timestamp_format:
+                    struct[k] = str(struct[k])
+                else:
+                    struct[k] = athena_timestamp_format(struct[k])
+    if isinstance(struct, list):
+        for i in range(0, len(struct)):
+            if isinstance(struct[i], dict) or isinstance(struct[i], list):
+                stringify_timestamps(struct[i], athena_timestamp=athena_timestamp)
+            if isinstance(struct[i], datetime):
+                if utc_naive:
+                    struct[i] = str(struct[i]).split("+")[0]
+                elif athena_timestamp_format:
+                    struct[i] = str(struct[i])
+                else:
+                    struct[i] = athena_timestamp_format(struct[i])
+    return struct
 
 def epoch():
     return seconds2utc(0)
@@ -181,6 +224,24 @@ def Session():
     s.mount('file://', FileAdapter())
     return s
 
+def put_url(url, value):
+    # s3:// protocol management
+    if url.startswith("s3://"):
+        m = re.search("^s3://([-.\w]+)/(.*)", url)
+        if len(m.groups()) != 2:
+            return None
+        bucket, key = [m.group(1), m.group(2)]
+        key         = "/".join([p for p in key.split("/") if p != ""])
+        client = boto3.client("s3")
+        try:
+            response = client.put_object(Bucket=bucket, Key=key, Body=bytes(value,"utf-8"))
+            return True
+        except Exception as e:
+            log.warning(f"Failed to put data to S3 url '{url}' : {e}")
+            return False
+    log.warning(f"Unknown protocol '{url}' for put_url()")
+    return False
+
 def get_url(url, throw_exception_on_warning=False):
     def _warning(msg):
         if throw_exception_on_warning: 
@@ -218,6 +279,7 @@ def get_url(url, throw_exception_on_warning=False):
         if len(m.groups()) != 2:
             return None
         bucket, key = [m.group(1), m.group(2)]
+        key         = "/".join([p for p in key.split("/") if p != ""])
         client = boto3.client("s3")
         try:
             response = client.get_object(Bucket=bucket, Key=key)
@@ -345,15 +407,67 @@ def initialize_clients(clients, ctx):
             log.debug("Initialize client '%s'." % c)
             ctx[k] = boto3.client(c, config=config)
 
-def discovery(ctx):
+def discovery(ctx, via_discovery_lambda=False):
     """ Returns a discovery JSON dict of essential environment variables
     """
-    context = ctx.copy()
-    for k in ctx.keys():
-        if (k.startswith("AWS_") or k.startswith("_AWS_") or k.startswith("LAMBDA") or 
-                k.endswith("_SNSTopicArn") or
-                k in ["_HANDLER", "LD_LIBRARY_PATH", "LANG", "PATH", "TZ", "PYTHONPATH", "cwd", "FunctionName", "MainFunctionArn"] or 
-                not isinstance(context[k], str)):
-            del context[k]
-    return json.loads(json.dumps(context, default=str))
+    if via_discovery_lambda:
+        initialize_clients(["lambda"], ctx)
+        client     = ctx["lambda.client"]
+        group_name = ctx["GroupName"]
+        region     = ctx["AWS_DEFAULT_REGION"]
+        account_id = ctx["ACCOUNT_ID"]
+        log.info("Calling Discovery Lambda 'CloneSquad-Discovery-{group_name}'...")
+        response = client.invoke(
+            FunctionName=f"arn:aws:lambda:{region}:{account_id}:function:CloneSquad-Discovery-{group_name}",
+            InvocationType='RequestResponse',
+            LogType='None',
+            Payload=bytes('', "utf-8")
+        )
+        discovery = json.loads(str(response["Payload"].read(), "utf-8"))
+    else:
+        context = ctx.copy()
+        for k in ctx.keys():
+            if (k.startswith("AWS_") or k.startswith("_AWS_") or k.startswith("LAMBDA") or 
+                    k.endswith("_SNSTopicArn") or
+                    k in ["_HANDLER", "LD_LIBRARY_PATH", "LANG", "PATH", "TZ", "PYTHONPATH", "cwd", "FunctionName", "MainFunctionArn"] or 
+                    not isinstance(context[k], str)):
+                del context[k]
+        if "ACCOUNT_ID" in context:
+            context["AccountId"] = context["ACCOUNT_ID"]
+            del context["ACCOUNT_ID"]
+        if "CLONESQUAD_LOGLEVELS" in context:
+            context["LogLevels"] = context["CLONESQUAD_LOGLEVELS"]
+            del context["CLONESQUAD_LOGLEVELS"]
+
+        if context["TimeZone"] == "":
+            context["TimeZone"] = "UTC"
+
+        # Get additional information (if we have enough rights to do so)
+        try:
+            response = ctx["organizations.client"].describe_account(AccountId=context["AccountId"])
+            account = response["Account"]
+            for k in [k for k in account.keys() if k not in ["Id"]]:
+                context[f"Account{k}"] = account[k]
+        except Exception as e:
+            log.log(log.NOTICE, "Got exception while retrieving AWS Account details (IAM permission issue?) [It is a "
+                f"minor event and will be safely ignored]: {e}")
+
+        user_metadata = context["UserSuppliedJSONMetadata"]
+        try:
+            metadata = json.loads(user_metadata) if user_metadata != "" else {}
+            if isinstance(metadata, dict):
+                for k in metadata:
+                    context[f"X-{k}"] = metadata[k]
+            else:
+                log.warning(f"'UserSuppliedJSONMetadata' CloudFormation template parameter must be a JSON dict! Ignoring supplied data...")
+        except Exception as e:
+            log.warning(f"Can not parse 'UserSuppliedJSONMetadata' CloudFormation template parameter as valid JSON document: {e}")
+        discovery = json.loads(json.dumps(context, default=str))
+
+    # Convert back some fields to date objects
+    discovery["InstallTime"]                = str2utc(str(discovery["InstallTime"]))
+    if "AccountJoinedTimestamp" in discovery:
+        discovery["AccountJoinedTimestamp"] = str2utc(str(discovery["AccountJoinedTimestamp"]))
+
+    return discovery
 

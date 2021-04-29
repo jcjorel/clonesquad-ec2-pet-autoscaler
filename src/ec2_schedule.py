@@ -98,13 +98,15 @@ system issues.
                  """
                  },
                  "ec2.schedule.desired_instance_count,Stable" : {
-                     "DefaultValue" : -1,
+                     "DefaultValue" : "undefined",
                      "Format"       : "IntegerOrPercentage", 
-                     "Description"  : """If set to -1, the autoscaler controls freely the number of running instances. Set to a value different than -1,
+                     "Description"  : """If set to `-1`, the autoscaler controls freely the number of running instances. Set to a value different than `-1`,
 the autoscaler is disabled and this value defines the number of serving (=running & healthy) instances to maintain at all time.
 The [`ec2.schedule.min_instance_count`](#ec2schedulemin_instance_count) is still authoritative and the 
 [`ec2.schedule.desired_instance_count`](#ec2scheduledesired_instance_count) parameter cannot bring
 the serving fleet size below this hard lower limit. 
+
+By default, the value is the string `undefined` meaning that the autoscaler is disabled.
 
 A typical usage for this key is to set it to `100%` to temporarily force all the instances to run at the same time to perform mutable maintenance
 (System and/or SW patching).
@@ -120,17 +122,6 @@ at its maximum size in a stable manner (i.e. even if there are impaired/unhealth
                  "ec2.schedule.state_ttl" : "hours=2",
                  "ec2.schedule.base_points" : 1000,
                  "ec2.schedule.assume_cpu_exhausted_burstable_instances_as_unuseable": "0",
-                 "ec2.schedule.disable,Stable": {
-                    "DefaultValue" : 0,
-                    "Format"        : "Bool",
-                    "Description"   : """Disable all scale or automations algorithm in the Main fleet. 
-
-Setting this parameter to '1' disables all scaling and automation algorithms in the Main fleet. While set, all Main fleet instances can be freely started 
-and stopped by the users without CloneSquad trying to manage them. 
-
-Note: It is semantically similar to the value `undefined` in subfleet configuration key [`subfleet.{SubfleetName}.state`](#subfleetsubfleetnamestate).
-                    """
-                 },
                  "ec2.schedule.scaleout.disable,Stable": {
                      "DefaultValue" : 0,
                     "Format"        : "Bool",
@@ -295,17 +286,6 @@ This delay is meant to let new instances to succeed their initialization.
 If an application takes a long time to be ready, it can be useful to increase this value.
                  """
                  },
-                 #"ec2.schedule.burstable_instance.max_cpu_credit_unhealthy_instances,Stable" : {
-                 #    "DefaultValue" : "1",
-                 #    "Format"       : "IntegerOrPercentage",
-                 #    "Description"  : """Maximum number of instances that could be considered, at a given time, as unhealthy because their CPU credit is exhausted.
-                 #
-                 # * Setting this parameter to `100%` will indicate that all burstable instances could marked as unhealthy at the same time.
-                 # * Setting this parameter to `0` will completely disable the ability to consider burstable instances as unhealthy. 
-
-                 # > To prevent a DDoS, burstable instances with exhausted CPU Credit balance are NOT marked as unhealthy when len(stopped_instance) - (ec2.scheduler.min_instance_count) <= 0.
-                 #    """
-                 #},
                  "ec2.schedule.burstable_instance.max_cpu_crediting_instances,Stable" : {
                      "DefaultValue" : "50%",
                      "Format"       : "IntegerOrPercentage",
@@ -667,6 +647,23 @@ By default, the dashboard is enabled.
     #### UTILITY FUNCTIONS ########################
     ###############################################
 
+    def is_mainfleet_enabled(self, meta=None):
+        desired_instance_count_str = Cfg.get("ec2.schedule.desired_instance_count")
+        if desired_instance_count_str in ["undefined", ""]:
+            if meta is not None:
+                meta["Message"] = "All scheduling activities disabled in Main fleet as 'ec2.schedule.desired_instance_count' is set to value 'undefined'."
+            return False
+        desired_instance_count = self.desired_instance_count()
+        if (desired_instance_count < 0 and desired_instance_count != -1):
+            if meta is not None:
+                meta["Message"] = (f"Can not parse 'ec2.schedule.desired_instance_count' parameter value ('{desired_instance_count_str}') "
+                        "as an Integer equals to '-1', '>= 0' or a valid pourcentage: All scaling activities disabled in Main fleet until "
+                        "supplied value is remediated!")
+            return False
+        if meta is not None:
+            meta["Message"] = "Main fleet scaling enabled."
+        return True
+
     def get_min_instance_count(self):
         """ Return the minimum instance count linked to 'ec2.schedule.min_instance_count'.
         Especially, it converts percentage into an absolute number.
@@ -680,10 +677,10 @@ By default, the dashboard is enabled.
         """ Return the desired instance count linked in 'ec2.schedule.desired_instance_count'.
         Especially, it converts percentage into an absolute number.
 
-        :return An integer (number of instances
+        :return An integer (number of instances)
         """
         instances = self.all_main_fleet_instances 
-        return Cfg.get_abs_or_percent("ec2.schedule.desired_instance_count", -1, len(instances))
+        return Cfg.get_abs_or_percent("ec2.schedule.desired_instance_count", -2, len(instances))
 
     def get_ready_for_operation_timeouted_instances(self):
         """ Return a list of instance ids that spent too much time in 'initializing' time.
@@ -729,7 +726,6 @@ By default, the dashboard is enabled.
             - Instances that have EC2 status as 'impaired' or 'unhealthy',
             - Instances that have been AZ evicted (either manually or autoamtically due to AWS signalling an AZ is unavailable),
             - Spot instances are signaled and 'rebalance recommended' or 'interrupted',
-            - Burstable instances that have CPU Credit exhausted.
         :return A list if instance ids
         """
         active_instances        = self.pending_running_instances
@@ -748,21 +744,6 @@ By default, the dashboard is enabled.
             instance = self.ec2.get_instance_by_id(i)
             if instance["State"]["Name"] == "running" and i not in instances_with_issue_ids:
                 instances_with_issue_ids.append(i)
-
-        #if Cfg.get_int("ec2.schedule.assume_cpu_exhausted_burstable_instances_as_unuseable"):
-            # CPU credit "issues"
-        #    exhausted_cpu_instances = sorted([ i["InstanceId"] for i in self.cpu_exhausted_instances])
-        #    all_instances           = self.all_instances
-        #    max_i                   = len(all_instances)
-        #    for i in exhausted_cpu_instances:
-        #        if max_i <= 0:
-        #            break
-        #        if i in instances_with_issue_ids:
-        #            continue
-        #        if self.ssm.is_maintenance_time(fleet=self.o_ec2.get_subfleet_name_for_instance(i)):
-        #            continue
-        #        instances_with_issue_ids.append(i)
-        #        max_i -= 1
 
         # Add faulty instances that go beyond their time for 'ready_for_operation' and 'ready_for_shutdown' event
         instances_with_issue_ids.extend([i for i in self.ready_for_operation_timeouted_instances if i not in instances_with_issue_ids])
@@ -892,12 +873,17 @@ By default, the dashboard is enabled.
         """
         self.generate_instance_transition_events()
         self.manage_spot_events()
-        if not Cfg.get_int("ec2.schedule.disable"):
+
+        meta = {}
+        if self.is_mainfleet_enabled(meta=meta):
             self.shelve_extra_lighthouse_instances()
             self.scale_desired()
             self.scale_bounce()
             self.scale_bounce_instances_with_issues()
             self.scale_in_out()
+        else:
+            log.info(meta["Message"])
+
         self.wakeup_burstable_instances()
         self.manage_excluded_instances()
         self.manage_subfleets()
@@ -1005,10 +991,7 @@ By default, the dashboard is enabled.
         cw.set_metric("NbOfInstanceInInitialState", len(self.get_initial_instances()) if fl_size > 0 else None)
         cw.set_metric("NbOfInstanceInUnuseableState", len(instances_with_issues) if fl_size > 0 else None)
         cw.set_metric("NbOfCPUCreditExhaustedInstances", len(exhausted_cpu_credits) if fl_size > 0 else None)
-        if self.ssm.is_feature_enabled("maintenance_window") and fl_size > 0:
-            cw.set_metric("SSM.MaintenanceWindow", self.ssm.is_maintenance_time(fleet=None))
-        else:
-            cw.set_metric("SSM.MaintenanceWindow", None)
+        cw.set_metric("SSM.MaintenanceWindow", self.ssm.is_maintenance_time(fleet=None) if fl_size > 0 else None)
         subfleet_count = len(subfleet_instances)
         # Send metrics only if there are fleet instances
         cw.set_metric("Subfleet.EC2.Size", len(subfleet_instances) if subfleet_count else None)

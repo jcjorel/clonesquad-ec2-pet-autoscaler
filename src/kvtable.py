@@ -3,6 +3,8 @@ import pdb
 import re
 import misc
 import json
+import yaml
+import time
 from datetime import datetime
 from datetime import timedelta
 from collections import defaultdict
@@ -14,6 +16,7 @@ from aws_xray_sdk.core import xray_recorder
 from aws_xray_sdk.core import patch_all
 patch_all()
 
+import logging
 import cslog
 log = cslog.logger(__name__)
 
@@ -168,6 +171,9 @@ class KVTable():
 
 
     def register_aggregates(self, aggregate):
+        for a in aggregate:
+            if not a["Prefix"].endswith("."):
+                raise Exception(f"Prefix must end with '.' : {a}")
         self.aggregates.extend(aggregate)
 
     def is_aggregated_key(self, key):
@@ -227,10 +233,10 @@ class KVTable():
 
     def persist_aggregates():
         global all_kv_objects
-        seconds_from_epoch = misc.seconds_from_epoch_utc()
         for t in all_kv_objects:
             if t.table_cache is None or not t.is_kv_table or len(t.aggregates) == 0:
                 continue
+            seconds_from_epoch = misc.seconds_from_epoch_utc(now=t.context["now"])
             log.debug("Persisting aggregates for KV table '%s'..." % t.table_name)
             xray_recorder.begin_subsegment("persist_aggregates.%s" % t.table_name)
             for aggregate in t.aggregates:
@@ -239,16 +245,18 @@ class KVTable():
                 compress   = aggregate["Compress"] if "Compress" in aggregate else False
                 prefix     = aggregate["Prefix"]
                 t._safe_key_import(serialized, aggregate, t.table_cache)
-                for i in serialized:
-                    ttl = max(ttl, i["ExpirationTime"] - seconds_from_epoch) if "ExpirationTime" in i else ttl
-                if len(serialized) == 0: 
-                    ttl = aggregate["DefaultTTL"]
-                if log.level == log.DEBUG:
-                    log.log(log.NOTICE, "Delta between aggregate '%s' in DynamoDB and the new one:" % prefix)
-                    #if misc.encode_json(serialized, compress=compress) == t.get_kv(prefix): pdb.set_trace()
-                    if KVTable.compare_kv_list(serialized, misc.decode_json(t.get_kv(prefix))) == 0: pass #pdb.set_trace()
-                    log.log(log.NOTICE, "Delta end.")
-                t.set_kv(prefix, misc.encode_json(serialized, compress=compress), TTL=ttl)
+                if len(serialized) == 0:
+                    t.set_kv(prefix, "") # Delete an aggregate holding no key
+                else:
+                    for i in serialized:
+                        ttl = max(ttl, i["ExpirationTime"] - seconds_from_epoch) if "ExpirationTime" in i else ttl
+                    ttl = max(ttl, aggregate["DefaultTTL"])
+                    if log.level == log.DEBUG:
+                        log.log(log.NOTICE, "Delta between aggregate '%s' in DynamoDB and the new one:" % prefix)
+                        #if misc.encode_json(serialized, compress=compress) == t.get_kv(prefix): pdb.set_trace()
+                        if KVTable.compare_kv_list(serialized, misc.decode_json(t.get_kv(prefix))) == 0: pass #pdb.set_trace()
+                        log.log(log.NOTICE, "Delta end.")
+                    t.set_kv(prefix, misc.encode_json(serialized, compress=compress), TTL=ttl)
             if t.table_cache_dirty:
                 t.set_kv("cache.last_write_index", t.context["now"], TTL=0)
             xray_recorder.end_subsegment()
@@ -275,7 +283,8 @@ class KVTable():
     def get_dict(self):
         return self.dict_struct
 
-    def set_dict(self, d, TTL=None):
+    def set_dict(self, d, TTL=None, clean_stale_keys=False):
+        previous_state_dict = self.get_dict()
         for k in d:
             v = d[k]
             if isinstance(v, dict):
@@ -283,8 +292,17 @@ class KVTable():
                     self.set_kv(i, v[i], partition=k, TTL=TTL)
             else:
                 self.set_kv(k, v, TTL=TTL)
-
-            
+        # Clean keys existing in the DynamoDB table and no more in the new one
+        if clean_stale_keys:
+            for k in previous_state_dict:
+                v = previous_state_dict[k]
+                if isinstance(v, dict):
+                    for i in v:
+                        if k not in d or i not in d[k]:
+                            self.set_kv(i, "", partition=k)
+                else:
+                    if k not in d:
+                        self.set_kv(k, "")
 
     def get_keys(self, prefix=None, partition=None):
         def _enum(dt):
@@ -371,7 +389,7 @@ class KVTable():
                 'ExpirationTime' : {
                     'N': str(expiration_time)
                 }})
-            log.log(log.NOTICE, f"DynamoDB({table_name}): Writing key '{key}' (TTL={TTL}, size=%s)" % len(str(value)))
+            log.log(log.NOTICE, f"DynamoDB({table_name}): Writing key '%s' (TTL={TTL}, size=%s)" % (key, len(str(value))))
 
             response = client.put_item(
                 TableName=table_name,
@@ -392,8 +410,9 @@ class KVTable():
         return item["Value"]
 
     def set_kv(self, key, value, partition=None, TTL=None):
-        now    = self.context["now"]
-        client = self.context["dynamodb.client"]
+        now      = self.context["now"]
+        now_secs = misc.seconds_from_epoch_utc(now=now)
+        client   = self.context["dynamodb.client"]
         if TTL is None:
             ttl = 0
         else:
@@ -406,12 +425,14 @@ class KVTable():
         #   expiration time
         if self.table_cache is not None:
             item = self.get_item(key, partition=partition)
-            now  = self.context["now"]
-            if (item is not None and "ExpirationTime" in item and 
-                    item["Value"] == str(value) and 
-                    (misc.seconds_from_epoch_utc() + (ttl/2) ) < int(item["ExpirationTime"])):
-                log.debug("KVtable: Optimized write to '%s' with value '%s'" % (k, value))
-                return
+            if item is not None and "ExpirationTime" in item and item["Value"] == str(value):
+                delta = int(item["ExpirationTime"]) - now_secs
+                if delta > ttl/2:
+                    log.debug(f"KVtable: Optimized write to '{k}' with value '{value}'")
+                    return
+                else:
+                    log.debug(f"KVtable: Key {k} needs refresh (TTL passed mid-life)")
+                    # Fall through...
 
         if not self.is_aggregated_key(k):
             KVTable.set_kv_direct(k, value, self.table_name, TTL=ttl, context=self.context)
@@ -419,12 +440,12 @@ class KVTable():
         # Update cache
         if self.table_cache is None: # KV_Table not yet initialized
             return
-        expiration_time = misc.seconds_from_epoch_utc(now=now) + ttl
+        expiration_time = now_secs + ttl
         new_item = {
                 "Key": k,
                 "Value": str(value),
                 "ExpirationTime": int(expiration_time)
-                 }
+            }
 
         if item is not None:
             if str(value) == "":
@@ -436,5 +457,56 @@ class KVTable():
 
         # Rebuild the dict representation
         self._build_dict()
+
+    def export_to_s3(self, url, suffix, prefix="", athena_search_format=False):
+        account_id = self.context["ACCOUNT_ID"]
+        region     = self.context["AWS_DEFAULT_REGION"]
+        group_name = self.context["GroupName"]
+        now        = self.context["now"]
+        path       = (f"{url}/accountid={account_id}/region={region}/groupname={group_name}/"
+                         f"{prefix}{account_id}-{region}-{suffix}-cs-{group_name}")
+        if not athena_search_format:
+            misc.put_url(f"{path}.yaml", yaml.dump(self.get_dict()))
+        else:
+            dump = []
+            for k in self.get_keys():
+                item = {
+                    "Key": k,
+                    "Value": self.get_kv(k),
+                    "MetadataRecordLastUpdatedAt": now
+                }
+                dump.append(json.dumps(item, default=str))
+            misc.put_url(f"{path}.json", "\n".join(dump))
+                
+# Debug purpose (but we still need unit tests!)
+if __name__ == '__main__':
+    log.setLevel(logging.DEBUG)
+    log.ch.setLevel(logging.DEBUG)
+    from aws_xray_sdk import global_sdk_config
+    global_sdk_config.set_sdk_enabled(False)
+    ctx = {
+        "now": misc.utc_now(),
+        "dynamodb.client": boto3.client("dynamodb")
+    }
+    while True:
+        log.info("Virtual time: %s" % ctx["now"])
+        table = KVTable(ctx, "CloneSquad-test-State")
+        log.info("Loaded table...")
+        table.register_aggregates([
+            {
+            "Prefix": "unit.tests.aggregates.",
+            "Compress": True,
+            "DefaultTTL": 30,
+            "Exclude" : []
+            },
+        ])
+        table.reread_table()
+        pdb.set_trace() # Debug
+        log.info("Before: %s" % table.get_kv("unit.tests.aggregates.test1", TTL=30))
+        table.set_kv("unit.tests.aggregates.test1", "Hello the world!", TTL=30)
+        log.info("After: %s" % table.get_kv("unit.tests.aggregates.test1", TTL=30))
+        KVTable.persist_aggregates()
+        time.sleep(1)
+        ctx["now"] = ctx["now"] + timedelta(seconds=5) # Simulate 5 second move forward
 
 

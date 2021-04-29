@@ -70,6 +70,32 @@ VpcId.
 	- *Note: Comas MUST be backslashed!*
 
 
+## `UserSuppliedJSONMetadata`
+
+**Required: No**   
+**Format: String**
+
+	UserSuppliedJSONMetadata={"Hello": "the", "world": "!!"}
+
+This JSON snippet only purpose is to be forwarded and stored in the AWS Athena `clonesquad_discovery` table (see [discovery metadata](BACKUP_AND_METADATA.md)).
+
+Typical usage for this parameter is to add user specific data that would be queriable in the CloneSquad centralized CMDB.
+
+
+## `MetadataAndBackupS3Path`
+
+**Required: No**   
+**Format: String**
+
+	MetadataAndBackupS3Path=s3://<bucketname>/<directorypath>
+
+S3 location where to send [configuration backups and metadata](BACKUP_AND_METADATA.md).
+
+These data are generated on-demand (through the [API Gateway](INTERACTING.md#api-backup)) or periodically with a [cron setting](CONFIGURATION_REFERENCE.md#cronbackup).
+
+> Note: **Setting this parameter enables automatically an hourly backup and metadata generation**. Please [see documentation](BACKUP_AND_METADATA.md) if this behavior needs to be modified.
+
+
 ## `LoggingS3Path`
 
 **Required: No**   
@@ -77,10 +103,9 @@ VpcId.
 
 	LoggingS3Path=s3://<bucketname>/<objectpath>
 
-Location where to send Debug reports.
+S3 location where to send Debug reports.
 
 When specified, on critical error (ex: Python exception), CloneSquad will generate a debug report as a Zip file that will be pushed in this S3 path.
-
 
 ## `UserNotificationArns`
 
@@ -161,6 +186,32 @@ Ex: Activate maximum verbosity of logs in all modules.
 **Format: ARN string**
 
 Specify an optional IAM policy ARN as boundary for all roles created by the CloudFormation template.
+
+## `InteractSQSQueueIAMPolicy`
+
+**Required: No**   
+**Format: JSON document**
+
+Specify an optional IAM policy condition in the IAM policy protecting the InteractSQSQueue. This queue is used to acknowledge Events sent to
+targets listed in [`UserNotificationArns`](UserNotificationArns).
+
+By defaut, only current AWS Account principals are allowed to send a message to this queue. This parameter allows to define
+`Principal:` and `Condition:` statements to restrict these default accesses.
+
+As an example, this JSON document can be inlined in this parameter to allow access to any account in the AWS Organization Id named `o-xxxxxxxxxx`:
+
+```json
+{"Principal":{"AWS":"*"},"Condition":{"StringEquals":{"aws:PrincipalOrgID":"o-xxxxxxxxxx"}}}
+```
+
+
+## `EBSVolumeKMSKeys`
+
+**Required: No**   
+**Format: Coma separated list of KMS key ARNs**
+
+By default, CloneSquad Lambda functions have access to all KMS Keys in order to start any EC2 instances with an EBS encrypted volume.
+Setting this value with a coma-separated list of KMS key ARNs will restrict these broad access to the listed keys only.
 
 
 

@@ -69,6 +69,7 @@ def fix_sam_bugs():
         ctx["AWS_LAMBDA_LOG_GROUP_NAME"] = "/aws/lambda/CloneSquad-Main-%s" % ctx["GroupName"]
         ctx["SSMLogGroup"] = "/aws/lambda/CloneSquad-SSM-%s" % ctx["GroupName"]
         ctx["CloneSquadVersion"] = "--Development--"
+        ctx["InstallTime"] = str(misc.utc_now())
 
 
 # Special treatment while started from SMA invoke loval
@@ -80,7 +81,7 @@ if misc.is_sam_local() or __name__ == '__main__':
 
 # Avoid client initialization time during event processsing
 misc.initialize_clients(["ec2", "cloudwatch", "events", "sqs", "sns", "dynamodb",  "ssm", "lambda",
-    "elbv2", "rds", "resourcegroupstaggingapi", "transfer"], ctx)
+    "elbv2", "rds", "resourcegroupstaggingapi", "transfer", "organizations"], ctx)
 log.debug("End of preambule.")
 
 @xray_recorder.capture(name="app.init")
@@ -166,7 +167,7 @@ def main_handler_entrypoint(event, context):
     ctx["FunctionName"] = "Main"
 
     init()
-
+    
     if Cfg.get_int("app.disable") != 0 and not misc.is_sam_local():
         log.warning("Application disabled due to 'app.disable' key")
         return
@@ -174,7 +175,7 @@ def main_handler_entrypoint(event, context):
     no_is_called_too_early = False
     # Manage Spot interruption as fast as we can
     if sqs.process_sqs_records(ctx, event, function=ec2.manage_spot_notification, function_arg=ctx):
-        log.info("Managed Spot Interruption SQS record!")
+        log.info("Managed EC2 Spot notification SQS record!")
         # Force to run now disregarding `app.run_period` as we have at least one Spot instance to 
         #   remove from target groups immediatly
         no_is_called_too_early = True
@@ -244,7 +245,7 @@ def main_handler_entrypoint(event, context):
     #issues = ctx["o_ec2_schedule"].get_instances_with_issues()
     #if False and len(issues):
     #    do_stop = False
-    #    pdb.set_trace()
+    #    pdb.set_trace() # Debug
     #    issues = ctx["o_ec2_schedule"].get_instances_with_issues()
     #    if do_stop:
     #        ctx["o_ec2"].stop_instances(issues)
@@ -312,7 +313,7 @@ def discovery_handler(event, context):
     log.info("Processing start (version=%s)" % (ctx.get("CloneSquadVersion")))
     discovery = misc.discovery(ctx)
     log.debug(discovery)
-    return discovery
+    return json.loads(json.dumps(discovery, default=str))
 
 def interact_handler(event, context):
     log.log(log.NOTICE, "Handler start.")
