@@ -1,8 +1,9 @@
-v0.20.0(not yet released):
+v0.20.0:
 - (Improvment/Major) Added 'Metadata and Backup export to S3' feature (with CMDB-like feature). 
 - (Improvment/Major) COMPATIBILITY BREACH: `ec2.schedule.desired_instance_count` default value is now `undefined` (instead of `-1`) meaning all scaling activities are now disabled by default (Change implemented to make reliable CloneSquad reinstall use-case and align Main fleet with Subfleet management behaviors).
 - (Improvment/Major) SSM Maintenance Window objects can now be tagged with 'clonesquad:config:disable-default-configuration' to inhibit the default behavior of launching all the fleet instances during a maintenance period. (All others characteritics of Maintenance Window remain the same. see docs/SSM.md).
 - (Improvment/Minor) Sample Notification Lambda (see examples/sam-sample-lambda/) can now send Notification Acks to an Interact SQS queue in another region.
+- (Improvment/Minor) API 'configuration' and 'scheduler' offer now a 'restore' mode: In 'restore' mode, the uploaded configuration is not merged but fully replace the existing DynamoDB content.
 - (Bug/Major) Regression since v0.18.0: Some notifications may not be sent as expected.
 - (Bug/Major) Give KMS rights to the Main Lambda to allow start of EC2 instances with encrypted volumes. Added 'EBSVolumeKMSKeys' parameters to restrict access to specific KMS keys.
 - (Bug/Major) Fixed incorrect SQS Policy protecting the InteractSQSQueue (Was forbidding other AWS account principals to perform sqs:SendMessage). Added parameter `InteractSQSQueueIAMPolicy` to define precisely which AWS Principal can connect (see docs/DEPLOYMENT_REFERENCE.md).

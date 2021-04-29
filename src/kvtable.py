@@ -283,7 +283,8 @@ class KVTable():
     def get_dict(self):
         return self.dict_struct
 
-    def set_dict(self, d, TTL=None):
+    def set_dict(self, d, TTL=None, clean_stale_keys=False):
+        previous_state_dict = self.get_dict()
         for k in d:
             v = d[k]
             if isinstance(v, dict):
@@ -291,8 +292,17 @@ class KVTable():
                     self.set_kv(i, v[i], partition=k, TTL=TTL)
             else:
                 self.set_kv(k, v, TTL=TTL)
-
-            
+        # Clean keys existing in the DynamoDB table and no more in the new one
+        if clean_stale_keys:
+            for k in previous_state_dict:
+                v = previous_state_dict[k]
+                if isinstance(v, dict):
+                    for i in v:
+                        if k not in d or i not in d[k]:
+                            self.set_kv(i, "", partition=k)
+                else:
+                    if k not in d:
+                        self.set_kv(k, "")
 
     def get_keys(self, prefix=None, partition=None):
         def _enum(dt):

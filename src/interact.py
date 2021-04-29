@@ -395,6 +395,7 @@ class Interact:
         response["statusCode"] = 200
         is_yaml                 = "format" in event and event["format"].lower() == "yaml"
         with_maintenance_window = "with_maintenance_window" in event and event["with_maintenance_window"].lower() == "true"
+        restore_mode            = "restore" in event and event["restore"].lower() == "true"
         if with_maintenance_window:
             # We load the EC2 and SSM modules to inherit their override parameters if a SSM Maintenance Window is active
             misc.load_prerequisites(self.context, ["o_ec2", "o_ssm"])
@@ -402,7 +403,7 @@ class Interact:
         if "httpMethod" in event and event["httpMethod"] == "POST":
             try:
                 c = yaml.safe_load(event["body"]) if is_yaml else json.loads(event["body"])
-                Cfg.import_dict(c)
+                Cfg.import_dict(c, clean_stale_keys=restore_mode)
                 response["body"] = "Ok (%d key(s) processed)" % len(c.keys())
             except Exception as e:
                 response["statusCode"] = 500
@@ -450,12 +451,13 @@ class Interact:
     def scheduler_dump(self, context, event, response, cacheddata):
         scheduler_table = kvtable.KVTable(self.context, self.context["SchedulerTable"])
         scheduler_table.reread_table()
-        is_yaml = "format" in event and event["format"] == "yaml"
+        is_yaml      = "format" in event and event["format"].lower() == "yaml"
+        restore_mode = "restore" in event and event["restore"].lower() == "true"
         response["statusCode"] = 200
         if "httpMethod" in event and event["httpMethod"] == "POST":
             try:
                 c = yaml.safe_load(event["body"]) if is_yaml else json.loads(event["body"])
-                scheduler_table.set_dict(c)
+                scheduler_table.set_dict(c, clean_stale_keys=restore_mode)
                 response["body"] = "Ok (%d key(s) processed)" % len(c.keys())
             except Exception as e:
                 response["statusCode"] = 500

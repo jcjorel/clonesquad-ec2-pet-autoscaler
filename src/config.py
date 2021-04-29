@@ -349,9 +349,9 @@ def get_direct_from_kv(key, default=None):
     v = t.get_kv(key, direct=True)
     return v if not None else default
 
-def import_dict(c):
+def import_dict(c, clean_stale_keys=False):
     t = _init["configuration_table"]
-    t.set_dict(c)
+    t.set_dict(c, clean_stale_keys=clean_stale_keys)
 
 def get_dict():
     t = _init["configuration_table"]
