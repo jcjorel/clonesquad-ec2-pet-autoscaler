@@ -58,12 +58,12 @@ Parameters:
 
   ApiGWConfiguration:
     Type: String
-    Default: ""
+    Default: "None"
     Description: "(Optional) API Gateway configuration."
 
   ApiGWEndpointConfiguration:
     Type: String
-    Default: ""
+    Default: "None"
     Description: "(Optional) API Gateway VPC endpoint configuration."
 
   DynamoDBConfiguration:
@@ -105,7 +105,10 @@ Parameters:
 
 Conditions:
     HasCustomizationZipParameters:         !Not [ !Equals [ !Ref CustomizationZipParameters, ""]]
-    HasApiGWEndpointConfiguration:         !Not [ !Equals [ !Ref ApiGWEndpointConfiguration, ""]]
+    HasApiGWEndpointConfiguration:         !And [
+            !Not [ !Equals [ !Ref ApiGWEndpointConfiguration, ""]],
+            !Not [ !Equals [ !Ref ApiGWEndpointConfiguration, "None"]]
+            ]
     HasPermissionsBoundary:                !Not [ !Equals [ !Ref PermissionsBoundary, ""]]
     HasEBSVolumeKMSKeys:                   !Not [ !Equals [ !Join ["", !Ref EBSVolumeKMSKeys], ""]]
 
@@ -560,6 +563,7 @@ Resources:
               ServiceToken: !GetAtt CustomResourceFunction.Arn
               Helper: ApiGWParameters
               AccountId: !Ref AWS::AccountId
+              GroupName: !Ref GroupName
               Region: !Ref AWS::Region
               CloneSquadVersion: "--Development--"
               ApiGWConfiguration: !Ref ApiGWConfiguration

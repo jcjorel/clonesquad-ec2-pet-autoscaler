@@ -1,3 +1,7 @@
+v0.20.1:
+- (Bug/Minor) Fixed semantic for PRIVATE APIGW deployment. It is now possible to propagate the VPCEndpoint to use through the Discovery Lambda by guessing it from VpcId parameter.
+Note: Compared to v0.20.0, only the CloudFormation custom resource used at deployment time is updated; Main/Interact/Discovery Lambdas are identitical.
+
 v0.20.0:
 - (Improvment/Major) Added 'Metadata and Backup export to S3' feature (with CMDB-like feature). 
 - (Improvment/Major) COMPATIBILITY BREACH: `ec2.schedule.desired_instance_count` default value is now `undefined` (instead of `-1`) meaning all scaling activities are now disabled by default (Change implemented to make reliable CloneSquad reinstall use-case and align Main fleet with Subfleet management behaviors).

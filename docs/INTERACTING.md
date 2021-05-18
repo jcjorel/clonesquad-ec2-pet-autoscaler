@@ -234,6 +234,8 @@ knows that it can't start now. Ex: Instance in `error`or `spot interrupted`).
 		"LongTermEventTable": "CloneSquad-test-EventLog-LongTerm",
 		"SchedulerTable": "CloneSquad-test-Scheduler",
 		"StateTable": "CloneSquad-test-State",
+		"ApiGwVpcEndpointDNSEntry": "vpce-0xxxxxxxxxxxxxxxx-yyyyyyyy.execute-api.eu-west-3.vpce.amazonaws.com",
+		...
 		"LoggingS3Path": "s3://my-clonesquad-logging-bucketname/reports/"
 	    },
 	    "identity": {

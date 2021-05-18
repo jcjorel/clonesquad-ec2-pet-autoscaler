@@ -120,9 +120,9 @@ def ApiGWVpcEndpointParameters_CreateOrUpdate(data, CloneSquadVersion=None, Acco
     data["SubnetIds"] = subnet_ids
 
     # PrivateDnsEnabled
-    data["PrivateDnsEnabled"] = True
+    data["PrivateDnsEnabled"] = False
     if "PrivateDnsEnabled" in edp:
-        data["PrivateDnsEnabled"] = bool(edp["PrivateDnsEnabled"])
+        data["PrivateDnsEnabled"] = edp["PrivateDnsEnabled"].lower() == "true"
         del edp["PrivateDnsEnabled"]
 
     # Security group for VPC Endpoint
@@ -139,16 +139,67 @@ def ApiGWVpcEndpointParameters_CreateOrUpdate(data, CloneSquadVersion=None, Acco
     if len(edp.keys()):
         raise ValueError("Unknown keywords in ApiGWVpcEndpointParameters '%s'!" % edp.keys())
 
+def get_apigw_vpc_endpoint(vpc_id, group_name, region):
+    try:
+        client   = boto3.client("ec2")
+        response = client.describe_vpc_endpoints(Filters=[
+            {
+                'Name': 'vpc-id',
+                'Values': [vpc_id]
+            },
+            {
+                'Name': 'service-name',
+                'Values': [f'com.amazonaws.{region}.execute-api']
+            },
+            {
+                'Name': 'vpc-endpoint-type',
+                'Values': ['Interface']
+            }
+            ])
+    except Exception as e:
+        raise ValueError(f"Failed to query VPC endpoints associated to VPC Id '{vpc_id}' : {e}")
 
-def ApiGWParameters_CreateOrUpdate(data, CloneSquadVersion=None, AccountId=None, Region=None, Dummy=None,
+    endpoints = [e for e in response["VpcEndpoints"] if e != "Available"]
+    log.info(f"Detected available API Gateway endpoints: {endpoints}")
+
+    # Select endpoints with a strategy that is open enough to serve the Interact API
+    specific_endpoints = []
+    generic_endpoints  = []
+    for e in endpoints:
+        tags    = e.get("Tags", [])
+        if len([t for t in tags if t["Key"] == "clonesquad:preferred-vpc-endpoint" and t["Value"] == "*"]):
+            specific_endpoints.append(e)
+        if len([t for t in tags if t["Key"] == "clonesquad:preferred-vpc-endpoint" and t["Value"] == group_name]):
+            generic_endpoints.append(e)
+
+    if len(specific_endpoints) > 1:
+        raise ValueError(f"Too much VPC endpoints tagged with 'clonesquad:preferred-vpc-endpoint' with value '{group_name}'")
+    if len(specific_endpoints) == 1:
+        log.info(f"Found a groupname specific endpoint {specific_endpoints[0]}.")
+        return specific_endpoints[0]
+    if len(generic_endpoints) > 1:
+        raise ValueError(f"Too much VPC endpoints tagged with 'clonesquad:preferred-vpc-endpoint' with value '*'")
+    if len(generic_endpoints) == 1:
+        log.info(f"Found a generic endpoint {generic_endpoints[0]}.")
+        return generic_endpoints[0]
+    if len(endpoints) > 1:
+        raise ValueError(f"Too much VPC endpoints without 'clonesquad:preferred-vpc-endpoint' tag.")
+    if len(endpoints) == 1:
+        log.info(f"As default, selected endpoint {endpoints[0]}.")
+        return endpoints[0]
+    raise ValueError(f"No suitable VPC API-GW/execute-api endpoint found!")
+
+def ApiGWParameters_CreateOrUpdate(data, CloneSquadVersion=None, AccountId=None, Region=None, GroupName=None,
         ApiGWConfiguration=None, ApiGWEndpointConfiguration=None, DefaultGWPolicyURL=None):
-    data["GWType"]   = "REGIONAL"
-    data["GWPolicy"] = get_policy_content(DefaultGWPolicyURL, AccountId, Region)
+    data["GWType"]         = "REGIONAL"
+    data["GWPolicy"]       = get_policy_content(DefaultGWPolicyURL, AccountId, Region)
     data["VpcEndpointDNS"] = ""
-    config           = misc.parse_line_as_list_of_dict(ApiGWConfiguration, leading_keyname="GWType")
-    if len(config): data.update(config[0])
+    config                 = []
+    if ApiGWConfiguration != "None":
+        config           = misc.parse_line_as_list_of_dict(ApiGWConfiguration, leading_keyname="GWType")
+        if len(config): data.update(config[0])
 
-    CONFIG_KEYS = ["GWPolicy", "GWType", "VpcEndpointDNS"]
+    CONFIG_KEYS = ["GWPolicy", "GWType", "VpcEndpointDNS", "VpcId"]
     if len(config):
         a = config[0]
         for kw in a.keys():
@@ -160,6 +211,16 @@ def ApiGWParameters_CreateOrUpdate(data, CloneSquadVersion=None, AccountId=None,
                     raise ValueError("Can't set API GW Endpoint to value '%s'! (valid values are %s)" % (a[kw], valid_endpoint_configurations))
             if kw == "GWPolicy" and len(a[kw]):
                 data["GWPolicy"] = get_policy_content(a[kw], AccountId, Region)
+            if kw == "VpcId":
+                endpoint = get_apigw_vpc_endpoint(a[kw], GroupName, Region)
+                if endpoint:
+                    data["VpcEndpointDNS"] = endpoint["DnsEntries"][0]["DnsName"]
+
+    if len(ApiGWEndpointConfiguration) == 0 and data["VpcEndpointDNS"] in ["", "None"]:
+        log.warning("When no 'ApiGWEndpointConfiguration' is defined, you should either specify 'VpcId' or "
+                "'VpcEndpointDNS' keywords in 'ApiGWParameters' to populate the 'ApiGwVpcEndpointDNSEntry' field of "
+                "the discovery API/Function.")
+        data["VpcEndpointDNS"] = ""
 
     log.info(Dbg.pprint(data["GWPolicy"]))
     data["EndpointConfiguration.Type"] = data["GWType"]
