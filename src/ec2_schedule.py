@@ -1662,8 +1662,10 @@ By default, the dashboard is enabled.
                             "Should have placed in 'draining' state up to %s instances..." % len(instances_to_stop))
                         continue
                     log.info(f"Draining instance(s) '{instance_ids}' from 'stopped' fleet '{subfleet}'...")
-                for instance_id in instance_ids:
-                    self.ec2.set_scaling_state(instance_id, "draining")
+                    for instance_id in instance_ids:
+                        self.ec2.set_scaling_state(instance_id, "draining")
+                    # Send an event to interested users
+                    R(None, self.drain_instances, DrainedInstanceIds=instance_ids)
 
             if expected_state == "running":
                 # Ensure that the right number of instances are started
