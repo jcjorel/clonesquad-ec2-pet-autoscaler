@@ -1655,7 +1655,8 @@ By default, the dashboard is enabled.
                 continue
 
             if expected_state == "stopped":
-                instance_ids = [i["InstanceId"] for i in fleet["ToStop"]]
+                instance_ids = [i["InstanceId"] for i in fleet["ToStop"] 
+                        if self.ec2.get_scaling_state(i["InstanceId"], do_not_return_excluded=True) != "draining"]
                 if len(instance_ids):
                     if self.ssm.is_feature_enabled("maintenance_window") and self.ssm.is_maintenance_time(fleet=subfleet):
                         log.info(f"Scale-in actions disabled during '{subfleet}' subfleet SSM Maintenance Window: "
