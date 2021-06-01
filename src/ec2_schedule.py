@@ -620,7 +620,7 @@ By default, the dashboard is enabled.
         be intercepted by users (through a Lambda function, a SNS or a SQS message).
         """
         transitions = []
-        for instance in self.instances_wo_excluded: 
+        for instance in self.all_instances: 
             instance_id    = instance["InstanceId"]
             previous_state = self.ec2.get_state("ec2.schedule.instance.last_known_state.%s" % instance_id)
             if previous_state is None: previous_state = "None"
@@ -1599,6 +1599,8 @@ By default, the dashboard is enabled.
                             log.info(f"Draining '{subfleet}' subfleet instance(s) '{instances_to_stop}'...")
                             for instance_id in instances_to_stop:
                                 self.ec2.set_scaling_state(instance_id, "draining")
+                            # Send an event to interested users
+                            R(None, self.drain_instances, DrainedInstanceIds=instances_to_stop)
         return (min_instance_count, desired_instance_count)
 
     def manage_subfleets(self):

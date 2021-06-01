@@ -1,3 +1,6 @@
+v0.20.2:
+- (Bug/Major) Events 'drain_instances' and 'instance_transitions' were not sent for subfleet instances (i.e. only send for main fleet ones).
+
 v0.20.1:
 - (Bug/Minor) Fixed semantic for PRIVATE APIGW deployment. It is now possible to propagate the VPCEndpoint to use through the Discovery Lambda by guessing it from VpcId parameter.
 Note: Compared to v0.20.0, only the CloudFormation custom resource used at deployment time is updated; Main/Interact/Discovery Lambdas are identitical.
