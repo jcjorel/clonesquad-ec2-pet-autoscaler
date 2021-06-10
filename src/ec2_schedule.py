@@ -1261,10 +1261,10 @@ By default, the dashboard is enabled.
                 if c == 0:
                     break
             # Send an event to interested users
-            R(None, self.drain_instances, DrainedInstanceIds=instance_ids_to_drain)
+            R(None, self.drain_instances, InstanceIds=instance_ids_to_drain, DrainedInstanceIds=instance_ids_to_drain)
         return True
 
-    def drain_instances(self, DrainedInstanceIds=None):
+    def drain_instances(self, InstanceIds=None, DrainedInstanceIds=None):
         return {}
 
     def is_instance_cpu_crediting_eligible(self, i):
@@ -1600,7 +1600,7 @@ By default, the dashboard is enabled.
                             for instance_id in instances_to_stop:
                                 self.ec2.set_scaling_state(instance_id, "draining")
                             # Send an event to interested users
-                            R(None, self.drain_instances, DrainedInstanceIds=instances_to_stop)
+                            R(None, self.drain_instances, InstanceIds=instances_to_stop, DrainedInstanceIds=instances_to_stop)
         return (min_instance_count, desired_instance_count)
 
     def manage_subfleets(self):
@@ -1666,7 +1666,7 @@ By default, the dashboard is enabled.
                     for instance_id in instance_ids:
                         self.ec2.set_scaling_state(instance_id, "draining")
                     # Send an event to interested users
-                    R(None, self.drain_instances, DrainedInstanceIds=instance_ids)
+                    R(None, self.drain_instances, InstanceIds=instance_ids, DrainedInstanceIds=instance_ids)
 
             if expected_state == "running":
                 # Ensure that the right number of instances are started

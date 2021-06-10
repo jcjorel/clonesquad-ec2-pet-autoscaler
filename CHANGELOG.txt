@@ -1,3 +1,6 @@
+v0.20.3:
+- (Bug/Minor) Event 'drain_instances' was using a non-intuitive 'DrainedInstanceIds' parameter. Now a more generic 'InstanceIds' is defined ('DrainedInstanceIds' still exists for backward compatibility and with the same value than 'InstanceIds')
+
 v0.20.2:
 - (Bug/Major) Events 'drain_instances' and 'instance_transitions' were not sent for subfleet instances (i.e. only send for main fleet ones).
 
