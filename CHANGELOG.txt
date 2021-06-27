@@ -1,3 +1,6 @@
+v0.20.4:
+- (Bug/Minor) Updated Python dependencies to latest versions (Fix GitHub Dependabot alert about urllib3 version <=1.26.5)
+
 v0.20.3:
 - (Bug/Minor) Event 'drain_instances' was using a non-intuitive 'DrainedInstanceIds' parameter. Now a more generic 'InstanceIds' is defined ('DrainedInstanceIds' still exists for backward compatibility and with the same value than 'InstanceIds')
 
