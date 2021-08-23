@@ -234,7 +234,11 @@ def put_url(url, value):
         key         = "/".join([p for p in key.split("/") if p != ""])
         client = boto3.client("s3")
         try:
-            response = client.put_object(Bucket=bucket, Key=key, Body=bytes(value,"utf-8"))
+            response = client.put_object(
+                    Bucket=bucket, 
+                    Key=key, 
+                    Body=bytes(value,"utf-8"),
+                    ACL="bucket-owner-full-control")
             return True
         except Exception as e:
             log.warning(f"Failed to put data to S3 url '{url}' : {e}")
@@ -313,7 +317,8 @@ def put_s3_object(s3path, content):
         response = client.put_object(
            Bucket=bucket,
            Key=key,
-           Body=bytes(content, "utf-8"))
+           Body=bytes(content, "utf-8"),
+           ACL="bucket-owner-full-control")
         return true
     except:
         return False

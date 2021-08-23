@@ -676,6 +676,7 @@ Resources:
                   - !GetAtt GeneralParameters.MetadataMaintenanceWindowsS3PathArn
                 Action:
                   - 's3:PutObject'
+                  - 's3:PutObjectAcl'
                   - 's3:CreateMultipartUpload'
               - Effect: Allow
                 Resource: 
