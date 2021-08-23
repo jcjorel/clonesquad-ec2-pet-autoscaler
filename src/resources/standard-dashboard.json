@@ -25,7 +25,7 @@
                 "stacked": false,
                 "region": "{AWS_DEFAULT_REGION}",
                 "period": {ec2.schedule.metrics.time_resolution},
-                "title": "Squad status",
+                "title": "Main fleet status",
                 "stat": "Average"
             }
         },
