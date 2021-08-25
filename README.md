@@ -32,7 +32,7 @@ and **per region** depending on your autoscaling needs.*
 	- (Optional) [Vertical scaling](docs/SCALING.md#vertical-scaling) (by leveraging *Spot'ness* and instance type distribution in the fleet),
 	- **Always-on Availability Zone instance balancing algorithm**,
 		* Ex: If multiple instances need to be running in a given fleet, CloneSquad will try to select instances evenly spread in different AZs.
-	- Automatic replacement of unhealthy/unavail/impaired instances,
+	- Automatic replacement of unhealthy/unavail/impaired instances (Replacement=stop of a faulty instance and start of a stopped instance),
 	- Support for [Maintenance Window and In-instance Event notifications with SSM (AWS System Manager)](docs/SSM.md)
 	- Support for 'persistent' [Spot instances](https://aws.amazon.com/ec2/spot/) aside of On-Demand ones in the same fleet with **configurable priorities and Spot Rebalance recommendation/interruption handling**,
 	- [Manual](docs/CONFIGURATION_REFERENCE.md#ec2azunavailable_list) or automatic instance eviction in case of an AWS Region outage affecting one or more AZs,
