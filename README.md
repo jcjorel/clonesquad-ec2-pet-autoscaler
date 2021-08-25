@@ -29,13 +29,13 @@ and **per region** depending on your autoscaling needs.*
 	- (Optional) One subfleet dedicated CloudWatch dashboard.
 
 * Characteristics shared by all kinds of fleet:
-	- (Optional) [Vertical scaling](docs/SCALING.md#vertical-scaling) (by leveraging *Spot'ness* and instance type distribution in the fleet),
 	- **Always-on Availability Zone instance balancing algorithm**,
 		* Ex: If multiple instances need to be running in a given fleet, CloneSquad will try to select instances evenly spread in different AZs.
 	- Automatic replacement of unhealthy/unavail/impaired instances (Replacement means stop of faulty instance(s) and start of a stopped instance(s)),
-	- Support for [Maintenance Window and In-instance Event notifications with SSM (AWS System Manager)](docs/SSM.md)
-	- Support for 'persistent' [Spot instances](https://aws.amazon.com/ec2/spot/) aside of On-Demand ones in the same fleet with **configurable priorities and Spot Rebalance recommendation/interruption handling**,
 	- [Manual](docs/CONFIGURATION_REFERENCE.md#ec2azunavailable_list) or automatic instance eviction in case of an AWS Region outage affecting one or more AZs,
+	- (Optional) [Vertical scaling](docs/SCALING.md#vertical-scaling) (by leveraging *Spot'ness* and instance type distribution in the fleet),
+	- (Optional) Support for [Maintenance Window and In-instance Event notifications with SSM (AWS System Manager)](docs/SSM.md)
+	- (Optional) Support for 'persistent' [Spot instances](https://aws.amazon.com/ec2/spot/) aside of On-Demand ones in the same fleet with **configurable priorities and Spot Rebalance recommendation/interruption handling**,
 	- (Optional) **Instance bouncing**: Frictionless fleet rebalancing and [AWS hypervisor maintenance](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/monitoring-instances-status-check_sched.html) by performing a permanent rolling state cycle (periodic start/stop of instances),
 	- (Optional) Smart management of *t[3|4].xxx* burstable instances (aka '[CPU Crediting mode](docs/COST_OPTIMIZATION.md#clonesquad-cpu-crediting)' to avoid overcost linked to [unlimited bursting](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/burstable-performance-instances-unlimited-mode.html)),
 	- Integrated [event scheduler](docs/SCHEDULER.md) ('cron' or 'rate' based) for complex scaling scenario,
