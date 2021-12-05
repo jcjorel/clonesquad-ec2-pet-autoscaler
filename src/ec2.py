@@ -106,8 +106,22 @@ forcing their immediate replacement in healthy AZs in the region.
                  "ec2.state.error_ttl" : "minutes=5",
                  "ec2.state.status_ttl" : "days=40",
                  "ec2.instance.control.ttl" : "hours=1",
-                 "ec2.instance.max_start_instance_at_once": "25",
-                 "ec2.instance.max_stop_instance_at_once": "25",
+                 "ec2.instance.max_start_instance_at_once,Stable": {
+                     "DefaultValue": "25",
+                     "Format": "Integer",
+                     "Description": """Define the maximum of instances that can be started in a specific fleet per Main Lambda execution.
+
+CloneSquad is designed to smoothly start and stop EC2 instances so, the default value limits the number of EC2 instances tant can be started in a single execution. In some some use-cases, for instance, users could need to start a very large amount of EC2 at once, so this value can be modified to fit this need.
+                     """
+                 },
+                 "ec2.instance.max_stop_instance_at_once,Stable": {
+                     "DefaultValue": "25",
+                     "Format": "Integer",
+                     "Description": """Define the maximum of instances that can be stopped in a specific fleet per Main Lambda execution.
+
+CloneSquad is designed to smoothly start and stop EC2 instances so, the default value limits the number of EC2 instances tant can be started in a single execution. In some some use-cases, for instance, users could need to start a very large amount of EC2 at once, so this value can be modified to fit this need.
+                     """
+                 },
                  "ec2.instance.spot.event.interrupted_at_ttl" : "minutes=10",
                  "ec2.instance.spot.event.rebalance_recommended_at_ttl" : "minutes=20",
                  "ec2.state.error_instance_ids": "",

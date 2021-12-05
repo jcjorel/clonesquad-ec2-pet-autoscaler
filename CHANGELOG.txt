@@ -1,3 +1,6 @@
+v0.21.0:
+- Made public existing private setting 'ec2.instance.max_start_instance_at_once' and 'ec2.instance.max_stop_instance_at_once'
+
 v0.20.5:
 - (Bug/Minor) Added ACL "bucket-owner-full-control" while doing S3 PutObject (enable Athena to query the "CMDB" Metadata in a multi-account environment)
 
