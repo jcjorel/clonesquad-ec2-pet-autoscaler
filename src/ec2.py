@@ -40,6 +40,8 @@ import misc
 import kvtable
 import config as Cfg
 import debug as Dbg
+from subfleet import get_subfleet_key
+from subfleet import get_subfleet_key_abs_or_percent
 from notify import record_call as R
 from notify import record_call_extended as R_xt
 
@@ -1010,6 +1012,13 @@ without any TargetGroup but another external health instance source exists).
 
     def get_instance_by_id(self, id):
         return next(filter(lambda instance: instance['InstanceId'] == id, self.instances), None)
+
+    def is_cpu_crediting_enabled_for_instance_fleet(self, i):
+        subfleet_name = self.get_subfleet_name_for_instance(i)
+        if subfleet_name is None:
+            return Cfg.get_abs_or_percent("ec2.schedule.burstable_instance.max_cpu_crediting_instances", 0, 100) > 0
+        else:
+            return get_subfleet_key_abs_or_percent( "ec2.schedule.burstable_instance.max_cpu_crediting_instances", subfleet_name, 0, 100) > 0
 
     def get_cpu_creditbalance(self, instance):
         """ Return the CPU Credit balance for the specified instance structure.

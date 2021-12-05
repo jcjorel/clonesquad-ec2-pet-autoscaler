@@ -1,4 +1,5 @@
 v0.21.0:
+- (Improvment/Major) CPU Crediting is now disabled by default in the Main fleet (like in subfleets) (See 'ec2.schedule.burstable_instance.max_cpu_crediting_instances')
 - (Improvment/Minor) Made public existing private setting 'ec2.instance.max_start_instance_at_once' and 'ec2.instance.max_stop_instance_at_once'
 - (Improvment/Minor) Updated Python dependencies to latest versions.
 

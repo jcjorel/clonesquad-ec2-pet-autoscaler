@@ -287,14 +287,16 @@ If an application takes a long time to be ready, it can be useful to increase th
                  """
                  },
                  "ec2.schedule.burstable_instance.max_cpu_crediting_instances,Stable" : {
-                     "DefaultValue" : "50%",
+                     "DefaultValue" : "0%",
                      "Format"       : "IntegerOrPercentage",
                      "Description"  : """Maximum number of instances that could be in the CPU crediting state at the same time.
+
+Note: CPU Crediting is disabled by default (0%)
 
 Setting this parameter to 100% could lead to fleet availability issues and so is not recommended. Under scaleout stress
 condition, CloneSquad will automatically stop and restart instances in CPU Crediting state but it may take time (up to 3 mins). 
                      
-    If you need to increase this value, it may mean that your burstable instance types are too 
+    If you need to set this value to more than 50%, it may mean that your burstable instance types are too 
     small for your workload. Consider upgrading instance types instead.
                      """
                  },
@@ -803,7 +805,6 @@ By default, the dashboard is enabled.
         :param threshold: A pourcentage of CPU Credit to consider the minimum required
         :return A list of instance structures
         """
-        #max_cpu_credit_unhealthy      = Cfg.get_int("ec2.schedule.burstable_instance.max_cpu_credit_unhealthy_instances")
         instances_exhausted = []
         for i in self.pending_running_instances: 
             if self.ec2.is_instance_excluded(i):
@@ -1270,6 +1271,9 @@ By default, the dashboard is enabled.
     def is_instance_cpu_crediting_eligible(self, i):
         """ Return a boolean if the specified instance is eligible to the CPU Crediting mechanism.
         """
+        if not self.ec2.is_cpu_crediting_enabled_for_instance_fleet(i): 
+            return False # No cpu crediting instances are possible in the instance fleet so instance not eligible
+
         instance_type = i["InstanceType"]
         if instance_type not in self.cpu_credits or instance_type.startswith("t2"):
             return False # Not a burstable or not eligible instance

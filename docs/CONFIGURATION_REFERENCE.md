@@ -423,15 +423,17 @@ is enabled, from an instance type distribution PoV.
 
 
 ### ec2.schedule.burstable_instance.max_cpu_crediting_instances
-Default Value: `50%`   
+Default Value: `0%`   
 Format       :  [IntegerOrPercentage](#IntegerOrPercentage)
 
 Maximum number of instances that could be in the CPU crediting state at the same time.
 
+Note: CPU Crediting is disabled by default (0%)
+
 Setting this parameter to 100% could lead to fleet availability issues and so is not recommended. Under scaleout stress
 condition, CloneSquad will automatically stop and restart instances in CPU Crediting state but it may take time (up to 3 mins). 
                      
-    If you need to increase this value, it may mean that your burstable instance types are too 
+    If you need to set this value to more than 50%, it may mean that your burstable instance types are too 
     small for your workload. Consider upgrading instance types instead.
                      
 
