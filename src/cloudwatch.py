@@ -246,7 +246,7 @@ See [Alarm specification documentation](ALARMS_REFERENCE.md)  for more details.
         cpu_credit_polling  = 0
         for i in burstable_instances:
             instance_id   = i["InstanceId"]
-            if self.ec2.is_cpu_crediting_enabled_for_instance_fleet(instance_id):
+            if not self.ec2.is_cpu_crediting_enabled_for_instance_fleet(instance_id):
                 continue
 
             if (now - i["LaunchTime"]).total_seconds() < instance_minimum_age_for_cpu_credit_polling:
