@@ -1,3 +1,6 @@
+v0.22.0:
+- (Improvment/Major) EC2 Spot rebalance_recommandation events are now ignored by default. They can be enabled again with new configuration key 'ec2.schedule.spot.recommended_event.disable'
+
 v0.21.1:
 - (Bug/Major) Fixed inverted logic in CPU Credit Cloudwatch metric polling
 

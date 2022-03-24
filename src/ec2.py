@@ -824,7 +824,7 @@ without any TargetGroup but another external health instance source exists).
         ref_azs = {} 
         for i in candidate_instances:
             az = i["Placement"]["AvailabilityZone"]
-            ref_azs[az] = 0 if "az" not in ref_azs else 0
+            ref_azs[az] = 0
         for i in ref_instances:
             if excluded_instance_ids is not None and i["InstanceId"] in excluded_instance_ids:
                 continue
@@ -1479,6 +1479,18 @@ def manage_spot_notification(sqs_record, ctx):
     ctx["o_state"].get_prerequisites()
     ctx["o_notify"].get_prerequisites()
     ctx["o_ec2"].get_prerequisites(only_if_not_already_done=True)
+
+    # Only managed Spot event targeting instances managed by the current CloneSquad deployment
+    managed_instance_ids = ctx["o_ec2"].get_instance_ids(ctx["o_ec2"].get_instances())
+    if instance_id not in managed_instance_ids:
+        log.log(log.NOTICE, f"EC2 Spot '{reason}' message ({instance_id}) received and ignored as "
+                "instance id is not part of managed fleet.")
+        return True
+
+    if reason == "rebalance_recommended" and Cfg.get_int("ec2.schedule.spot.recommended_event.disable"):
+        log.log(log.NOTICE, f"EC2 Spot 'rebalance_recommended' message ({instance_id}) received and ignored as "
+            "handling is disabled by 'ec2.schedule.spot.recommended_event.disable'=1")
+        return True
 
     log.info("EC2 Spot instance '%s' received event '%s'! " % (instance_id, reason))
     EC2.set_spot_event(ctx, instance_id, reason, now)

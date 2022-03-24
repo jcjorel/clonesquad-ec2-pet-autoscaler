@@ -638,6 +638,17 @@ the associated CloudWatch metrics can't react fast enough to inform the algorith
 
 
 
+### ec2.schedule.spot.recommended_event.disable
+Default Value: `1`   
+Format       :  [Bool](#Bool)
+
+Disable management of EC2 Spot 'rebalance_recommended' event.
+
+By default, CloneSquad ignores EC2 Spot 'rebalance_recommended' messages and reacts only to EC2 Spot 'interrupted'.
+                         
+
+
+
 ### ec2.schedule.start.warmup_delay
 Default Value: `minutes=3`   
 Format       :  [Duration](#Duration)

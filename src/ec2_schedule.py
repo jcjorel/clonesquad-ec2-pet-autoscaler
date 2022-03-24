@@ -54,6 +54,7 @@ import config as Cfg
 import debug as Dbg
 from subfleet import get_subfleet_key
 from subfleet import get_subfleet_key_abs_or_percent
+from ec2 import EC2
 
 from aws_xray_sdk.core import xray_recorder
 
@@ -341,6 +342,14 @@ When specified in percentage, 100% represents the ['Maximum earned credits than 
 A very recently stopped persistent Spot instance may not be restartable immediatly for AWS technical reasons. This 
 parameter is kept for backward compatibility. Since version 0.13, CloneSquad is able to manage automatically Spot instances
 that need a technical grace period so there should no need to set a value different of 0 for this parameter.
+                         """
+                 },
+                 "ec2.schedule.spot.recommended_event.disable,Stable": {
+                         "DefaultValue": "1",
+                         "Format"      : "Bool",
+                         "Description" : """Disable management of EC2 Spot 'rebalance_recommended' event.
+
+By default, CloneSquad ignores EC2 Spot 'rebalance_recommended' messages and reacts only to EC2 Spot 'interrupted'.
                          """
                  },
                  "cloudwatch.subfleet.use_dashboard,Stable": {
@@ -1103,7 +1112,7 @@ By default, the dashboard is enabled.
             - It filters out instances that are notified with Spot 'rebalance_recommended' and 'interrupted' status,
             - If any, it filters out instance type and AZ couples that are marked as unschedulable (see compute_spot_exclusion_lists()),
             - If 'ec2.schedule.spot.min_stop_period' is different than 0, recntly stopped Spot instances are filtered out,
-            - The latest action is to sort instances to ensure AZ fait balancing.
+            - The latest action is to sort instances to ensure AZ fair balancing.
 
         :param active_instances: A list of running instances that will be used to define the right instance balacing between AZs,
         :param stopped_instances: A list of stopped instances to sort and filter as starteable candidates.
@@ -1157,7 +1166,7 @@ By default, the dashboard is enabled.
         return stopped_instances
 
     def filter_running_instance_candidates(self, active_instances):
-        """ Return a list of stoppable instances in the autoscaled fleet.
+        """ Return a list of stoppable instances in the supplied instance list.
 
         :param active_instances: List of running instances to filter and sort as candidates for stop
         :return A list of stoppable instances
@@ -2014,9 +2023,8 @@ By default, the dashboard is enabled.
 
     def new_instances_marked_as_unuseable(self, InstanceIds=None):
         return {}
-        
 
-    
+
     ###############################################
     #### CORE SCALEUP/DOWN ALGORITHM ##############
     ###############################################
@@ -2182,7 +2190,8 @@ By default, the dashboard is enabled.
             return candidates
 
         # Sort instances according to vertical policy
-        vertical_sorted_instances  = self.verticalscaling_sort_instances(Cfg.get("ec2.schedule.verticalscale.instance_type_distribution"), candidates)
+        vertical_sorted_instances  = self.verticalscaling_sort_instances(
+                Cfg.get("ec2.schedule.verticalscale.instance_type_distribution"), candidates)
 
         lh_ids = self.get_lighthouse_instance_ids(candidates)
 
@@ -2899,6 +2908,9 @@ By default, the dashboard is enabled.
             if i["State"]["Name"] == "running":
                 self.ec2.set_scaling_state(instance_id, "draining")
                 log.info(f"Set 'draining' state for Spot interrupted instance '{instance_id}'.")
+            else:
+                # Remove the DynamoDB marker if the instance is no more in 'running' state
+                EC2.set_spot_event(self.context, instance_id, "interrupted", "")
 
         # Launch new instances when some Spot instances have been just 'recommended' or 'interrupted'
 

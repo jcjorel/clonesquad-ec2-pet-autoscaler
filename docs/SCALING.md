@@ -117,12 +117,13 @@ widget and you will only see 'draining' instances for a very long time in 'SubFl
 
 # About EC2 Spot instance support
 
-CloneSquad monitors Spot instance interruption and rebalance recommandation EC2 events. 
+CloneSquad monitors Spot instance interruption and rebalance recommandation EC2 events (rebalance recommandation events are ignored by default and must be enabled with [`ec2.schedule.spot.recommended_event.disable`](CONFIGURATION_REFERENCE.md#ec2schedulespotrecommended_eventdisable)): 
 * On 'rebalance recommendation' signal, signaled instances are considered as unhealthy and  
 new instances are launched to replace them. Notice that even unhealthy, signaled Spot instances are NOT removed from any participating
 TargetGroups. But, as any unhealthy instances, they will be drained and stopped after 15 minutes by default.
 * On 'interruption' signal, all signaled Spot instances are set immediatly to 'draining' state, drained from participating TargetGroups and replacement instances 
 are started immediatly. 
+
 
 > **It is advised to use Spot instances spread among multiple AZs as it is more unlikely to have Spot starvation at the same time in all region AZs.**
 
