@@ -638,6 +638,20 @@ the associated CloudWatch metrics can't react fast enough to inform the algorith
 
 
 
+### ec2.schedule.spot.min_stop_period_after_interruption
+Default Value: `hours=6`   
+Format       :  [Duration](#Duration)
+
+Minimum duration a Spot instance needs to spend in 'stopped' state after EC2 Spot Interrupted message is received.
+
+To avoid oscillatory behaviors, a Spot instance that received the 'EC2 Spot Interrupted' message will not restartable before expiration of the 
+delay defined by this key. This is to avoid CloneSquad restarting too soon a just interrupted spot that is likely to receive immediatly a
+new 'EC2 Spot Interrupted' message. By default, CloneSquad will wait 8 hours after the last received interrupted event before to attempt a
+restart.
+                         
+
+
+
 ### ec2.schedule.spot.recommended_event.disable
 Default Value: `1`   
 Format       :  [Bool](#Bool)

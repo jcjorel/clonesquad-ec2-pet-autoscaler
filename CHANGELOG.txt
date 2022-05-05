@@ -1,3 +1,6 @@
+v0.23.0:
+- (Improvment/Major) EC2 Spot interrupted instances are now NOT restartable via CloneSquad during 6 hours by default (delay controlled with new configuration key ec2.schedule.spot.min_stop_period_after_interruption). This prevents interrupted Spot instances to be stopped by EC2 Spot service and restarted too quickly by CS leading to possible oscillatory behaviors.
+
 v0.22.0:
 - (Improvment/Major) EC2 Spot rebalance_recommandation events are now ignored by default. They can be enabled again with new configuration key 'ec2.schedule.spot.recommended_event.disable'
 

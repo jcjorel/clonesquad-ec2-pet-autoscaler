@@ -335,13 +335,22 @@ When specified in percentage, 100% represents the ['Maximum earned credits than 
                  },
                  "ec2.schedule.metrics.time_resolution": "60",
                  "ec2.schedule.spot.min_stop_period": {
-                         "DefaultValue": "minutes=0",
+                         "DefaultValue": "minutes=3",
                          "Format"      : "Duration",
                          "Description" : """Minimum duration a Spot instance needs to spend in 'stopped' state before to allow a start.
 
-A very recently stopped persistent Spot instance may not be restartable immediatly for AWS technical reasons. This 
-parameter is kept for backward compatibility. Since version 0.13, CloneSquad is able to manage automatically Spot instances
-that need a technical grace period so there should no need to set a value different of 0 for this parameter.
+A very recently stopped persistent Spot instance is likely to be not restartable immediatly for AWS technical reasons (transient InvalidSpotInstanceState exception).
+                         """
+                 },
+                 "ec2.schedule.spot.min_stop_period_after_interruption,Stable": {
+                         "DefaultValue": "hours=6",
+                         "Format"      : "Duration",
+                         "Description" : """Minimum duration a Spot instance needs to spend in 'stopped' state after EC2 Spot Interrupted message is received.
+
+To avoid oscillatory behaviors, a Spot instance that received the 'EC2 Spot Interrupted' message will not restartable before expiration of the 
+delay defined by this key. This is to avoid CloneSquad restarting too soon a just interrupted spot that is likely to receive immediatly a
+new 'EC2 Spot Interrupted' message. By default, CloneSquad will wait 8 hours after the last received interrupted event before to attempt a
+restart.
                          """
                  },
                  "ec2.schedule.spot.recommended_event.disable,Stable": {
@@ -466,6 +475,7 @@ By default, the dashboard is enabled.
         self.cpu_credits          = yaml.safe_load(str(misc.get_url("internal:cpu-credits.yaml"),"utf-8"))
         self.ec2_alarmstate_table = kvtable.KVTable(self.context, self.context["AlarmStateEC2Table"])
         self.ec2_alarmstate_table.reread_table()
+        self.known_spot_advisories = self.ec2.get_state_json("ec2.schedule.instance.spot.known_spot_advisories", default={})
 
         # Garbage collect incorrect/unsync statuses (can happen when user stop the instance 
         #   directly on the AWS console)
@@ -1121,6 +1131,7 @@ By default, the dashboard is enabled.
         # Filter out instances that are not startable
         stopped_instances   = list(filter(lambda i: i["InstanceId"] not in self.unstartable_ids, stopped_instances))
         # Filter out Spot instance types that we know under interruption or close to interruption
+        stopped_instances   = self.filter_out_interrupted_spot(stopped_instances)
         candidate_instances = self.ec2.filter_spot_instances(stopped_instances, filter_out_instance_types=self.excluded_spot_instance_types)
         if len(candidate_instances) != len(stopped_instances):
             if len(candidate_instances):
@@ -2866,30 +2877,28 @@ By default, the dashboard is enabled.
         self.spot_excluded_instance_ids.extend(self.spot_rebalance_recommended_ids)
         self.spot_excluded_instance_ids.extend(self.spot_interrupted_ids)
 
-        # Uncomment this to enable blacklisting of all instances sharing the same type and AZ than the ones that received a Spot message.
-        #    TODO: Clarify if this strategy could render useful in real life and propose a toggle to activate it.
-        #
-        #for event_type in [self.spot_rebalance_recommended, self.spot_interrupted]:
-        #    for i in event_type:
-        #        instance_type  = i["InstanceType"]
-        #        instance_az    = i["Placement"]["AvailabilityZone"]
-        #        if instance_type not in self.excluded_spot_instance_types:
-        #            self.excluded_spot_instance_types.append({
-        #                "AvailabilityZone" : instance_az,
-        #                "InstanceType"     : instance_type
-        #                })
-        #if len(self.excluded_spot_instance_types):
-        #    log.warning("Some instance types (%s) are temporarily blacklisted for Spot use as marked as interrupted or close to interruption!" %
-        #            self.excluded_spot_instance_types)
-        # Gather all instance ids of interrupted Spot instances
-        #for i in self.ec2.filter_spot_instances(self.pending_running_instances, filter_in_instance_types=self.excluded_spot_instance_types, match_only_spot=True):
-        #    if i["InstanceId"] not in self.spot_excluded_instance_ids:
-        #        self.spot_excluded_instance_ids.append(i["InstanceId"])
-
         self.instances_wo_spotexcluded                = self.ec2.filter_spot_instances(self.all_instances, 
                 filter_out_instance_types=self.excluded_spot_instance_types)
         self.instances_wo_excluded_error_spotexcluded = self.ec2.get_instances(self.instances_wo_spotexcluded, ScalingState="-error,excluded") 
 
+    def filter_out_interrupted_spot(self, instances):
+        """ Filter out Spot instances from the supplied list that received 'Spot Interrupted' EC2 event recently.
+
+        """
+        min_stop_period_after_interruption = Cfg.get_duration_secs("ec2.schedule.spot.min_stop_period_after_interruption")
+        ins = []
+        for i in instances:
+            instance_id = i["InstanceId"]
+            if instance_id in self.known_spot_advisories and self.known_spot_advisories[instance_id]["state"] == "interrupted":
+                timestamp = self.known_spot_advisories[instance_id]["timeStamp"]
+                time_to_wait = min_stop_period_after_interruption - (misc.seconds_from_epoch_utc() - timestamp)
+                if time_to_wait > 0:
+                    log.log(log.NOTICE, f"Spot instance '{instance_id}' was interrupted by EC2 Spot and can not be started yet as it is "
+                            "still in the blacklist period defined by ec2.schedule.spot.min_stop_period_after_interruption (restartable "
+                            f"by CloneSquad in {time_to_wait} seconds).")
+                    continue
+            ins.append(i)
+        return ins
 
     def manage_spot_events(self):
         """ Manage the life cycle of Spot instances (both in Main fleet and subfleets).
@@ -2914,28 +2923,37 @@ By default, the dashboard is enabled.
 
         # Launch new instances when some Spot instances have been just 'recommended' or 'interrupted'
 
-        # Load state of what we know about former EC2 Spot processed messages
-        known_spot_advisories    = self.ec2.get_state_json("ec2.schedule.instance.spot.known_spot_advisories", default=None)
-        if known_spot_advisories is None:
-            known_spot_advisories = {}
+        # Starting with 0.23.0, the hash contains dict and no more str
+        for instance_id in self.known_spot_advisories:
+            if isinstance(self.known_spot_advisories[instance_id], str):
+                self.known_spot_advisories[instance_id] = {
+                    "state": self.known_spot_advisories[instance_id],
+                    "timeStamp": misc.seconds_from_epoch_utc()
+                    }
 
         subfleet_deltas          = defaultdict(int)
         instance_count_to_launch = 0
         for i in self.spot_rebalance_recommended:
             instance_id = i["InstanceId"]
-            if instance_id not in known_spot_advisories and instance_id not in self.spot_interrupted_ids:
+            if instance_id not in self.known_spot_advisories and instance_id not in self.spot_interrupted_ids:
                 log.info(f"Instance '{instance_id}' just got 'Spot rebalance recommended' message. Launch immediatly "
                     "a new instance to anticipate a possible interruption!")
-                known_spot_advisories[instance_id] = "recommended"
+                self.known_spot_advisories[instance_id] = {
+                        "state": "recommended",
+                        "timeStamp": misc.seconds_from_epoch_utc()
+                    }
                 if not self.ec2.is_subfleet_instance(instance_id):
                     instance_count_to_launch += 1
                 else:
                     subfleet_deltas[self.ec2.get_subfleet_name_for_instance(i)] += 1
         for i in self.spot_interrupted:
             instance_id = i["InstanceId"]
-            if instance_id not in known_spot_advisories or known_spot_advisories[instance_id] != "interrupted":
+            if instance_id not in self.known_spot_advisories or self.known_spot_advisories[instance_id]["state"] != "interrupted":
                 log.info(f"Instance '{instance_id}' just got 'Spot interrupted' message. Launch immediatly a new instance!")
-                known_spot_advisories[instance_id] = "interrupted"
+                self.known_spot_advisories[instance_id] = {
+                        "state": "interrupted",
+                        "timeStamp": misc.seconds_from_epoch_utc()
+                    }
                 if not self.ec2.is_subfleet_instance(instance_id):
                     instance_count_to_launch += 1
                 else:
@@ -2951,10 +2969,12 @@ By default, the dashboard is enabled.
             self.subfleet_action(subfleet, subfleet_deltas[subfleet])
 
         # Garbage collect old instance notifications
-        for i in list(known_spot_advisories.keys()):
+        min_stop_period_after_interruption = Cfg.get_duration_secs("ec2.schedule.spot.min_stop_period_after_interruption")
+        for i in self.known_spot_advisories:
             if i not in self.spot_rebalance_recommended_ids and i not in self.spot_interrupted_ids:
-                del known_spot_advisories[i]
+                if misc.seconds_from_epoch_utc() - self.known_spot_advisories[i]["timeStamp"] > min_stop_period_after_interruption:
+                    del self.known_spot_advisories[i]
 
         # Persist that we managed Spot events
-        self.ec2.set_state_json("ec2.schedule.instance.spot.known_spot_advisories", known_spot_advisories, TTL=self.state_ttl)
+        self.ec2.set_state_json("ec2.schedule.instance.spot.known_spot_advisories", self.known_spot_advisories, TTL=self.state_ttl)
 
