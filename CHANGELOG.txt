@@ -1,5 +1,5 @@
 
-v0.24:
+v0.24.1:
 - (Bug/Minor) When a subfleet is in state 'undefined' (or you did not specified a state explicitly), a warning was generated about CloudWatch metrics not currectly set. This bug had no functionnal impact but was generating noise in CloudWatch logs.
 - (Improvment/Minor) ec2.schedule.spot.min_stop_period_after_interruption default value set to 15 minutes (instead of 6 hours). Most of Spot interruptions do not last long so setting this value to a very high value by default is not relevant.
 - (Improvment/Minor) Updated all Python dependencies to latest versions.
