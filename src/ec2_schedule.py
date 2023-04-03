@@ -343,7 +343,7 @@ A very recently stopped persistent Spot instance is likely to be not restartable
                          """
                  },
                  "ec2.schedule.spot.min_stop_period_after_interruption,Stable": {
-                         "DefaultValue": "hours=6",
+                         "DefaultValue": "minutes=15",
                          "Format"      : "Duration",
                          "Description" : """Minimum duration a Spot instance needs to spend in 'stopped' state after EC2 Spot Interrupted message is received.
 
@@ -1670,31 +1670,32 @@ By default, the dashboard is enabled.
 
         # Manage start/stop of 'running' subfleet
         for subfleet in subfleets:
-            fleet                  = subfleets[subfleet]
-            expected_state         = fleet["expected_state"]
+            min_instance_count = desired_instance_count = 0
+            fleet              = subfleets[subfleet]
+            expected_state     = fleet["expected_state"]
             if expected_state in ["undefined", ""]:
                 log.info(f"/!\ Subfleet '{subfleet}' is in 'undefined' state. No subfleet scaling action will be performed until "
                     f"subfleet.{subfleet}.state is set to 'running'! (subfleet.{subfleet}.ec2.schedule.min_instance_count and "
                     f"subfleet.{subfleet}.ec2.schedule.desired_instance_count are ignored.)")
-                continue
+            else:
+                if expected_state == "stopped":
+                    instance_ids = [i["InstanceId"] for i in fleet["ToStop"] 
+                            if self.ec2.get_scaling_state(i["InstanceId"], do_not_return_excluded=True) != "draining"]
 
-            if expected_state == "stopped":
-                instance_ids = [i["InstanceId"] for i in fleet["ToStop"] 
-                        if self.ec2.get_scaling_state(i["InstanceId"], do_not_return_excluded=True) != "draining"]
-                if len(instance_ids):
-                    if self.ssm.is_feature_enabled("maintenance_window") and self.ssm.is_maintenance_time(fleet=subfleet):
-                        log.info(f"Scale-in actions disabled during '{subfleet}' subfleet SSM Maintenance Window: "
-                            "Should have placed in 'draining' state up to %s instances..." % len(instances_to_stop))
-                        continue
-                    log.info(f"Draining instance(s) '{instance_ids}' from 'stopped' fleet '{subfleet}'...")
-                    for instance_id in instance_ids:
-                        self.ec2.set_scaling_state(instance_id, "draining")
-                    # Send an event to interested users
-                    R(None, self.drain_instances, InstanceIds=instance_ids, DrainedInstanceIds=instance_ids)
+                    if len(instance_ids):
+                        if self.ssm.is_feature_enabled("maintenance_window") and self.ssm.is_maintenance_time(fleet=subfleet):
+                            log.info(f"Scale-in actions disabled during '{subfleet}' subfleet SSM Maintenance Window: "
+                                "Should have placed in 'draining' state up to %s instances..." % len(instances_to_stop))
+                        else:
+                            log.info(f"Draining instance(s) '{instance_ids}' from 'stopped' fleet '{subfleet}'...")
+                            for instance_id in instance_ids:
+                                self.ec2.set_scaling_state(instance_id, "draining")
+                            # Send an event to interested users
+                            R(None, self.drain_instances, InstanceIds=instance_ids, DrainedInstanceIds=instance_ids)
 
-            if expected_state == "running":
-                # Ensure that the right number of instances are started
-                min_instance_count, desired_instance_count = self.subfleet_action(subfleet, 0)
+                if expected_state == "running":
+                    # Ensure that the right number of instances are started
+                    min_instance_count, desired_instance_count = self.subfleet_action(subfleet, 0)
 
             # Publish subfleet metrics if requested
             dimensions = [{

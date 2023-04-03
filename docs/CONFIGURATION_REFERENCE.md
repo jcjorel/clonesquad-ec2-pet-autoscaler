@@ -639,7 +639,7 @@ the associated CloudWatch metrics can't react fast enough to inform the algorith
 
 
 ### ec2.schedule.spot.min_stop_period_after_interruption
-Default Value: `hours=6`   
+Default Value: `minutes=15`   
 Format       :  [Duration](#Duration)
 
 Minimum duration a Spot instance needs to spend in 'stopped' state after EC2 Spot Interrupted message is received.
