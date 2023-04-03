@@ -7,7 +7,7 @@ source ${CLONESQUAD_DIR}/scripts/_source-me.sh
 
 FLEET_SPECIFICATION=${FLEET_SPECIFICATION:-"t3.medium,Spot=True,Count=3;c5.large,Spot=True,Count=4;c5.large,Count=8;c5.xlarge,Count=5"}
 STATIC_FLEET_SPECIFICATION=${STATIC_FLEET_SPECIFICATION:-"t3.micro,Spot=True,Count=2,SubFleetName=MySubfleet1;t3.micro,Count=2,SubFleetName=MySubfleet1;t3.micro,Count=2,SubFleetName=MySubfleet2"}
-STATIC_FLEET_RDS_SPECIFICATION=${STATIC_FLEET_RDS_SPECIFICATION:-"aurora,Count=2,SubFleetName=MySubfleet3;mysql,Count=2,SubFleetName=MySubfleet1,Storage=10,DBClass=db.t3.micro"}
+STATIC_FLEET_RDS_SPECIFICATION=${STATIC_FLEET_RDS_SPECIFICATION:-"aurora-postgresql,Count=2,SubFleetName=MySubfleet3;mysql,Count=2,SubFleetName=MySubfleet1,Storage=10,DBClass=db.t3.micro"}
 
 demo_run_dir=${CLONESQUAD_PARAMETER_DIR}/demo/instance-fleet
 mkdir -p $demo_run_dir
