@@ -150,7 +150,13 @@ def seconds_from_epoch_utc(now=None):
     return int((now - epoch()).total_seconds())
 
 def seconds2utc(seconds):
-    return datetime.utcfromtimestamp(int(seconds)).replace(tzinfo=timezone.utc)
+    seconds= int(seconds)
+    if (seconds < 0):
+        seconds = 0
+    max_seconds = (datetime.max - datetime.utcfromtimestamp(0)).total_seconds() - 1
+    if (seconds > max_seconds):
+        seconds = max_seconds
+    return datetime.utcfromtimestamp(seconds).replace(tzinfo=timezone.utc)
 
 def str2utc(s, default=None):
     if isinstance(s, datetime):
