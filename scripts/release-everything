@@ -11,7 +11,6 @@ if [ -z "$BUILD_CONTEXT" ] || [ -z "$BUILD_S3_BUCKET" ] || [ -z "$BUILD_S3_PREFI
 	echo "Usage: $0 <build_parameters_dir> <build_S3_bucket> <build_S3_prefix> <version>" ; exit 1
 fi
 
-scripts/update-python-requirements
 scripts/devkit build
 
 git_status=$(git status | grep "nothing to commit, working tree clean" || true)
