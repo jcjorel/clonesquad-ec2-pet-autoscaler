@@ -17,13 +17,8 @@ ACTION=$1
 shift
 if [ "$ACTION" = "build" ] ; then
 	VERSION=${1:-latest}
-	if ! [ -d .venv ]; then
-		echo "Updating dependencies..."
-		scripts/update-python-requirements
-	fi
-	tools/cs-format-documentation docs/tpl/CONFIGURATION_REFERENCE.md >docs/CONFIGURATION_REFERENCE.md
 	export DOCKER_BUILDKIT=1
-	docker pull amazonlinux:2
+	docker pull amazonlinux:2023
 	docker build -t ${CLONESQUAD_DEVKIT_IMAGE}:$VERSION -t clonesquad/devkit:latest -f build/Dockerfile.devkit .
 	exit 0
 fi

@@ -1,16 +1,17 @@
-FROM amazonlinux:2
+FROM amazonlinux:2023
 MAINTAINER jeancharlesjorel@gmail.com
 
 # Force full rebuild on version change
 ADD VERSION.txt / 
 
 RUN yum upgrade -y && \
-    yum install git curl wget python3 jq shadow-utils sudo tar which procps-ng vim httpd-tools \
-	mtr iputils bind-utils time dialog uuid -y && \
+    yum install --allowerasing git curl wget python3 jq shadow-utils sudo tar which procps-ng vim httpd-tools \
+	iputils bind-utils time uuid vim -y && \
 	yum clean all && rm -rf /var/cache/yum
 RUN bash -c "curl https://bootstrap.pypa.io/get-pip.py | python3" && \
 	/usr/local/bin/pip3 install jinja2 awscli awscurl pythondialog && \
 	pip install aws-sam-cli aws-xray-sdk requests-iamauth crudini
+
 RUN groupadd -g 1000 ec2-user && adduser -u 1000 -g 1000 ec2-user
 ENV HOME=/home/ec2-user
 COPY build/bashrc /etc/bashrc.clonesquad
@@ -24,6 +25,13 @@ RUN mkdir -p ${CLONESQUAD_DIR} ${CLONESQUAD_PARAMETER_DIR} && \
 	chown -R ec2-user.ec2-user $CLONESQUAD_PARAMETER_DIR && \
 	ln -s ${CLONESQUAD_PARAMETER_DIR}/.bash_history ${HOME}/.bash_history
 
+# Compile and install dialog tool
+USER root
+WORKDIR /tmp
+RUN yum install -y m4 gcc ncurses-devel
+RUN wget https://invisible-island.net/datafiles/release/dialog.tar.gz && tar xvfz dialog.tar.gz && \
+	cd dialog-* && ./configure && make install && cd .. && rm -fr dialog*
+
 USER ec2-user
 ENV PATH="${PATH}:/clonesquad/scripts:/clonesquad/tools"
 WORKDIR ${CLONESQUAD_DIR}
@@ -31,5 +39,7 @@ ENV PYTHONPATH=${CLONESQUAD_DEPENDENCY_DIR}
 COPY build/clonesquad-paremeters-templates/ ${CLONESQUAD_PARAMETER_DIR}
 COPY --chown=ec2-user:ec2-user . .
 RUN ./scripts/update-python-requirements
-
+RUN pip install -r requirements.txt
+ENV PATH="/clonesquad/.venv/bin:${PATH}"
+RUN CLONESQUAD_NO_CLIENT_INIT=1 tools/cs-format-documentation docs/tpl/CONFIGURATION_REFERENCE.md >docs/CONFIGURATION_REFERENCE.md
 

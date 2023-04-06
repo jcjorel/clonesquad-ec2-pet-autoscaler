@@ -12,7 +12,7 @@ STATIC_FLEET_RDS_SPECIFICATION=${STATIC_FLEET_RDS_SPECIFICATION:-"aurora-postgre
 demo_run_dir=${CLONESQUAD_PARAMETER_DIR}/demo/instance-fleet
 mkdir -p $demo_run_dir
 TemplatefileName="$demo_run_dir/template-generated.yaml"
-./generate-env.py --specs $FLEET_SPECIFICATION --subfleet-specs $STATIC_FLEET_SPECIFICATION \
+${CLONESQUAD_DIR}/.venv/bin/python3 ./generate-env.py --specs $FLEET_SPECIFICATION --subfleet-specs $STATIC_FLEET_SPECIFICATION \
 	--subfleet-rds-specs $STATIC_FLEET_RDS_SPECIFICATION | tee $TemplatefileName
 
 aws cloudformation deploy  --template-file $TemplatefileName --stack-name "CS-Demo-TestEC2nRDSInstances-$GroupName$1" --capabilities CAPABILITY_IAM \

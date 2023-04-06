@@ -23,6 +23,7 @@ import config
 import yaml
 import re
 
+os.environ["GroupName"] = "Dummy"
 import app
 
 parser = argparse.ArgumentParser(description="CloneSquad configuration documentation generator")

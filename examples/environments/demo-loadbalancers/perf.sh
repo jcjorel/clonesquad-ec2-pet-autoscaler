@@ -7,4 +7,4 @@ if [ -z "$1" ]; then
 fi
 URL=$1
 ITERATIONS=${ITERATIONS:-100000}
-./load-generator.py http://${URL}/cgi-bin/cpu?$ITERATIONS
+${CLONESQUAD_DIR}/.venv/bin/python3 ./load-generator.py http://${URL}/cgi-bin/cpu?$ITERATIONS

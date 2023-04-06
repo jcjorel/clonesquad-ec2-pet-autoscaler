@@ -80,8 +80,9 @@ if misc.is_sam_local() or __name__ == '__main__':
         print("%s=%s" % (env, os.environ[env]))
 
 # Avoid client initialization time during event processsing
-misc.initialize_clients(["ec2", "cloudwatch", "events", "sqs", "sns", "dynamodb",  "ssm", "lambda",
-    "elbv2", "rds", "resourcegroupstaggingapi", "transfer", "organizations"], ctx)
+if ctx.get("CLONESQUAD_NO_CLIENT_INIT", "0") == "0":
+    misc.initialize_clients(["ec2", "cloudwatch", "events", "sqs", "sns", "dynamodb",  "ssm", "lambda",
+        "elbv2", "rds", "resourcegroupstaggingapi", "transfer", "organizations"], ctx)
 log.debug("End of preambule.")
 
 @xray_recorder.capture(name="app.init")

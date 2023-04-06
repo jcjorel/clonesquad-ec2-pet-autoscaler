@@ -1,4 +1,8 @@
 
+v0.25.0:
+- (Major) Upgraded Python Lambda runtime from Python 3.7 to Python 3.9.
+- (Minor) Switched from Amazon Linux 2 to Amazon Linux 2023 for DevKit base image.
+
 v0.24.1:
 - (Bug/Minor) When a subfleet is in state 'undefined' (or you did not specified a state explicitly), a warning was generated about CloudWatch metrics not currectly set. This bug had no functionnal impact but was generating noise in CloudWatch logs.
 - (Improvment/Minor) ec2.schedule.spot.min_stop_period_after_interruption default value set to 15 minutes (instead of 6 hours). Most of Spot interruptions do not last long so setting this value to a very high value by default is not relevant.
