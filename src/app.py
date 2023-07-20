@@ -189,10 +189,10 @@ def main_handler_entrypoint(event, context):
         ctx["main.last_call_date"] = str(misc.epoch())
 
     if not no_is_called_too_early and is_called_too_early():
-        log.log(log.NOTICE, "Called too early by: %s" % event)
+        if f"{event}" != "{}":
+            log.log(log.NOTICE, "Called too early by: %s" % event)
         notify.do_not_notify = True
         sqs.process_sqs_records(ctx, event)
-        sqs.call_me_back_send()
         return
     log.info("New instance scheduling period (version=%s)." % (ctx.get("CloneSquadVersion")))
 
@@ -239,9 +239,6 @@ def main_handler_entrypoint(event, context):
     # Send all pending SSM commands
     ctx["o_ssm"].send_commands()
 
-    # Call me back if needed
-    sqs.call_me_back_send()
-
     # DEBUG (Stop immedialty all faulty instances)
     #issues = ctx["o_ec2_schedule"].get_instances_with_issues()
     #if False and len(issues):
@@ -285,8 +282,6 @@ def sns_handler(event, context):
     # Persist all aggregated data
     KVTable.persist_aggregates()
 
-    # Call me back if needed
-    call_me_back_send()
     log.log(log.NOTICE, "Normal end.")
 
     return r

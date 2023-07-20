@@ -1094,6 +1094,136 @@ Resources:
                 Principal: "events.amazonaws.com"
                 SourceArn: !Sub "arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:rule/CS-Cron-${GroupName}-*"
 
+    StatesExecutionRole:
+      Type: "AWS::IAM::Role"
+      Properties:
+        RoleName: !Sub "CloneSquad-${GroupName}-StateMachineRole-${AWS::Region}"
+        PermissionsBoundary: !If [HasPermissionsBoundary, !Ref PermissionsBoundary, !Ref "AWS::NoValue"]
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: "Allow"
+              Principal:
+                Service:
+                  - !Sub states.${AWS::Region}.amazonaws.com
+                  - !Sub states.amazonaws.com
+              Action: "sts:AssumeRole"
+        Path: "/"
+        Policies:
+          - PolicyName: !Sub "CloneSquad-${GroupName}-StatesExecutionPolicy-${AWS::Region}"
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - "lambda:InvokeFunction"
+                  Resource: 
+                    - !GetAtt MainFunction.Arn
+        Tags: 
+          - Key: "clonesquad:group-name"
+            Value: !Ref GroupName
+
+    CloneSquadTimerStateMachine:
+      Type: "AWS::StepFunctions::StateMachine"
+      Properties:
+        DefinitionString:
+          !Sub
+            - |-
+              {
+                "Comment": "Periodic timer to call MainFunction lambda (every 10 seconds)",
+                "StartAt": "Pass",
+                "States": {
+                  "Pass": {
+                    "Type": "Pass",
+                    "Next": "Map",
+                    "Result": [{}, {}, {}, {}, {}]
+                  },
+                  "Map": {
+                    "Type": "Map",
+                    "ItemProcessor": {
+                      "ProcessorConfig": {
+                        "Mode": "INLINE"
+                      },
+                      "StartAt": "Wait",
+                      "States": {
+                        "Wait": {
+                          "Type": "Wait",
+                          "Seconds": 10,
+                          "Next": "Lambda Invoke"
+                        },
+                        "Lambda Invoke": {
+                          "Type": "Task",
+                          "Resource": "arn:aws:states:::lambda:invoke",
+                          "OutputPath": "$.Payload",
+                          "Parameters": {
+                            "Payload.$": "$",
+                            "FunctionName": "${lambdaArn}"
+                          },
+                          "Retry": [
+                            {
+                              "ErrorEquals": [
+                                "Lambda.ServiceException",
+                                "Lambda.AWSLambdaException",
+                                "Lambda.SdkClientException",
+                                "Lambda.TooManyRequestsException"
+                              ],
+                              "IntervalSeconds": 2,
+                              "MaxAttempts": 6,
+                              "BackoffRate": 2
+                            }
+                          ],
+                          "End": true
+                        }
+                      }
+                    },
+                    "End": true,
+                    "MaxConcurrency": 1
+                  }
+                }
+              }
+            - {lambdaArn: !GetAtt MainFunction.Arn}
+        StateMachineType: EXPRESS
+        RoleArn: !GetAtt StatesExecutionRole.Arn
+        Tags: 
+          - Key: "clonesquad:group-name"
+            Value: !Ref GroupName
+
+    EventsRuleRole:
+      Type: AWS::IAM::Role
+      DeletionPolicy: Delete
+      Properties:
+        RoleName: !Sub "CloneSquad-${GroupName}-EventBridgeRole-${AWS::Region}"
+        PermissionsBoundary: !If [HasPermissionsBoundary, !Ref PermissionsBoundary, !Ref "AWS::NoValue"]
+        AssumeRolePolicyDocument:
+          Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: sts:AssumeRole
+              Principal:
+                Service: events.amazonaws.com
+        Policies:
+          - PolicyName: !Sub "CloneSquad-${GroupName}-EventBridgeExecutionPolicy-${AWS::Region}"
+            PolicyDocument:
+              Version: 2012-10-17
+              Statement:
+                - Effect: Allow
+                  Action: states:StartExecution
+                  Resource: !Ref CloneSquadTimerStateMachine
+        Tags: 
+          - Key: "clonesquad:group-name"
+            Value: !Ref GroupName
+
+    CloneSquadEventBridgeRule:
+      Type: AWS::Events::Rule
+      Properties: 
+        Name: !Sub "CloneSquad-${GroupName}-StateMachinePeriodicRule-${AWS::Region}"
+        ScheduleExpression: rate(1 minute)
+        State: ENABLED
+        Targets: 
+          - Arn: !GetAtt CloneSquadTimerStateMachine.Arn
+            Id: !Sub "CloneSquadTSM${GroupName}"
+            RoleArn: !GetAtt EventsRuleRole.Arn
+
 Outputs:
   MainFunction:
     Description: "MainFunction Lambda Function ARN"
