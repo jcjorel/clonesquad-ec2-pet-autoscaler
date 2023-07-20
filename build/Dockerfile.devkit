@@ -5,7 +5,8 @@ MAINTAINER jeancharlesjorel@gmail.com
 ADD VERSION.txt / 
 
 RUN yum upgrade -y && \
-    yum install --allowerasing git curl wget python3 jq shadow-utils sudo tar which procps-ng vim httpd-tools \
+    yum install -y python3.11.x86_64 && \
+    yum install --allowerasing git curl wget jq shadow-utils sudo tar which procps-ng vim httpd-tools \
 	iputils bind-utils time uuid vim -y && \
 	yum clean all && rm -rf /var/cache/yum
 RUN bash -c "curl https://bootstrap.pypa.io/get-pip.py | python3" && \
