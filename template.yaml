@@ -1110,7 +1110,7 @@ Resources:
               Action: "sts:AssumeRole"
         Path: "/"
         Policies:
-          - PolicyName: !Sub "CloneSquad-${GroupName}-StatesExecutionPolicy-${AWS::Region}"
+          - PolicyName: !Sub "CloneSquad-${GroupName}-StatesExecutionPolicy-Lambda-${AWS::Region}"
             PolicyDocument:
               Version: "2012-10-17"
               Statement:
@@ -1119,9 +1119,32 @@ Resources:
                     - "lambda:InvokeFunction"
                   Resource: 
                     - !GetAtt MainFunction.Arn
+          - PolicyName: !Sub "CloneSquad-${GroupName}-StatesExecutionPolicy-Logging-${AWS::Region}"
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement: 
+                - Effect: Allow
+                  Action: 
+                    - "logs:CreateLogDelivery"
+                    - "logs:CreateLogStream"
+                    - "logs:GetLogDelivery"
+                    - "logs:UpdateLogDelivery"
+                    - "logs:DeleteLogDelivery"
+                    - "logs:ListLogDeliveries"
+                    - "logs:PutLogEvents"
+                    - "logs:PutResourcePolicy"
+                    - "logs:DescribeResourcePolicies"
+                    - "logs:DescribeLogGroups"
+                  Resource: "*"
         Tags: 
           - Key: "clonesquad:group-name"
             Value: !Ref GroupName
+
+    StateMachineLogGroup:
+            Type: "AWS::Logs::LogGroup"
+            Properties:
+              LogGroupName: !Sub "/aws/lambda/CloneSquad-StepFunctions-${GroupName}"
+              RetentionInDays: !Ref LogRetentionDuration
 
     CloneSquadTimerStateMachine:
       Type: "AWS::StepFunctions::StateMachine"
@@ -1183,6 +1206,12 @@ Resources:
               }
             - {lambdaArn: !GetAtt MainFunction.Arn}
         StateMachineType: EXPRESS
+        LoggingConfiguration:
+          IncludeExecutionData: False
+          Level: ALL
+          Destinations:
+            - CloudWatchLogsLogGroup: 
+                LogGroupArn: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/CloneSquad-StepFunctions-${GroupName}:*"
         RoleArn: !GetAtt StatesExecutionRole.Arn
         Tags: 
           - Key: "clonesquad:group-name"
