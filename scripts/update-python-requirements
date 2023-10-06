@@ -6,7 +6,7 @@ fi
 
 cd ${CLONESQUAD_DIR}
 rm -fr .venv
-python3 -m venv .venv 
+python3.11 -m venv .venv 
 if [ "$1" == "--upgrade-to-latest-dependency-versions" ]; then
 	.venv/bin/pip install --upgrade pip && \
 	.venv/bin/pip install --upgrade -r requirements.txt && \

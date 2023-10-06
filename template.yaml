@@ -489,9 +489,9 @@ Resources:
             Properties:
               LayerName: !Sub "CloneSquad-Dependencies-Layer-${GroupName}"
               Description: "Binary dependency artifact for 'Main' CloneSquad layer"
-              ContentUri: .venv/lib/python3.9/
+              ContentUri: .venv/lib/python3.11/
               CompatibleRuntimes:
-                  - python3.9
+                  - python3.11
 
 
     CloneSquadLayer:
@@ -501,7 +501,7 @@ Resources:
               Description: "Binary artifact for CloneSquad functions"
               ContentUri: src/
               CompatibleRuntimes:
-                  - python3.9
+                  - python3.11
               LicenseInfo: 'MIT'
 
     SSMLogGroup:
@@ -539,7 +539,7 @@ Resources:
             Properties:
               PermissionsBoundary: !If [HasPermissionsBoundary, !Ref PermissionsBoundary, !Ref "AWS::NoValue"]
               Handler: customresource.handler
-              Runtime: python3.9
+              Runtime: python3.11
               CodeUri: custo/
               Layers:
                   - !Ref CloneSquadLayer
@@ -759,7 +759,7 @@ Resources:
             Properties:
               PermissionsBoundary: !If [HasPermissionsBoundary, !Ref PermissionsBoundary, !Ref "AWS::NoValue"]
               Handler: app.main_handler
-              Runtime: python3.9
+              Runtime: python3.11
               CodeUri: custo/
               Layers:
                   - !Ref CloneSquadLayer
@@ -847,7 +847,7 @@ Resources:
             Properties:
               PermissionsBoundary: !If [HasPermissionsBoundary, !Ref PermissionsBoundary, !Ref "AWS::NoValue"]
               Handler: app.sns_handler
-              Runtime: python3.9
+              Runtime: python3.11
               CodeUri: custo/
               Layers:
                   - !Ref CloneSquadLayer
@@ -902,7 +902,7 @@ Resources:
             Properties:
               PermissionsBoundary: !If [HasPermissionsBoundary, !Ref PermissionsBoundary, !Ref "AWS::NoValue"]
               Handler: app.discovery_handler
-              Runtime: python3.9
+              Runtime: python3.11
               CodeUri: custo/
               Layers:
                   - !Ref CloneSquadLayer
@@ -965,7 +965,7 @@ Resources:
             Properties:
               PermissionsBoundary: !If [HasPermissionsBoundary, !Ref PermissionsBoundary, !Ref "AWS::NoValue"]
               Handler: app.interact_handler
-              Runtime: python3.9
+              Runtime: python3.11
               CodeUri: custo/
               Layers:
                   - !Ref CloneSquadLayer

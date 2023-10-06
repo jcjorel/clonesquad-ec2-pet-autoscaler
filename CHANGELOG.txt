@@ -1,3 +1,6 @@
+v0.27.0:
+- (Major) Upgrade Lambda Python runtime to 3.11 (Note: only marginal performance improvments expected as CloneSquad is spending lots of time calling AWS APIs). Upgraded Python dependencies to latest versions.
+
 v0.26.0:
 - (Major) Use of Step Functions to periodically call the Main function instead of SQS Delayed message callback. Due to new AWS policy regarding Lambda recursive loops, the former method (SQS delayed message) to do this schedule is detected as an issue and requires to contact AWS support for each CloneSquad deployment of previous versions to make it work correctly. With Step Functions method, the Main function is called every 10 seconds and perform a validation if it is time to execute (in conformance to the 'app.run_period' setting). (See https://aws.amazon.com/blogs/compute/detecting-and-stopping-recursive-loops-in-aws-lambda-functions/ for more information about Lambda recursive loop detection).
 - (Minor) Updated Python dependencies to latest versions.
