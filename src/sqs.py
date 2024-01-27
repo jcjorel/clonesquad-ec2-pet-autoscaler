@@ -36,6 +36,30 @@ def next_call_delay():
     return max(int(delta), 0)
 
 @xray_recorder.capture()
+def call_me_back_send(delay=None):
+    delay  = delay if delay is not None else max(next_call_delay() + 1, 2)
+    client = ctx["sqs.client"]
+
+    log.log(log.NOTICE, "Sending SQS 'CallMeBack' message (delay=%d) to Main lambda queue: %s" % (delay, ctx["MainSQSQueue"]))
+    if (misc.is_sam_local()):
+        log.debug("Should have sent a call_me_back()")
+        return
+
+    caller_function = inspect.currentframe().f_back
+    while caller_function.f_code.co_name in ["record_subsegment", "__call__"]: # Skip X-Ray wrappers
+        caller_function = caller_function.f_back 
+
+    response = client.send_message(
+                QueueUrl=ctx["MainSQSQueue"],
+                DelaySeconds=int(delay),
+                MessageBody=json.dumps({
+                    "SQSHeartBeat": { 
+                        "Reason": "NEED_UPDATE",
+                        "CallerFunction": caller_function.f_code.co_name,
+                        "LambdaFunction": ctx["FunctionName"]
+                    }}))
+
+@xray_recorder.capture()
 def read_all_sqs_messages():
     messages   = []
     sqs_client = ctx["sqs.client"]

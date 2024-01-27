@@ -1,6 +1,7 @@
 v0.27.1:
 - (Bug/Major) Fixed python exception in some Spot interruption situations. 
 - (Bug/Major) Do not launch a new instance on Spot interruption if it is in a fleet in undefined state.
+- (Bug/Major) Fixed breaking change introduced in v0.26.0 leading to API "control/reschedulenow" not working anymore.
 - (Improvment/Minor) Updated all Python dependencies to latest versions.
 
 v0.27.0:
