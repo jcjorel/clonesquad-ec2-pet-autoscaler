@@ -685,6 +685,18 @@ By default, the dashboard is enabled.
             meta["Message"] = "Main fleet scaling enabled."
         return True
 
+    def is_subfleet_enabled(self, subfleet_name, meta=None):
+        expected_state = get_subfleet_key("state", subfleet_name, none_on_failure=True)
+        allowed_expected_states = ["running", "stopped", "undefined", ""]
+        if expected_state not in allowed_expected_states:
+            if meta is not None:
+                meta["Message"] = "Expected state '%s' for subfleet '%s' is not valid : (not in %s!)" % (expected_state, subfleet_name, allowed_expected_states)
+                meta["StateIsValid"] = False
+            return False
+        if meta is not None:
+            meta["StateIsValid"] = True
+        return expected_state in ["running", "stopped"]
+
     def get_min_instance_count(self):
         """ Return the minimum instance count linked to 'ec2.schedule.min_instance_count'.
         Especially, it converts percentage into an absolute number.
@@ -1646,9 +1658,11 @@ By default, the dashboard is enabled.
                 continue
             log.debug("Manage subfleet instance '%s': subfleet_name=%s, expected_state=%s" % (instance_id, subfleet_name, expected_state))
 
-            allowed_expected_states = ["running", "stopped", "undefined", ""]
-            if expected_state not in allowed_expected_states:
-                log.warning("Expected state '%s' for subfleet '%s' is not valid : (not in %s!)" % (expected_state, subfleet_name, allowed_expected_states))
+            meta = {}
+            self.is_subfleet_enabled(subfleet_name, meta)
+            if not meta["StateIsValid"]:
+                # Config state parse error
+                log.warning(meta["Message"])
                 continue
 
             if subfleet_name not in subfleets:
@@ -1673,7 +1687,7 @@ By default, the dashboard is enabled.
             min_instance_count = desired_instance_count = 0
             fleet              = subfleets[subfleet]
             expected_state     = fleet["expected_state"]
-            if expected_state in ["undefined", ""]:
+            if not self.is_subfleet_enabled(subfleet): #expected_state in ["undefined", ""]:
                 log.info(f"/!\ Subfleet '{subfleet}' is in 'undefined' state. No subfleet scaling action will be performed until "
                     f"subfleet.{subfleet}.state is set to 'running'! (subfleet.{subfleet}.ec2.schedule.min_instance_count and "
                     f"subfleet.{subfleet}.ec2.schedule.desired_instance_count are ignored.)")
@@ -2937,28 +2951,37 @@ By default, the dashboard is enabled.
         for i in self.spot_rebalance_recommended:
             instance_id = i["InstanceId"]
             if instance_id not in self.known_spot_advisories and instance_id not in self.spot_interrupted_ids:
-                log.info(f"Instance '{instance_id}' just got 'Spot rebalance recommended' message. Launch immediatly "
-                    "a new instance to anticipate a possible interruption!")
+                log.info(f"Instance '{instance_id}' just got 'Spot rebalance recommended' message.")
                 self.known_spot_advisories[instance_id] = {
                         "state": "recommended",
                         "timeStamp": misc.seconds_from_epoch_utc()
                     }
                 if not self.ec2.is_subfleet_instance(instance_id):
-                    instance_count_to_launch += 1
+                    if self.is_mainfleet_enabled():
+                        log.info(f"Launch immediatly a new instance in main fleet to anticipate a possible interruption!")
+                        instance_count_to_launch += 1
                 else:
-                    subfleet_deltas[self.ec2.get_subfleet_name_for_instance(i)] += 1
+                    subfleet_name = self.ec2.get_subfleet_name_for_instance(i)
+                    if self.is_subfleet_enabled(subfleet_name):
+                        log.info(f"Launch immediatly a new instance in subfleet '{subfleet_name}' to anticipate a possible interruption!")
+                        subfleet_deltas[subfleet_name] += 1
         for i in self.spot_interrupted:
             instance_id = i["InstanceId"]
             if instance_id not in self.known_spot_advisories or self.known_spot_advisories[instance_id]["state"] != "interrupted":
-                log.info(f"Instance '{instance_id}' just got 'Spot interrupted' message. Launch immediatly a new instance!")
+                log.info(f"Instance '{instance_id}' just got 'Spot interrupted' message.")
                 self.known_spot_advisories[instance_id] = {
                         "state": "interrupted",
                         "timeStamp": misc.seconds_from_epoch_utc()
                     }
                 if not self.ec2.is_subfleet_instance(instance_id):
-                    instance_count_to_launch += 1
+                    if self.is_mainfleet_enabled():
+                        log.info(f"Launch immediatly a new instance in main fleet!")
+                        instance_count_to_launch += 1
                 else:
-                    subfleet_deltas[self.ec2.get_subfleet_name_for_instance(i)] += 1
+                    subfleet_name = self.ec2.get_subfleet_name_for_instance(i)
+                    if self.is_subfleet_enabled(subfleet_name):
+                        log.info(f"Launch immediatly a new instance in subfleet '{subfleet_name}'!")
+                        subfleet_deltas[subfleet_name] += 1
 
         if instance_count_to_launch:
             # Launch needed instances in the Main fleet
@@ -2971,7 +2994,8 @@ By default, the dashboard is enabled.
 
         # Garbage collect old instance notifications
         min_stop_period_after_interruption = Cfg.get_duration_secs("ec2.schedule.spot.min_stop_period_after_interruption")
-        for i in self.known_spot_advisories:
+        known_spot_advisories = self.known_spot_advisories.copy()
+        for i in known_spot_advisories:
             if i not in self.spot_rebalance_recommended_ids and i not in self.spot_interrupted_ids:
                 if misc.seconds_from_epoch_utc() - self.known_spot_advisories[i]["timeStamp"] > min_stop_period_after_interruption:
                     del self.known_spot_advisories[i]
