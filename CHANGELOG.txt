@@ -1,6 +1,7 @@
 v0.27.1:
-- (Major) Fixed python exception in some Spot interruption situations. 
-- (Major) Do not launch a new instance on Spot interruption if it is in a fleet in undefined state.
+- (Bug/Major) Fixed python exception in some Spot interruption situations. 
+- (Bug/Major) Do not launch a new instance on Spot interruption if it is in a fleet in undefined state.
+- (Improvment/Minor) Updated all Python dependencies to latest versions.
 
 v0.27.0:
 - (Major) Upgrade Lambda Python runtime to 3.11 (Note: only marginal performance improvments expected as CloneSquad is spending lots of time calling AWS APIs). Upgraded Python dependencies to latest versions.
